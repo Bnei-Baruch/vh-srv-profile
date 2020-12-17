@@ -7,6 +7,7 @@ import (
 	"github.com/joho/godotenv"
 	"gitlab.bbdev.team/vh/vh-srv-profile/app"
 	"gitlab.bbdev.team/vh/vh-srv-profile/config"
+	"gitlab.bbdev.team/vh/vh-srv-profile/models"
 )
 
 func init() {
@@ -16,6 +17,8 @@ func init() {
 	}
 
 	app.Config = config.New()
+
+	models.OpenDBConnection()
 }
 
 func main() {
@@ -27,6 +30,18 @@ func main() {
 	}
 
 	server := gin.Default()
+
+	api := server.Group("/v1")
+	{
+		api.GET("/signin", Account.Activate)
+		api.GET("/signup", Account.Activate)
+
+		api.GET("/profile/personal", Account.Activate)
+		api.GET("/profile/framework", Account.Activate)
+		api.GET("/profile/ten", Account.Activate)
+		api.GET("/profile/skills", Account.Activate)
+		api.GET("/profile/notification", Account.Activate)
+	}
 
 	server.Run(":" + app.Config.AppPort)
 
