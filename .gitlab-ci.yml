@@ -30,7 +30,7 @@ deploy:
     - ssh -i $ID_RSA -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY"
     - ssh -i $ID_RSA -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "docker pull $IMAGE"
     - ssh -i $ID_RSA -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "docker container rm -f vh-srv-profile || true"
-    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "docker run -d --net=vh --name vh-srv-profile --memory="200m" --cpus="0.5" --restart always -p 7471 $IMAGE "
+    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "docker run -d --net=vh --name vh-srv-profile --memory="200m" --cpus="0.5" --restart always -p 7471:7471 $IMAGE "
   environment:
     name: development
     url: http://51.15.238.1
