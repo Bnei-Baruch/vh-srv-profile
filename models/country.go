@@ -18,5 +18,5 @@ type Country struct {
 type CountryInfo struct {
 	tableName struct{}    `pg:"countries"`
 	ID        uint64      `json:"id" pg:",pk"`
-	Name      interface{} `json:"name" pg:",jsonb"`
+	Name      interface{} `json:"name"`
 }

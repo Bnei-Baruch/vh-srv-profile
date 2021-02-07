@@ -58,6 +58,7 @@ func main() {
 		api.POST("/profile/login", controllers.ProfileLogin)
 		api.POST("/profile/update", controllers.ProfileUpdate)
 		api.POST("/profile/update/login", controllers.ProfileUpdateLogin)
+		api.GET("/profiles", controllers.Profiles)
 	}
 
 	server.Run(":" + app.Config.AppPort)

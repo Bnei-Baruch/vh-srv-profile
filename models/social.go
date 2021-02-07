@@ -6,8 +6,8 @@ import "time"
 type Social struct {
 	tableName struct{}  `sql:"socials"`
 	ID        uint64    `json:"id" pg:",pk"`
-	Created   time.Time `json:"created"`
-	Updated   time.Time `json:"updated"`
+	Created   time.Time `json:"-"`
+	Updated   time.Time `json:"-"`
 	Active    bool      `json:"active" `
 	Name      string    `json:"name"`
 }

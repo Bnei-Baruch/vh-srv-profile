@@ -9,30 +9,48 @@ import (
 
 //User
 type User struct {
-	tableName struct{}  `pg:"users"`
-	ID        uint64    `json:"id" pg:",pk"`
-	Created   time.Time `json:"created"`
-	Updated   time.Time `json:"updated"`
-	Active    bool      `json:"active" `
-	Roles     []int     `json:"-" pg:",array"`
-	FirstName string    `json:"first_name"`
-	LastName  string    `json:"last_name"`
-	Phone     string    `json:"phone"`
-	Email     string    `json:"email"`
-	Password  string    `json:"-"`
-	Country   int       `json:"country"`
-	Language  int       `json:"language"`
-	BirthDate time.Time `json:"birthdate"`
-	Gender    int       `json:"gender"`
-	Token     string    `json:"-"`
+	tableName                struct{}  `pg:"users"`
+	ID                       uint64    `json:"id" pg:",pk"`
+	Created                  time.Time `json:"created"`
+	Updated                  time.Time `json:"updated"`
+	Active                   bool      `json:"active" `
+	Roles                    []int     `json:"-" pg:",array"`
+	FirstName                string    `json:"first_name"`
+	LastName                 string    `json:"last_name"`
+	Phone                    string    `json:"phone"`
+	Email                    string    `json:"email"`
+	Password                 string    `json:"-"`
+	Country                  int       `json:"country"`
+	Language                 int       `json:"language"`
+	BirthDate                time.Time `json:"birthdate"`
+	Gender                   int       `json:"gender"`
+	Token                    string    `json:"-"`
+	Address1                 string    `json:"address_1" pg:"address_1"`
+	Address2                 string    `json:"address_2" pg:"address_2"`
+	AddressState             string    `json:"address_state"`
+	AddressCity              string    `json:"address_city"`
+	AddressCountry           string    `json:"address_country"`
+	AddressPostcode          uint      `json:"address_postcode"`
+	ProfileImage             string    `json:"profile_image"`
+	FirstYearOfStudy         uint16    `json:"first_year_of_study"`
+	LearningCenter           string    `json:"learning_center"`
+	TenName                  string    `json:"ten_name"`
+	TenID                    string    `json:"ten_id"`
+	FavoriteLearningPlatform string    `json:"favorite_learning_platform"`
+	NativeLanguage           uint64    `json:"native_language"`
+	AdditionalLanguages      []uint64  `json:"additional_languages" pg:",array"`
+	LanguageForText          uint64    `json:"language_for_text"`
+	LanguageForNotification  uint64    `json:"language_for_notification"`
+	LanguageForVideo         uint64    `json:"language_for_video"`
 }
 
 type UserInfo struct {
-	*User     `json:"user" pg:",inherit,discard_unknown_columns"`
-	tableName struct{}       `pg:"users"`
-	Country   *CountryInfo   `json:"country" pg:"rel:has-one,fk:country"`
-	Language  *LanguageInfo  `json:"language" pg:"rel:has-one,fk:language"`
-	Gender    *DirectoryInfo `json:"gender" pg:"rel:has-one,fk:gender"`
+	*User          `json:"user" pg:",inherit,discard_unknown_columns"`
+	tableName      struct{}             `pg:"users"`
+	Country        *CountryInfo         `json:"country" pg:"rel:has-one,fk:country"`
+	Language       *LanguageInfo        `json:"language" pg:"rel:has-one,fk:language"`
+	Gender         *DirectoryInfo       `json:"gender" pg:"rel:has-one,fk:gender"`
+	SocialAccounts []*SocialAccountInfo `json:"social_accounts" pg:"-"`
 }
 
 //PasswordData password data for update
@@ -264,6 +282,18 @@ func FindUsers(filters UserFilter, limit int, offset int) (count int, users []*U
 
 	if err != nil {
 		log.Println("Error: " + err.Error())
+		//return
+	}
+
+	for _, user := range users {
+		socials, err := FindSocialAccountsByUserID(user.ID)
+		if err != nil {
+			log.Println("Error: " + err.Error())
+			continue
+		}
+
+		user.SocialAccounts = socials
+
 	}
 
 	return

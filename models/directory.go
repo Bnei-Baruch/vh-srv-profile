@@ -18,5 +18,5 @@ type Directory struct {
 type DirectoryInfo struct {
 	tableName struct{}    `pg:"directories"`
 	ID        uint64      `json:"id" pg:",pk"`
-	Name      interface{} `json:"name" pg:",jsonb"`
+	Name      interface{} `json:"name"`
 }

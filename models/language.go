@@ -17,5 +17,5 @@ type Language struct {
 type LanguageInfo struct {
 	tableName struct{}    `pg:"languages"`
 	ID        uint64      `json:"id" pg:",pk"`
-	Name      interface{} `json:"name" pg:",jsonb"`
+	Name      interface{} `json:"name"`
 }

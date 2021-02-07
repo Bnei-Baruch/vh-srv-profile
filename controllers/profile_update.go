@@ -10,13 +10,30 @@ import (
 
 //ProfileUpdateRequest
 type ProfileUpdateRequest struct {
-	FirstName string `json:"first_name" binding:"required"`
-	LastName  string `json:"last_name" binding:"required"`
-	Phone     string `json:"phone" binding:"required"`
-	Country   int    `json:"country" binding:"required"`
-	Language  int    `json:"language" binding:"required"`
-	BirthDate string `json:"birthdate" binding:"required"`
-	Gender    int    `json:"gender" binding:"required"`
+	FirstName                string   `json:"first_name" binding:"required"`
+	LastName                 string   `json:"last_name" binding:"required"`
+	Phone                    string   `json:"phone" binding:"required"`
+	Country                  int      `json:"country" binding:"required"`
+	Language                 int      `json:"language" binding:"required"`
+	BirthDate                string   `json:"birthdate" binding:"required"`
+	Gender                   int      `json:"gender" binding:"required"`
+	Address1                 string   `json:"address_1"`
+	Address2                 string   `json:"address_2"`
+	AddressState             string   `json:"address_state"`
+	AddressCity              string   `json:"address_city"`
+	AddressCountry           string   `json:"address_country"`
+	AddressPostcode          uint     `json:"address_postcode"`
+	ProfileImage             string   `json:"profile_image"`
+	FirstYearOfStudy         uint16   `json:"first_year_of_study"`
+	LearningCenter           string   `json:"learning_center"`
+	TenName                  string   `json:"ten_name"`
+	TenID                    string   `json:"ten_id"`
+	FavoriteLearningPlatform string   `json:"favorite_learning_platform"`
+	NativeLanguage           uint64   `json:"native_language"`
+	AdditionalLanguages      []uint64 `json:"additional_languages"`
+	LanguageForText          uint64   `json:"language_for_text"`
+	LanguageForNotification  uint64   `json:"language_for_notification"`
+	LanguageForVideo         uint64   `json:"language_for_video"`
 }
 
 //ProfileUpdateLoginRequest
