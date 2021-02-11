@@ -1,9 +1,13 @@
 stages:
   - publish
   - deploy
+  - publish_prod
+  - deploy_prod
+  - deploy_stand
 
 variables:
   IMAGE: $CI_REGISTRY_IMAGE/$CI_COMMIT_REF_NAME:$CI_COMMIT_SHORT_SHA
+  PROD_IMAGE: $CI_REGISTRY_IMAGE/$CI_COMMIT_REF_NAME:prod_$CI_COMMIT_SHORT_SHA
 
 publish:
   image: docker:latest
@@ -37,3 +41,49 @@ deploy:
   when: manual
   only:
     - development
+
+publish_prod:
+  image: docker:latest
+  stage: publish
+  tags:
+    - dockerbuild
+  services:
+    - docker:19.03.12-dind
+  script:
+    - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY
+    - docker build -t $PROD_IMAGE .
+    - docker push $PROD_IMAGE
+  only:
+    - master
+
+deploy_prod:
+  image: docker:latest
+  stage: deploy_prod
+  tags:
+    - dockerbuild
+  script:
+    - chmod og= $ID_RSA
+    - apk update && apk add openssh-client
+    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $PROD_SERVER_USER@$PROD_SERVER_IP "docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY"
+    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $PROD_SERVER_USER@$PROD_SERVER_IP "docker pull $PROD_IMAGE"
+    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $PROD_SERVER_USER@$PROD_SERVER_IP "docker container rm -f prod-vh-srv-profile || true"
+    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $PROD_SERVER_USER@$PROD_SERVER_IP "docker run -d --net=vh --name prod-vh-srv-profile --memory="200m" --cpus="0.5" --restart always -p 7471:7471 $PROD_IMAGE "
+  when: manual
+  only:
+    - master
+
+deploy_stand:
+  image: docker:latest
+  stage: deploy_stand
+  tags:
+    - dockerbuild
+  script:
+    - chmod og= $ID_RSA
+    - apk update && apk add openssh-client
+    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $STAND_SERVER_USER@$STAND_SERVER_IP "docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY"
+    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $STAND_SERVER_USER@$STAND_SERVER_IP "docker pull $PROD_IMAGE"
+    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $STAND_SERVER_USER@$STAND_SERVER_IP "docker container rm -f prod-vh-srv-profile || true"
+    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $STAND_SERVER_USER@$STAND_SERVER_IP "docker run -d --net=vh --name prod-vh-srv-profile --memory="200m" --cpus="0.5" --restart always -p 7471:7471 $PROD_IMAGE "
+  when: manual
+  only:
+    - master
