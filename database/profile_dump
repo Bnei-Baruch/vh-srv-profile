@@ -1,0 +1,542 @@
+--
+-- PostgreSQL database dump
+--
+
+-- Dumped from database version 13.1
+-- Dumped by pg_dump version 13.1
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+--
+-- Name: emails; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.emails (
+    user_id uuid NOT NULL,
+    email text NOT NULL,
+    primary_email boolean DEFAULT false
+);
+
+
+ALTER TABLE public.emails OWNER TO postgres;
+
+--
+-- Name: gender_types; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.gender_types (
+    name text NOT NULL
+);
+
+
+ALTER TABLE public.gender_types OWNER TO postgres;
+
+--
+-- Name: language_list; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.language_list (
+    code text,
+    name text NOT NULL
+);
+
+
+ALTER TABLE public.language_list OWNER TO postgres;
+
+--
+-- Name: languages; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.languages (
+    user_id uuid NOT NULL,
+    language text NOT NULL,
+    first_language boolean
+);
+
+
+ALTER TABLE public.languages OWNER TO postgres;
+
+--
+-- Name: marital_status_types; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.marital_status_types (
+    name text NOT NULL
+);
+
+
+ALTER TABLE public.marital_status_types OWNER TO postgres;
+
+--
+-- Name: phone_number_types; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.phone_number_types (
+    name text NOT NULL
+);
+
+
+ALTER TABLE public.phone_number_types OWNER TO postgres;
+
+--
+-- Name: phone_numbers; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.phone_numbers (
+    user_id uuid NOT NULL,
+    phone_number bigint NOT NULL,
+    type text NOT NULL
+);
+
+
+ALTER TABLE public.phone_numbers OWNER TO postgres;
+
+--
+-- Name: users; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.users (
+    user_id uuid NOT NULL,
+    keycloak_id text NOT NULL,
+    updated_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    deleted boolean DEFAULT false,
+    first_name_latin text NOT NULL,
+    first_name_vernacular text,
+    last_name_latin text NOT NULL,
+    last_name_vernacular text,
+    street_address text,
+    country text,
+    state_region text,
+    postal_code text,
+    gender text NOT NULL,
+    marital_status text NOT NULL,
+    date_of_birth date,
+    listening_language text NOT NULL,
+    reading_language text NOT NULL,
+    email_language text NOT NULL,
+    study_start_year integer NOT NULL,
+    study_framework text NOT NULL,
+    has_ten_group boolean NOT NULL,
+    wants_ten_group boolean,
+    name_of_ten_group text
+);
+
+
+ALTER TABLE public.users OWNER TO postgres;
+
+--
+-- Data for Name: emails; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.emails (user_id, email, primary_email) FROM stdin;
+\.
+
+
+--
+-- Data for Name: gender_types; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.gender_types (name) FROM stdin;
+male
+female
+\.
+
+
+--
+-- Data for Name: language_list; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.language_list (code, name) FROM stdin;
+ab	Abkhaz
+aa	Afar
+af	Afrikaans
+ak	Akan
+sq	Albanian
+am	Amharic
+ar	Arabic
+an	Aragonese
+hy	Armenian
+as	Assamese
+av	Avaric
+ae	Avestan
+ay	Aymara
+az	Azerbaijani
+bm	Bambara
+ba	Bashkir
+eu	Basque
+be	Belarusian
+bn	Bengali
+bh	Bihari
+bi	Bislama
+bs	Bosnian
+br	Breton
+bg	Bulgarian
+my	Burmese
+ca	Catalan; Valencian
+ch	Chamorro
+ce	Chechen
+ny	Chichewa; Chewa; Nyanja
+zh	Chinese
+cv	Chuvash
+kw	Cornish
+co	Corsican
+cr	Cree
+hr	Croatian
+cs	Czech
+da	Danish
+dv	Divehi; Dhivehi; Maldivian;
+nl	Dutch
+en	English
+eo	Esperanto
+et	Estonian
+ee	Ewe
+fo	Faroese
+fj	Fijian
+fi	Finnish
+fr	French
+ff	Fula; Fulah; Pulaar; Pular
+gl	Galician
+ka	Georgian
+de	German
+el	Greek, Modern
+gn	Guaraní
+gu	Gujarati
+ht	Haitian; Haitian Creole
+ha	Hausa
+he	Hebrew
+hz	Herero
+hi	Hindi
+ho	Hiri Motu
+hu	Hungarian
+ia	Interlingua
+id	Indonesian
+ie	Interlingue
+ga	Irish
+ig	Igbo
+ik	Inupiaq
+io	Ido
+is	Icelandic
+it	Italian
+iu	Inuktitut
+ja	Japanese
+jv	Javanese
+kl	Kalaallisut, Greenlandic
+kn	Kannada
+kr	Kanuri
+ks	Kashmiri
+kk	Kazakh
+km	Khmer
+ki	Kikuyu, Gikuyu
+rw	Kinyarwanda
+ky	Kirghiz, Kyrgyz
+kv	Komi
+kg	Kongo
+ko	Korean
+ku	Kurdish
+kj	Kwanyama, Kuanyama
+la	Latin
+lb	Luxembourgish, Letzeburgesch
+lg	Luganda
+li	Limburgish, Limburgan, Limburger
+ln	Lingala
+lo	Lao
+lt	Lithuanian
+lu	Luba-Katanga
+lv	Latvian
+gv	Manx
+mk	Macedonian
+mg	Malagasy
+ms	Malay
+ml	Malayalam
+mt	Maltese
+mi	Māori
+mr	Marathi (Marāṭhī)
+mh	Marshallese
+mn	Mongolian
+na	Nauru
+nv	Navajo, Navaho
+nb	Norwegian Bokmål
+nd	North Ndebele
+ne	Nepali
+ng	Ndonga
+nn	Norwegian Nynorsk
+no	Norwegian
+ii	Nuosu
+nr	South Ndebele
+oc	Occitan
+oj	Ojibwe, Ojibwa
+cu	Old Church Slavonic, Church Slavic, Church Slavonic, Old Bulgarian, Old Slavonic
+om	Oromo
+or	Oriya
+os	Ossetian, Ossetic
+pa	Panjabi, Punjabi
+pi	Pāli
+fa	Persian
+pl	Polish
+ps	Pashto, Pushto
+pt	Portuguese
+qu	Quechua
+rm	Romansh
+rn	Kirundi
+ro	Romanian, Moldavian, Moldovan
+ru	Russian
+sa	Sanskrit (Saṁskṛta)
+sc	Sardinian
+sd	Sindhi
+se	Northern Sami
+sm	Samoan
+sg	Sango
+sr	Serbian
+gd	Scottish Gaelic; Gaelic
+sn	Shona
+si	Sinhala, Sinhalese
+sk	Slovak
+sl	Slovene
+so	Somali
+st	Southern Sotho
+es	Spanish
+su	Sundanese
+sw	Swahili
+ss	Swati
+sv	Swedish
+ta	Tamil
+te	Telugu
+tg	Tajik
+th	Thai
+ti	Tigrinya
+bo	Tibetan Standard, Tibetan, Central
+tk	Turkmen
+tl	Tagalog
+tn	Tswana
+to	Tonga (Tonga Islands)
+tr	Turkish
+ts	Tsonga
+tt	Tatar
+tw	Twi
+ty	Tahitian
+ug	Uighur, Uyghur
+uk	Ukrainian
+ur	Urdu
+uz	Uzbek
+ve	Venda
+vi	Vietnamese
+vo	Volapük
+wa	Walloon
+cy	Welsh
+wo	Wolof
+fy	Western Frisian
+xh	Xhosa
+yi	Yiddish
+yo	Yoruba
+za	Zhuang, Chuang
+\.
+
+
+--
+-- Data for Name: languages; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.languages (user_id, language, first_language) FROM stdin;
+\.
+
+
+--
+-- Data for Name: marital_status_types; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.marital_status_types (name) FROM stdin;
+Married
+Single
+Other
+\.
+
+
+--
+-- Data for Name: phone_number_types; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.phone_number_types (name) FROM stdin;
+phone
+WhatsApp
+Telegram
+\.
+
+
+--
+-- Data for Name: phone_numbers; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.phone_numbers (user_id, phone_number, type) FROM stdin;
+\.
+
+
+--
+-- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.users (user_id, keycloak_id, updated_at, created_at, deleted, first_name_latin, first_name_vernacular, last_name_latin, last_name_vernacular, street_address, country, state_region, postal_code, gender, marital_status, date_of_birth, listening_language, reading_language, email_language, study_start_year, study_framework, has_ten_group, wants_ten_group, name_of_ten_group) FROM stdin;
+\.
+
+
+--
+-- Name: emails emails_user_id_email_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.emails
+    ADD CONSTRAINT emails_user_id_email_key UNIQUE (user_id, email);
+
+
+--
+-- Name: gender_types gender_types_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.gender_types
+    ADD CONSTRAINT gender_types_pkey PRIMARY KEY (name);
+
+
+--
+-- Name: language_list language_list_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.language_list
+    ADD CONSTRAINT language_list_pkey PRIMARY KEY (name);
+
+
+--
+-- Name: languages languages_user_id_language_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.languages
+    ADD CONSTRAINT languages_user_id_language_key UNIQUE (user_id, language);
+
+
+--
+-- Name: marital_status_types marital_status_types_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.marital_status_types
+    ADD CONSTRAINT marital_status_types_pkey PRIMARY KEY (name);
+
+
+--
+-- Name: phone_number_types phone_number_types_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.phone_number_types
+    ADD CONSTRAINT phone_number_types_pkey PRIMARY KEY (name);
+
+
+--
+-- Name: phone_numbers phone_numbers_user_id_phone_number_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.phone_numbers
+    ADD CONSTRAINT phone_numbers_user_id_phone_number_key UNIQUE (user_id, phone_number);
+
+
+--
+-- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_pkey PRIMARY KEY (user_id);
+
+
+--
+-- Name: emails emails_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.emails
+    ADD CONSTRAINT emails_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id);
+
+
+--
+-- Name: languages languages_language_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.languages
+    ADD CONSTRAINT languages_language_fkey FOREIGN KEY (language) REFERENCES public.language_list(name);
+
+
+--
+-- Name: languages languages_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.languages
+    ADD CONSTRAINT languages_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id);
+
+
+--
+-- Name: phone_numbers phone_numbers_type_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.phone_numbers
+    ADD CONSTRAINT phone_numbers_type_fkey FOREIGN KEY (type) REFERENCES public.phone_number_types(name);
+
+
+--
+-- Name: phone_numbers phone_numbers_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.phone_numbers
+    ADD CONSTRAINT phone_numbers_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id);
+
+
+--
+-- Name: users users_email_language_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_email_language_fkey FOREIGN KEY (email_language) REFERENCES public.language_list(name);
+
+
+--
+-- Name: users users_gender_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_gender_fkey FOREIGN KEY (gender) REFERENCES public.gender_types(name);
+
+
+--
+-- Name: users users_listening_language_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_listening_language_fkey FOREIGN KEY (listening_language) REFERENCES public.language_list(name);
+
+
+--
+-- Name: users users_marital_status_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_marital_status_fkey FOREIGN KEY (marital_status) REFERENCES public.marital_status_types(name);
+
+
+--
+-- Name: users users_reading_language_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_reading_language_fkey FOREIGN KEY (reading_language) REFERENCES public.language_list(name);
+
+
+--
+-- PostgreSQL database dump complete
+--
+
