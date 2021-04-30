@@ -224,7 +224,7 @@ VALUES ('ab', 'Abkhaz'),
 CREATE TABLE users
 (
     user_id               uuid    NOT NULL PRIMARY KEY,
-    keycloak_id           TEXT    NOT NULL,
+    keycloak_id           TEXT    NOT NULL UNIQUE,
     updated_at            timestamptz,
     created_at            timestamptz NOT NULL default now(),
     deleted               bool default false,
