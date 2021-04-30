@@ -223,28 +223,33 @@ VALUES ('ab', 'Abkhaz'),
 
 CREATE TABLE users
 (
-    user_id               uuid    NOT NULL PRIMARY KEY,
-    keycloak_id           TEXT    NOT NULL UNIQUE,
+    user_id               uuid        NOT NULL PRIMARY KEY,
+    keycloak_id           TEXT        NOT NULL UNIQUE,
     updated_at            timestamptz,
     created_at            timestamptz NOT NULL default now(),
-    deleted               bool default false,
-    first_name_latin      text    NOT NULL,
+    deleted               bool                 default false,
+    first_name_latin      text        NOT NULL,
     first_name_vernacular text,
-    last_name_latin       text    NOT NULL,
+    last_name_latin       text        NOT NULL,
     last_name_vernacular  text,
     street_address        text,
     country               text,
     state_region          text,
     postal_code           text,
-    gender                text    NOT NULL REFERENCES gender_types (name),
-    marital_status        text    NOT NULL references marital_status_types (name),
+    gender                text        NOT NULL REFERENCES gender_types (name),
+    marital_status        text        NOT NULL references marital_status_types (name),
     date_of_birth         date,
-    listening_language    text    NOT NULL REFERENCES language_list (name),
-    reading_language      text    NOT NULL REFERENCES language_list (name),
-    email_language        text    NOT NULL REFERENCES language_list (name),
-    study_start_year      int     NOT NULL,
-    study_framework       text    NOT NULL,
-    has_ten_group         boolean NOT NULL,
+    first_language        text        NOT NULL REFERENCES language_list (name),
+    other_language_1      text REFERENCES language_list (name),
+    other_language_2      text REFERENCES language_list (name),
+    other_language_3      text REFERENCES language_list (name),
+    other_language_4      text REFERENCES language_list (name),
+    listening_language    text        NOT NULL REFERENCES language_list (name),
+    reading_language      text        NOT NULL REFERENCES language_list (name),
+    email_language        text        NOT NULL REFERENCES language_list (name),
+    study_start_year      int         NOT NULL,
+    study_framework       text        NOT NULL,
+    has_ten_group         boolean     NOT NULL,
     wants_ten_group       boolean,
     name_of_ten_group     text
 );
@@ -264,14 +269,6 @@ CREATE TABLE phone_numbers
     type         text   NOT NULL REFERENCES phone_number_types (name),
 
     UNIQUE (user_id, phone_number)
-);
-
-CREATE TABLE languages
-(
-    user_id        uuid NOT NULL REFERENCES users (user_id),
-    language       text NOT NULL REFERENCES language_list (name),
-    first_language bool,
-    UNIQUE (user_id, language)
 );
 
 COMMIT;

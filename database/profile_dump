@@ -57,19 +57,6 @@ CREATE TABLE public.language_list (
 ALTER TABLE public.language_list OWNER TO postgres;
 
 --
--- Name: languages; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.languages (
-    user_id uuid NOT NULL,
-    language text NOT NULL,
-    first_language boolean
-);
-
-
-ALTER TABLE public.languages OWNER TO postgres;
-
---
 -- Name: marital_status_types; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -125,6 +112,11 @@ CREATE TABLE public.users (
     gender text NOT NULL,
     marital_status text NOT NULL,
     date_of_birth date,
+    first_language text NOT NULL,
+    other_language_1 text,
+    other_language_2 text,
+    other_language_3 text,
+    other_language_4 text,
     listening_language text NOT NULL,
     reading_language text NOT NULL,
     email_language text NOT NULL,
@@ -347,14 +339,6 @@ za	Zhuang, Chuang
 
 
 --
--- Data for Name: languages; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.languages (user_id, language, first_language) FROM stdin;
-\.
-
-
---
 -- Data for Name: marital_status_types; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
@@ -388,7 +372,7 @@ COPY public.phone_numbers (user_id, phone_number, type) FROM stdin;
 -- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.users (user_id, keycloak_id, updated_at, created_at, deleted, first_name_latin, first_name_vernacular, last_name_latin, last_name_vernacular, street_address, country, state_region, postal_code, gender, marital_status, date_of_birth, listening_language, reading_language, email_language, study_start_year, study_framework, has_ten_group, wants_ten_group, name_of_ten_group) FROM stdin;
+COPY public.users (user_id, keycloak_id, updated_at, created_at, deleted, first_name_latin, first_name_vernacular, last_name_latin, last_name_vernacular, street_address, country, state_region, postal_code, gender, marital_status, date_of_birth, first_language, other_language_1, other_language_2, other_language_3, other_language_4, listening_language, reading_language, email_language, study_start_year, study_framework, has_ten_group, wants_ten_group, name_of_ten_group) FROM stdin;
 \.
 
 
@@ -414,14 +398,6 @@ ALTER TABLE ONLY public.gender_types
 
 ALTER TABLE ONLY public.language_list
     ADD CONSTRAINT language_list_pkey PRIMARY KEY (name);
-
-
---
--- Name: languages languages_user_id_language_key; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.languages
-    ADD CONSTRAINT languages_user_id_language_key UNIQUE (user_id, language);
 
 
 --
@@ -473,22 +449,6 @@ ALTER TABLE ONLY public.emails
 
 
 --
--- Name: languages languages_language_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.languages
-    ADD CONSTRAINT languages_language_fkey FOREIGN KEY (language) REFERENCES public.language_list(name);
-
-
---
--- Name: languages languages_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.languages
-    ADD CONSTRAINT languages_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id);
-
-
---
 -- Name: phone_numbers phone_numbers_type_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -513,6 +473,14 @@ ALTER TABLE ONLY public.users
 
 
 --
+-- Name: users users_first_language_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_first_language_fkey FOREIGN KEY (first_language) REFERENCES public.language_list(name);
+
+
+--
 -- Name: users users_gender_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -534,6 +502,38 @@ ALTER TABLE ONLY public.users
 
 ALTER TABLE ONLY public.users
     ADD CONSTRAINT users_marital_status_fkey FOREIGN KEY (marital_status) REFERENCES public.marital_status_types(name);
+
+
+--
+-- Name: users users_other_language_1_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_other_language_1_fkey FOREIGN KEY (other_language_1) REFERENCES public.language_list(name);
+
+
+--
+-- Name: users users_other_language_2_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_other_language_2_fkey FOREIGN KEY (other_language_2) REFERENCES public.language_list(name);
+
+
+--
+-- Name: users users_other_language_3_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_other_language_3_fkey FOREIGN KEY (other_language_3) REFERENCES public.language_list(name);
+
+
+--
+-- Name: users users_other_language_4_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_other_language_4_fkey FOREIGN KEY (other_language_4) REFERENCES public.language_list(name);
 
 
 --
