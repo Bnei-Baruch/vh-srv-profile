@@ -13,7 +13,6 @@ import (
 func GetOpenEndpoints() (url []string) {
 
 	url = []string{
-		"/v1/profile/login",
 		"/v1/profile/create",
 	}
 
@@ -71,10 +70,4 @@ func CheckEndpointAccess(c *gin.Context) {
 
 	c.Next()
 
-}
-
-//CheckAuth
-func CheckAuth(token string) bool {
-
-	return false
 }
