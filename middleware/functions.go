@@ -72,9 +72,3 @@ func CheckEndpointAccess(c *gin.Context) {
 	c.Next()
 
 }
-
-//CheckAuth
-func CheckAuth(token string) bool {
-
-	return false
-}

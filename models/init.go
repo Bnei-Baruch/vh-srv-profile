@@ -53,8 +53,3 @@ func OpenDBConnection() {
 	DB.AddQueryHook(postgresDebugger{})
 
 }
-
-//CloseDBConnection close db connection
-func CloseDBConnection() {
-
-}

@@ -1,7 +1,6 @@
 package models
 
 import (
-	"log"
 	"time"
 )
 
@@ -12,18 +11,4 @@ type Role struct {
 	Updated   time.Time `json:"updated"`
 	Name      string    `json:"name"`
 	Active    bool      `json:"active"`
-}
-
-//GetRoles get all roles
-func GetRoles() ([]Role, error) {
-
-	var role []Role
-
-	err := DB.Model(&role).Where("active = ?", true).Select()
-
-	if err != nil {
-		log.Println("Error: " + err.Error())
-	}
-
-	return role, err
 }

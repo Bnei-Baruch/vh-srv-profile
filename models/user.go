@@ -262,14 +262,6 @@ func SetPassword(password string, userID uint64) error {
 
 }
 
-func SetToken(token string, userID uint64) error {
-
-	_, err := DB.Model((*User)(nil)).Where("id = ?", userID).Set("token = ?", token).Update()
-
-	return err
-
-}
-
 func FindUsers(filters UserFilter, limit int, offset int) (count int, users []*UserInfo, err error) {
 
 	count, err = DB.Model(&users).
