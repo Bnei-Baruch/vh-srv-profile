@@ -13,7 +13,6 @@ import (
 func GetOpenEndpoints() (url []string) {
 
 	url = []string{
-		"/v1/profile/login",
 		"/v1/profile/create",
 	}
 
