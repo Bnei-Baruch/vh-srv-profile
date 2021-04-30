@@ -449,6 +449,14 @@ ALTER TABLE ONLY public.phone_numbers
 
 
 --
+-- Name: users users_keycloak_id_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_keycloak_id_key UNIQUE (keycloak_id);
+
+
+--
 -- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
