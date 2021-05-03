@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"gitlab.bbdev.team/vh/vh-srv-profile/app"
 	"gitlab.bbdev.team/vh/vh-srv-profile/models"
 )
 
@@ -26,8 +25,6 @@ func ProfileCreate(c *gin.Context) {
 
 	var request ProfileCreateRequest
 
-	var roles []int
-
 	if err := c.Bind(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": err.Error(),
@@ -35,10 +32,7 @@ func ProfileCreate(c *gin.Context) {
 		return
 	}
 
-	roles = append(roles, 1)
-
 	user := &models.User{
-		Roles:     roles,
 		FirstName: request.FirstName,
 		LastName:  request.LastName,
 		Phone:     request.Phone,
@@ -47,7 +41,6 @@ func ProfileCreate(c *gin.Context) {
 		Gender:    request.Gender,
 		Country:   request.Country,
 		Language:  request.Country,
-		Token:     app.TokenGenerator(),
 	}
 
 	birthdate, err := time.Parse("2006-01-02", request.BirthDate)
