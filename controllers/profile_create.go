@@ -11,16 +11,14 @@ import (
 
 //ProfileCreateRequest
 type ProfileCreateRequest struct {
-	FirstName            string `json:"first_name" binding:"required"`
-	LastName             string `json:"last_name" binding:"required"`
-	Phone                string `json:"phone" binding:"required"`
-	Email                string `json:"email" binding:"required"`
-	Password             string `json:"password" binding:"required"`
-	PasswordConfirmation string `json:"password_confirmation" binding:"required"`
-	Country              int    `json:"country" binding:"required"`
-	Language             int    `json:"language" binding:"required"`
-	BirthDate            string `json:"birthdate" binding:"required"`
-	Gender               int    `json:"gender" binding:"required"`
+	FirstName string `json:"first_name" binding:"required"`
+	LastName  string `json:"last_name" binding:"required"`
+	Phone     string `json:"phone" binding:"required"`
+	Email     string `json:"email" binding:"required"`
+	Country   int    `json:"country" binding:"required"`
+	Language  int    `json:"language" binding:"required"`
+	BirthDate string `json:"birthdate" binding:"required"`
+	Gender    int    `json:"gender" binding:"required"`
 }
 
 //ProfileCreate create profile
@@ -37,13 +35,6 @@ func ProfileCreate(c *gin.Context) {
 		return
 	}
 
-	if request.Password != request.PasswordConfirmation {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": app.GetSystemMessage("wrong_password_confirmation"),
-		})
-		return
-	}
-
 	roles = append(roles, 1)
 
 	user := &models.User{
@@ -52,7 +43,6 @@ func ProfileCreate(c *gin.Context) {
 		LastName:  request.LastName,
 		Phone:     request.Phone,
 		Email:     request.Email,
-		Password:  request.Password,
 		Active:    true,
 		Gender:    request.Gender,
 		Country:   request.Country,
@@ -80,9 +70,6 @@ func ProfileCreate(c *gin.Context) {
 
 		return
 	}
-
-	password, _ := app.HashPassword(request.Password)
-	user.Password = password
 
 	err = models.InsertUser(user)
 
