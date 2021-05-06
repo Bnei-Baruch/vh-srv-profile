@@ -21,19 +21,6 @@ SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 --
--- Name: emails; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.emails (
-    user_id uuid NOT NULL,
-    email text NOT NULL,
-    primary_email boolean DEFAULT false
-);
-
-
-ALTER TABLE public.emails OWNER TO postgres;
-
---
 -- Name: gender_types; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -112,6 +99,9 @@ CREATE TABLE public.users (
     gender text NOT NULL,
     marital_status text NOT NULL,
     date_of_birth date,
+    primary_email text NOT NULL,
+    alternate_email_1 text,
+    alternate_email_2 text,
     first_language text NOT NULL,
     other_language_1 text,
     other_language_2 text,
@@ -129,14 +119,6 @@ CREATE TABLE public.users (
 
 
 ALTER TABLE public.users OWNER TO postgres;
-
---
--- Data for Name: emails; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.emails (user_id, email, primary_email) FROM stdin;
-\.
-
 
 --
 -- Data for Name: gender_types; Type: TABLE DATA; Schema: public; Owner: postgres
@@ -372,16 +354,8 @@ COPY public.phone_numbers (user_id, phone_number, type) FROM stdin;
 -- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.users (user_id, keycloak_id, updated_at, created_at, deleted, first_name_latin, first_name_vernacular, last_name_latin, last_name_vernacular, street_address, country, state_region, postal_code, gender, marital_status, date_of_birth, first_language, other_language_1, other_language_2, other_language_3, other_language_4, listening_language, reading_language, email_language, study_start_year, study_framework, has_ten_group, wants_ten_group, name_of_ten_group) FROM stdin;
+COPY public.users (user_id, keycloak_id, updated_at, created_at, deleted, first_name_latin, first_name_vernacular, last_name_latin, last_name_vernacular, street_address, country, state_region, postal_code, gender, marital_status, date_of_birth, primary_email, alternate_email_1, alternate_email_2, first_language, other_language_1, other_language_2, other_language_3, other_language_4, listening_language, reading_language, email_language, study_start_year, study_framework, has_ten_group, wants_ten_group, name_of_ten_group) FROM stdin;
 \.
-
-
---
--- Name: emails emails_user_id_email_key; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.emails
-    ADD CONSTRAINT emails_user_id_email_key UNIQUE (user_id, email);
 
 
 --
@@ -438,14 +412,6 @@ ALTER TABLE ONLY public.users
 
 ALTER TABLE ONLY public.users
     ADD CONSTRAINT users_pkey PRIMARY KEY (user_id);
-
-
---
--- Name: emails emails_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.emails
-    ADD CONSTRAINT emails_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id);
 
 
 --

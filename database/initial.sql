@@ -239,6 +239,9 @@ CREATE TABLE users
     gender                text        NOT NULL REFERENCES gender_types (name),
     marital_status        text        NOT NULL references marital_status_types (name),
     date_of_birth         date,
+    primary_email         text        NOT NULL,
+    alternate_email_1     text,
+    alternate_email_2     text,
     first_language        text        NOT NULL REFERENCES language_list (name),
     other_language_1      text REFERENCES language_list (name),
     other_language_2      text REFERENCES language_list (name),
@@ -252,14 +255,6 @@ CREATE TABLE users
     has_ten_group         boolean     NOT NULL,
     wants_ten_group       boolean,
     name_of_ten_group     text
-);
-
-CREATE TABLE emails
-(
-    user_id       uuid NOT NULL REFERENCES users (user_id),
-    email         text NOT NULL,
-    primary_email bool default false,
-    UNIQUE (user_id, email)
 );
 
 CREATE TABLE phone_numbers
