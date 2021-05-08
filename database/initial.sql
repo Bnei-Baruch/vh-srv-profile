@@ -236,6 +236,7 @@ CREATE TABLE users
     country               text,
     state_region          text,
     postal_code           text,
+    city                  text,
     gender                text        NOT NULL REFERENCES gender_types (name),
     marital_status        text        NOT NULL references marital_status_types (name),
     date_of_birth         date,

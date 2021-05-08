@@ -96,6 +96,7 @@ CREATE TABLE public.users (
     country text,
     state_region text,
     postal_code text,
+    city text,
     gender text NOT NULL,
     marital_status text NOT NULL,
     date_of_birth date,
@@ -354,7 +355,7 @@ COPY public.phone_numbers (user_id, phone_number, type) FROM stdin;
 -- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.users (user_id, keycloak_id, updated_at, created_at, deleted, first_name_latin, first_name_vernacular, last_name_latin, last_name_vernacular, street_address, country, state_region, postal_code, gender, marital_status, date_of_birth, primary_email, alternate_email_1, alternate_email_2, first_language, other_language_1, other_language_2, other_language_3, other_language_4, listening_language, reading_language, email_language, study_start_year, study_framework, has_ten_group, wants_ten_group, name_of_ten_group) FROM stdin;
+COPY public.users (user_id, keycloak_id, updated_at, created_at, deleted, first_name_latin, first_name_vernacular, last_name_latin, last_name_vernacular, street_address, country, state_region, postal_code, city, gender, marital_status, date_of_birth, primary_email, alternate_email_1, alternate_email_2, first_language, other_language_1, other_language_2, other_language_3, other_language_4, listening_language, reading_language, email_language, study_start_year, study_framework, has_ten_group, wants_ten_group, name_of_ten_group) FROM stdin;
 \.
 
 
