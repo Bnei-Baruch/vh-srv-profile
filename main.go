@@ -54,9 +54,7 @@ func main() {
 
 	api := server.Group("/v1")
 	{
-		api.PUT("/profile/create", ProfileCreate)
-		api.POST("/profile/update", controllers.ProfileUpdate)
-		api.GET("/profiles", controllers.Profiles)
+		api.GET("/profile", controllers.Profiles)
 	}
 
 	server.Run(":" + app.Config.AppPort)
