@@ -27,7 +27,7 @@ CREATE TABLE phone_number_types
 );
 
 INSERT INTO phone_number_types
-VALUES ('phone'),
+VALUES ('mobile'),
        ('WhatsApp'),
        ('Telegram');
 

@@ -337,7 +337,7 @@ Other
 --
 
 COPY public.phone_number_types (name) FROM stdin;
-phone
+mobile
 WhatsApp
 Telegram
 \.
