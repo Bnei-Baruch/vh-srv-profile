@@ -84,7 +84,7 @@ func newPgProfileDB(ctx context.Context) (*pgProfileDB, error) {
 	return &pgProfileDB{pool}, nil
 }
 
-func (db *pgProfileDB) CreateUser(ctx context.Context, user user) error {
+func (db *pgProfileDB) createUser(ctx context.Context, user user) error {
 	tx, err := db.Begin(ctx)
 	if err != nil {
 		return err
