@@ -1,5 +1,14 @@
 package main
 
+import (
+	"context"
+	"fmt"
+	"log"
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+)
+
 type createUser struct {
 	KeycloakID          string  `json:"keycloak_id" binding:"required"`
 	FirstNameLatin      string  `json:"first_name_latin" binding:"required"`
@@ -33,4 +42,73 @@ type createUser struct {
 	HasGroup            bool    `json:"has_ten_group" binding:"required"`
 	WantsGroup          *bool   `json:"wants_ten_group"`
 	NameOfGroup         *bool   `json:"name_ten_group"`
+}
+
+type storage interface {
+	createUser(ctx context.Context, user user) error
+}
+
+type profile struct {
+	db storage
+}
+
+func (p *profile) create(c *gin.Context) {
+	var request createUser
+
+	if err := c.Bind(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		_ = c.Error(err)
+		return
+	}
+	if err := p.db.createUser(c.Request.Context(), user{
+		keycloakID:          request.KeycloakID,
+		firstNameLatin:      request.FirstNameLatin,
+		firstNameVernacular: request.FirstNameVernacular,
+		lastNameLatin:       request.LastNameLatin,
+		lastNameVernacular:  request.LastNameVernacular,
+		address: address{
+			streetAddress: request.StreetAddress,
+			country:       request.Country,
+			stateOrRegion: request.StateOrRegion,
+			postalCode:    request.PostalCode,
+			city:          request.City,
+		},
+		gender:        request.Gender,
+		maritalStatus: request.MaritalStatus,
+		dateOfBirth:   request.DateOfBirth,
+		emails: emails{
+			primary:    request.PrimaryEmail,
+			alternate1: request.AlternateEmail1,
+			alternate2: request.AlternateEmail2,
+		},
+		phones: phones{
+			mobileNumber:   request.MobileNumber,
+			whatsAppNumber: request.WhatsAppNumber,
+			telegramNumber: request.TelegramNumber,
+		},
+		languages: languages{
+			first:     request.FirstLanguage,
+			other1:    request.OtherLanguage1,
+			other2:    request.OtherLanguage2,
+			other3:    request.OtherLanguage3,
+			other4:    request.OtherLanguage4,
+			listening: request.ListeningLanguage,
+			reading:   request.ReadingLanguage,
+			email:     request.EmailLanguage,
+		},
+		studyStartYear: request.StudyStartYear,
+		studyFramework: request.StudyFramework,
+		ten: ten{
+			hasGroup:    request.HasGroup,
+			wantsGroup:  request.WantsGroup,
+			nameOfGroup: request.NameOfGroup,
+		},
+	}); err != nil {
+		c.Status(http.StatusInternalServerError)
+		log.Printf("error while creating user %q: %s", request.KeycloakID, err.Error())
+		_ = c.Error(fmt.Errorf("error while creating user: %s", err.Error()))
+		return
+	}
+
+	c.Status(http.StatusCreated)
 }
