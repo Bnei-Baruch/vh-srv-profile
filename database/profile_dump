@@ -83,7 +83,7 @@ ALTER TABLE public.phone_numbers OWNER TO postgres;
 --
 
 CREATE TABLE public.users (
-    user_id uuid NOT NULL,
+    user_id uuid DEFAULT gen_random_uuid() NOT NULL,
     keycloak_id text NOT NULL,
     updated_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,

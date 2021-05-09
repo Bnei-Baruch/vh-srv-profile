@@ -223,7 +223,7 @@ VALUES ('ab', 'Abkhaz'),
 
 CREATE TABLE users
 (
-    user_id               uuid        NOT NULL PRIMARY KEY,
+    user_id               uuid        NOT NULL PRIMARY KEY default gen_random_uuid(),
     keycloak_id           TEXT        NOT NULL UNIQUE,
     updated_at            timestamptz,
     created_at            timestamptz NOT NULL default now(),
