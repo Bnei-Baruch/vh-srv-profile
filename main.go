@@ -9,7 +9,6 @@ import (
 	"github.com/joho/godotenv"
 	"gitlab.bbdev.team/vh/vh-srv-profile/app"
 	"gitlab.bbdev.team/vh/vh-srv-profile/config"
-	"gitlab.bbdev.team/vh/vh-srv-profile/controllers"
 	"gitlab.bbdev.team/vh/vh-srv-profile/middleware"
 	"gitlab.bbdev.team/vh/vh-srv-profile/models"
 )
@@ -52,10 +51,7 @@ func main() {
 
 	server.Use(middleware.CheckEndpointAccess)
 
-	api := server.Group("/v1")
-	{
-		api.GET("/profile", controllers.Profiles)
-	}
+	_ = server.Group("/v1")
 
 	server.Run(":" + app.Config.AppPort)
 
