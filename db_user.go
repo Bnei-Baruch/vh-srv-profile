@@ -2,19 +2,19 @@ package main
 
 type user struct {
 	keycloakID          string
-	firstNameLatin      string
-	firstNameVernacular *string
-	lastNameLatin       string
-	lastNameVernacular  *string
+	firstNameLatin      *string
+	firstNameVernacular string
+	lastNameLatin       *string
+	lastNameVernacular  string
 	address             address
-	gender              string
-	maritalStatus       string
+	gender              *string
+	maritalStatus       *string
 	dateOfBirth         *string
 	emails              emails
 	phones              phones
 	languages           languages
-	studyStartYear      int
-	studyFramework      string
+	studyStartYear      *int
+	studyFramework      *string
 	ten                 ten
 }
 
@@ -33,24 +33,24 @@ type emails struct {
 }
 
 type phones struct {
-	mobileNumber   string
+	mobileNumber   *string
 	whatsAppNumber *string
 	telegramNumber *string
 }
 
 type languages struct {
-	first     string
+	first     *string
 	other1    *string
 	other2    *string
 	other3    *string
 	other4    *string
-	listening string
-	reading   string
-	email     string
+	listening *string
+	reading   *string
+	email     *string
 }
 
 type ten struct {
-	hasGroup    bool
+	hasGroup    *bool
 	wantsGroup  *bool
 	nameOfGroup *bool
 }
