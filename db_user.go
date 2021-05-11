@@ -92,7 +92,7 @@ func (db *pgProfileDB) createUser(ctx context.Context, user user) error {
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	var userID uuid.UUID
-	err = db.QueryRow(ctx, `
+	if err := db.QueryRow(ctx, `
 	INSERT INTO users (keycloak_id,
                    first_name_latin,
                    first_name_vernacular,
@@ -124,7 +124,7 @@ func (db *pgProfileDB) createUser(ctx context.Context, user user) error {
                    name_of_ten_group)
 	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24,
         $25, $26, $27, $28, $29)
-	RETURNING user_id)`,
+	RETURNING user_id`,
 		user.keycloakID,
 		user.firstNameLatin,
 		user.firstNameVernacular,
@@ -153,7 +153,9 @@ func (db *pgProfileDB) createUser(ctx context.Context, user user) error {
 		user.studyFramework,
 		user.ten.hasGroup,
 		user.ten.wantsGroup,
-		user.ten.nameOfGroup).Scan(&userID)
+		user.ten.nameOfGroup).Scan(&userID); err != nil {
+		return err
+	}
 
 	if user.phones.mobileNumber != nil {
 		if err := insertPhone(tx, userID, *user.phones.mobileNumber, mobile); err != nil {
