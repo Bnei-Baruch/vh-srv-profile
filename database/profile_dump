@@ -71,7 +71,7 @@ ALTER TABLE public.phone_number_types OWNER TO postgres;
 
 CREATE TABLE public.phone_numbers (
     user_id uuid NOT NULL,
-    phone_number bigint NOT NULL,
+    phone_number text NOT NULL,
     type text NOT NULL
 );
 

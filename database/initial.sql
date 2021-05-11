@@ -260,9 +260,9 @@ CREATE TABLE users
 
 CREATE TABLE phone_numbers
 (
-    user_id      uuid   NOT NULL REFERENCES users (user_id),
-    phone_number bigint NOT NULL,
-    type         text   NOT NULL REFERENCES phone_number_types (name),
+    user_id      uuid NOT NULL REFERENCES users (user_id),
+    phone_number text NOT NULL,
+    type         text NOT NULL REFERENCES phone_number_types (name),
 
     UNIQUE (user_id, phone_number)
 );
