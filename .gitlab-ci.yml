@@ -1,89 +1,162 @@
 stages:
-  - publish
+  - build
   - deploy
-  - publish_prod
-  - deploy_prod
-  - deploy_stand
 
 variables:
-  IMAGE: $CI_REGISTRY_IMAGE/$CI_COMMIT_REF_NAME:$CI_COMMIT_SHORT_SHA
-  PROD_IMAGE: $CI_REGISTRY_IMAGE/$CI_COMMIT_REF_NAME:prod_$CI_COMMIT_SHORT_SHA
-
-publish:
+  STAGING_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+  STAGING_LATEST_IMAGE: $CI_REGISTRY_IMAGE:staging
+  PROD_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG
+  PROD_LATEST_IMAGE: $CI_REGISTRY_IMAGE:latest
+  STAGING_URL: "https://front.althafm.com/register/"
+  PRODUCTION_URL: "https://kli.one/register/"
+build_staging:
   image: docker:latest
-  stage: publish
+  stage: build
   tags:
-    - dockerbuild
+    - staging
   services:
     - docker:19.03.12-dind
   script:
     - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY
-    - docker build -t $IMAGE .
-    - docker push $IMAGE
+    - docker build --cache-from $STAGING_LATEST_IMAGE  -t $STAGING_IMAGE .
+    - docker tag $STAGING_IMAGE $STAGING_LATEST_IMAGE
+    - docker push $STAGING_IMAGE
+    - docker push $STAGING_LATEST_IMAGE
   only:
-    - development
+    - updated-build
 
-deploy:
-  image: docker:latest
+deploy_staging:
+  #image: tmaier/docker-compose:latest
+  variables: 
+    REACT_APP_STAGING: "true"
+  image: gitlab.bbdev.team:5050/vh/buildutils/buildutil:0.2.0
   stage: deploy
   tags:
-    - dockerbuild
+    - staging
   script:
-    - chmod og= $ID_RSA
-    - apk update && apk add openssh-client
-    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY"
-    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "docker pull $IMAGE"
-    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "docker container rm -f vh-srv-profile || true"
-    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "docker run -d --net=vh --name vh-srv-profile --memory="200m" --cpus="0.5" --restart always -p 7471:7471 $IMAGE "
-  environment:
-    name: development
-    url: http://51.15.238.1
-  when: manual
+    - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY
+    - IMAGE_NAME=$STAGING_IMAGE docker-compose up -d
   only:
-    - development
+    - updated-build
 
-publish_prod:
+
+build_production:
   image: docker:latest
-  stage: publish
+  stage: build
   tags:
     - dockerbuild
   services:
     - docker:19.03.12-dind
   script:
+    - env
     - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY
     - docker build -t $PROD_IMAGE .
     - docker push $PROD_IMAGE
   only:
-    - master
+    - tags
 
-deploy_prod:
-  image: docker:latest
-  stage: deploy_prod
+deploy_production:
+  #image: tmaier/docker-compose:latest
+  image: gitlab.bbdev.team:5050/vh/buildutils/buildutil:0.2.0
+  stage: deploy
   tags:
-    - dockerbuild
+    - production
   script:
-    - chmod og= $ID_RSA
-    - apk update && apk add openssh-client
-    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $PROD_SERVER_USER@$PROD_SERVER_IP "docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY"
-    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $PROD_SERVER_USER@$PROD_SERVER_IP "docker pull $PROD_IMAGE"
-    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $PROD_SERVER_USER@$PROD_SERVER_IP "docker container rm -f prod-vh-srv-profile || true"
-    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $PROD_SERVER_USER@$PROD_SERVER_IP "docker run -d --net=vh --name prod-vh-srv-profile --memory="200m" --cpus="0.5" --restart always -p 7471:7471 $PROD_IMAGE "
-  when: manual
+    - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY
+    - IMAGE_NAME=$PROD_IMAGE docker-compose up -d
   only:
-    - master
+    - tags
+  when: manual
 
-deploy_stand:
-  image: docker:latest
-  stage: deploy_stand
-  tags:
-    - dockerbuild
-  script:
-    - chmod og= $ID_RSA
-    - apk update && apk add openssh-client
-    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $STAND_SERVER_USER@$STAND_SERVER_IP "docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY"
-    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $STAND_SERVER_USER@$STAND_SERVER_IP "docker pull $PROD_IMAGE"
-    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $STAND_SERVER_USER@$STAND_SERVER_IP "docker container rm -f prod-vh-srv-profile || true"
-    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $STAND_SERVER_USER@$STAND_SERVER_IP "docker run -d --net=vh --name prod-vh-srv-profile --memory="200m" --cpus="0.5" --restart always -p 7471:7471 $PROD_IMAGE "
-  when: manual
-  only:
-    - master
+
+
+# #======
+# stages:
+#   - publish
+#   - deploy
+#   - publish_prod
+#   - deploy_prod
+#   - deploy_stand
+
+# variables:
+#   IMAGE: $CI_REGISTRY_IMAGE/$CI_COMMIT_REF_NAME:$CI_COMMIT_SHORT_SHA
+#   PROD_IMAGE: $CI_REGISTRY_IMAGE/$CI_COMMIT_REF_NAME:prod_$CI_COMMIT_SHORT_SHA
+
+# publish:
+#   image: docker:latest
+#   stage: publish
+#   tags:
+#     - dockerbuild
+#   services:
+#     - docker:19.03.12-dind
+#   script:
+#     - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY
+#     - docker build -t $IMAGE .
+#     - docker push $IMAGE
+#   only:
+#     - development
+
+# deploy:
+#   image: docker:latest
+#   stage: deploy
+#   tags:
+#     - dockerbuild
+#   script:
+#     - chmod og= $ID_RSA
+#     - apk update && apk add openssh-client
+#     - ssh -i $ID_RSA -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY"
+#     - ssh -i $ID_RSA -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "docker pull $IMAGE"
+#     - ssh -i $ID_RSA -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "docker container rm -f vh-srv-profile || true"
+#     - ssh -i $ID_RSA -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "docker run -d --net=vh --name vh-srv-profile --memory="200m" --cpus="0.5" --restart always -p 7471:7471 $IMAGE "
+#   environment:
+#     name: development
+#     url: http://51.15.238.1
+#   when: manual
+#   only:
+#     - development
+
+# publish_prod:
+#   image: docker:latest
+#   stage: publish
+#   tags:
+#     - dockerbuild
+#   services:
+#     - docker:19.03.12-dind
+#   script:
+#     - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY
+#     - docker build -t $PROD_IMAGE .
+#     - docker push $PROD_IMAGE
+#   only:
+#     - master
+
+# deploy_prod:
+#   image: docker:latest
+#   stage: deploy_prod
+#   tags:
+#     - dockerbuild
+#   script:
+#     - chmod og= $ID_RSA
+#     - apk update && apk add openssh-client
+#     - ssh -i $ID_RSA -o StrictHostKeyChecking=no $PROD_SERVER_USER@$PROD_SERVER_IP "docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY"
+#     - ssh -i $ID_RSA -o StrictHostKeyChecking=no $PROD_SERVER_USER@$PROD_SERVER_IP "docker pull $PROD_IMAGE"
+#     - ssh -i $ID_RSA -o StrictHostKeyChecking=no $PROD_SERVER_USER@$PROD_SERVER_IP "docker container rm -f prod-vh-srv-profile || true"
+#     - ssh -i $ID_RSA -o StrictHostKeyChecking=no $PROD_SERVER_USER@$PROD_SERVER_IP "docker run -d --net=vh --name prod-vh-srv-profile --memory="200m" --cpus="0.5" --restart always -p 7471:7471 $PROD_IMAGE "
+#   when: manual
+#   only:
+#     - master
+
+# deploy_stand:
+#   image: docker:latest
+#   stage: deploy_stand
+#   tags:
+#     - dockerbuild
+#   script:
+#     - chmod og= $ID_RSA
+#     - apk update && apk add openssh-client
+#     - ssh -i $ID_RSA -o StrictHostKeyChecking=no $STAND_SERVER_USER@$STAND_SERVER_IP "docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY"
+#     - ssh -i $ID_RSA -o StrictHostKeyChecking=no $STAND_SERVER_USER@$STAND_SERVER_IP "docker pull $PROD_IMAGE"
+#     - ssh -i $ID_RSA -o StrictHostKeyChecking=no $STAND_SERVER_USER@$STAND_SERVER_IP "docker container rm -f prod-vh-srv-profile || true"
+#     - ssh -i $ID_RSA -o StrictHostKeyChecking=no $STAND_SERVER_USER@$STAND_SERVER_IP "docker run -d --net=vh --name prod-vh-srv-profile --memory="200m" --cpus="0.5" --restart always -p 7471:7471 $PROD_IMAGE "
+#   when: manual
+#   only:
+#     - master

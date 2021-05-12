@@ -1,0 +1,13 @@
+version: '2.2'
+services:
+  vh-srv-profile:
+    container_name: 'vh-srv-profile'
+    image: "${IMAGE_NAME}"
+    cpus: '0.5'
+    mem_limit: 250M
+    ports:
+      - 7471:7471
+networks:
+    default:
+        external:
+            name: vh
