@@ -19,7 +19,7 @@ func checkIntegrationTest(t testing.TB) {
 
 func newTestPgProfileDb(t *testing.T) *pgProfileDB {
 	t.Helper()
-	db, err := newPgProfileDB(context.Background())
+	db, err := newPgProfileDB(context.Background(), os.Getenv("DATABASE_URL"))
 	require.NoError(t, err)
 
 	_, err = db.Exec(context.Background(), `TRUNCATE users CASCADE`)
@@ -30,7 +30,7 @@ func newTestPgProfileDb(t *testing.T) *pgProfileDB {
 
 func Test_newPgProfileDb(t *testing.T) {
 	checkIntegrationTest(t)
-	_, err := newPgProfileDB(context.Background())
+	_, err := newPgProfileDB(context.Background(), os.Getenv("DATABASE_URL"))
 	assert.NoError(t, err)
 }
 

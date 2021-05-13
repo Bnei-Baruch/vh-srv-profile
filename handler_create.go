@@ -3,13 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
 
-type createUser struct {
+type createUserRequest struct {
 	KeycloakID          string  `json:"keycloak_id" binding:"required"`
 	FirstNameLatin      *string `json:"first_name_latin"`
 	FirstNameVernacular string  `json:"first_name_vernacular" binding:"required"`
@@ -48,12 +47,12 @@ type storage interface {
 	createUser(ctx context.Context, user user) error
 }
 
-type profile struct {
+type profileManager struct {
 	db storage
 }
 
-func (p *profile) create(c *gin.Context) {
-	var request createUser
+func (p *profileManager) create(c *gin.Context) {
+	var request createUserRequest
 
 	if err := c.Bind(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -62,10 +61,10 @@ func (p *profile) create(c *gin.Context) {
 	}
 	if err := p.db.createUser(c.Request.Context(), user{
 		keycloakID:          request.KeycloakID,
-		firstNameLatin:      request.FirstNameLatin,
 		firstNameVernacular: request.FirstNameVernacular,
-		lastNameLatin:       request.LastNameLatin,
+		firstNameLatin:      request.FirstNameLatin,
 		lastNameVernacular:  request.LastNameVernacular,
+		lastNameLatin:       request.LastNameLatin,
 		address: address{
 			streetAddress: request.StreetAddress,
 			country:       request.Country,
@@ -105,8 +104,7 @@ func (p *profile) create(c *gin.Context) {
 		},
 	}); err != nil {
 		c.Status(http.StatusInternalServerError)
-		log.Printf("error while creating user %q: %s", request.KeycloakID, err.Error())
-		_ = c.Error(fmt.Errorf("error while creating user: %s", err.Error()))
+		_ = c.Error(fmt.Errorf("error while creating user %q: %w", request.KeycloakID, err))
 		return
 	}
 

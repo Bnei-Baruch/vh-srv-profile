@@ -1,58 +1,64 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
+	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
-	"gitlab.bbdev.team/vh/vh-srv-profile/app"
-	"gitlab.bbdev.team/vh/vh-srv-profile/config"
-	"gitlab.bbdev.team/vh/vh-srv-profile/middleware"
-	"gitlab.bbdev.team/vh/vh-srv-profile/models"
 )
 
-func init() {
-
-	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found. Read variables from environment.")
-	}
-
-	//Init log output to file
-	logOutput, err := os.OpenFile("./output.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-	if err != nil {
-		log.Panicf("Error opening log file: %v", err)
-	}
-	log.SetOutput(logOutput)
-
-	app.Config = config.New()
-
-	models.OpenDBConnection()
-}
-
 func main() {
+	if err := godotenv.Load(); err != nil {
+		log.Fatal(err)
+	}
 
-	if app.Config.IsDev() {
+	config := loadConfig()
+	if config.appMode == "dev" {
 		gin.SetMode(gin.DebugMode)
 	} else {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	server := gin.Default()
+	//Init log output to file
+	logOutput, err := os.OpenFile("./output.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	if err != nil {
+		log.Fatalf("Error opening log file: %s", err)
+	}
+	log.SetOutput(logOutput)
+	gin.DefaultWriter = logOutput
+	gin.DefaultErrorWriter = logOutput
 
-	server.Use(cors.New(cors.Config{
-		AllowAllOrigins: true,
-		AllowMethods:    cors.DefaultConfig().AllowMethods,
-		AllowHeaders:    cors.DefaultConfig().AllowHeaders,
-		MaxAge:          cors.DefaultConfig().MaxAge,
-		AllowWebSockets: true,
-	}))
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	profileDB, err := newPgProfileDB(ctx, config.databaseURL)
+	if err != nil {
+		log.Fatalf("Unable to initialize profile db: %s", err)
+	}
 
-	server.Use(middleware.CheckEndpointAccess)
+	profile := &profileManager{db: profileDB}
 
-	_ = server.Group("/v1")
+	app := initApp(appHandlers{
+		create: profile.create,
+	})
 
-	server.Run(":" + app.Config.AppPort)
+	if err := app.Run(config.appPort); err != nil {
+		log.Printf("server stopped: %s", err)
+	}
+}
 
+type appHandlers struct {
+	create gin.HandlerFunc
+}
+
+func initApp(handlers appHandlers) *gin.Engine {
+	app := gin.Default()
+	app.Use(cors.Default())
+
+	app.POST("/v1/profile", handlers.create)
+
+	return app
 }
