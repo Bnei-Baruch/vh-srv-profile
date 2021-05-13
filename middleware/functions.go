@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 
@@ -47,11 +48,12 @@ func CheckEndpointAccess(c *gin.Context) {
 	//X-Userinfo   =>  <id_token>
 	// id_token will have all info regarding the user.
 
+	// Either we can use a debug logger or print the below with a flag.
 
-
-	for k,v := range c.Request.Header{
-		fmt.Println(k,"  => ", strings.Join(v, " , "))
-	}
+	//for k,v := range c.Request.Header{
+	//	fmt.Println(k,"  => ", strings.Join(v, " , "))
+	//
+	//}
 
 	tokenString := c.Request.Header.Get("Authorization")
 
