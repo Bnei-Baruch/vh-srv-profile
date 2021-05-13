@@ -34,7 +34,7 @@ func main() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	profileDB, err := newPgProfileDB(ctx, config.databaseURL)
+	profileDB, err := newPgProfileDB(ctx, getEnvOrFatal("DATABASE_URL"))
 	if err != nil {
 		log.Fatalf("Unable to initialize profile db: %s", err)
 	}
