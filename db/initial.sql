@@ -264,7 +264,7 @@ CREATE TABLE phone_numbers
     phone_number bigint NOT NULL,
     type         text   NOT NULL REFERENCES phone_number_types (name),
 
-    UNIQUE (user_id, phone_number)
+    UNIQUE (user_id, type)
 );
 
 COMMIT;
