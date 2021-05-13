@@ -32,6 +32,21 @@ func CheckEndpointAccess(c *gin.Context) {
 			return
 		}
 	}
+	// This is the kind of headers to expect, when the request is been proxied
+	//User-Agent   =>  curl/7.64.1
+	//Accept   =>  application/json
+	//X-Forwarded-Port   =>  8000
+	//X-Forwarded-Prefix   =>  /profile
+	//X-Forwarded-For   =>  92.232.183.222, 172.19.0.1
+	//X-Forwarded-Proto   =>  http
+	//X-Forwarded-Host   =>  api.althafm.com
+	//X-Forwarded-Path   =>  /profile/v1/profiles
+	//X-Real-Ip   =>  172.19.0.1
+	//Authorization   =>  Bearer <access_token>
+	//Connection   =>  keep-alive
+	//X-Userinfo   =>  <id_token>
+	// id_token will have all info regarding the user.
+
 	tokenString := c.Request.Header.Get("Authoriation")
 
 	tokenParts := strings.Split(tokenString," ")
