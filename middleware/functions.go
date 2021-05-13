@@ -34,11 +34,15 @@ func CheckEndpointAccess(c *gin.Context) {
 	}
 	tokenString := c.Request.Header.Get("Authoriation")
 
+	tokenParts := strings.Split(tokenString," ")
+
+	validToken := tokenParts[1]
+
 	for k,v := range c.Request.Header{
 		fmt.Println(k,"  => ", strings.Join(v, " , "))
 	}
 
-	if tokenString == "" {
+	if validToken == "" {
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 			"error": app.GetSystemMessage("access_denied"),
 		})
@@ -47,7 +51,7 @@ func CheckEndpointAccess(c *gin.Context) {
 
 	claims := &app.TokenClaims{}
 
-	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(validToken, claims, func(token *jwt.Token) (interface{}, error) {
 		return app.GetJWTKey(), nil
 	})
 
