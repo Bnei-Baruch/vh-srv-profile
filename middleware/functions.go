@@ -53,7 +53,7 @@ func CheckEndpointAccess(c *gin.Context) {
 		fmt.Println(k,"  => ", strings.Join(v, " , "))
 	}
 
-	tokenString := c.Request.Header.Get("Authoriation")
+	tokenString := c.Request.Header.Get("Authorization")
 
 	tokenParts := strings.Split(tokenString," ")
 
