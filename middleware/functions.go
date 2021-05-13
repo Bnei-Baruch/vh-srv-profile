@@ -47,15 +47,17 @@ func CheckEndpointAccess(c *gin.Context) {
 	//X-Userinfo   =>  <id_token>
 	// id_token will have all info regarding the user.
 
+
+
+	for k,v := range c.Request.Header{
+		fmt.Println(k,"  => ", strings.Join(v, " , "))
+	}
+
 	tokenString := c.Request.Header.Get("Authoriation")
 
 	tokenParts := strings.Split(tokenString," ")
 
 	validToken := tokenParts[1]
-
-	for k,v := range c.Request.Header{
-		fmt.Println(k,"  => ", strings.Join(v, " , "))
-	}
 
 	if validToken == "" {
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
