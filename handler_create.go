@@ -25,9 +25,9 @@ type createUserRequest struct {
 	PrimaryEmail        string  `json:"primary_email" binding:"required"`
 	AlternateEmail1     *string `json:"alternate_email_1"`
 	AlternateEmail2     *string `json:"alternate_email_2"`
-	MobileNumber        *string `json:"mobile_number"`
-	WhatsAppNumber      *string `json:"whats_app_number"`
-	TelegramNumber      *string `json:"telegram_number"`
+	MobileNumber        *int    `json:"mobile_number"`
+	WhatsAppNumber      *int    `json:"whats_app_number"`
+	TelegramNumber      *int    `json:"telegram_number"`
 	FirstLanguage       *string `json:"first_language"`
 	OtherLanguage1      *string `json:"other_language_1"`
 	OtherLanguage2      *string `json:"other_language_2"`
