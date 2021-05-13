@@ -1,8 +1,6 @@
 package middleware
 
 import (
-	"fmt"
-	"log"
 	"net/http"
 	"strings"
 
