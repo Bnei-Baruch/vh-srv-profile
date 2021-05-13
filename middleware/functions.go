@@ -1,7 +1,9 @@
 package middleware
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
@@ -30,7 +32,11 @@ func CheckEndpointAccess(c *gin.Context) {
 			return
 		}
 	}
-	tokenString := c.Request.Header.Get("token")
+	tokenString := c.Request.Header.Get("Authoriation")
+
+	for k,v := range c.Request.Header{
+		fmt.Println(k,"  => ", strings.Join(v, " , "))
+	}
 
 	if tokenString == "" {
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
