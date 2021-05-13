@@ -34,7 +34,7 @@ func Test_newPgProfileDb(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func Test_createUser_with_minimum_info_succeeds(t *testing.T) {
+func Test_pgProfileDb_createUser_with_minimum_info_succeeds(t *testing.T) {
 	checkIntegrationTest(t)
 	db := newTestPgProfileDb(t)
 	defer newTestPgProfileDb(t)
