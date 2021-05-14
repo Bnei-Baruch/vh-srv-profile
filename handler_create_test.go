@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -16,7 +15,7 @@ import (
 func Test_profileHandler_create_succeeds_with_minimal_required_fields(t *testing.T) {
 	sm := storageMock{}
 	sm.On("createUser", mock.Anything,
-		user{
+		userInput{
 			keycloakID:          "11000000-0000-0000-0000-000000000000",
 			firstNameVernacular: "First",
 			lastNameVernacular:  "Name",
@@ -57,13 +56,4 @@ func Test_profileHandler_create_returns_500_when_storage_returns_error(t *testin
 	g.ServeHTTP(w, r)
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
-}
-
-type storageMock struct {
-	mock.Mock
-}
-
-func (m *storageMock) createUser(ctx context.Context, user user) error {
-	args := m.Called(ctx, user)
-	return args.Error(0)
 }
