@@ -42,9 +42,9 @@ type emails struct {
 }
 
 type phones struct {
-	mobileNumber   *int
-	whatsAppNumber *int
-	telegramNumber *int
+	mobileNumber   *string
+	whatsAppNumber *string
+	telegramNumber *string
 }
 
 type languages struct {
@@ -177,8 +177,119 @@ func (db *pgProfileDB) createUser(ctx context.Context, user user) error {
 	return tx.Commit(ctx)
 }
 
-func insertPhone(tx pgx.Tx, userID uuid.UUID, number int, phoneType string) error {
+func insertPhone(tx pgx.Tx, userID uuid.UUID, number string, phoneType string) error {
 	_, err := tx.Exec(context.Background(), `INSERT INTO phone_numbers (user_id, phone_number, type) VALUES ($1, $2, $3)`,
 		userID, number, phoneType)
 	return err
+}
+
+type phone struct {
+	number    string
+	phoneType string
+}
+
+func (db *pgProfileDB) getUser(ctx context.Context, keycloakID string) (user, error) {
+	profile := user{keycloakID: keycloakID}
+	var userID uuid.UUID
+	if err := db.QueryRow(ctx, `
+	SELECT user_id,
+       first_name_latin,
+       first_name_vernacular,
+       last_name_latin,
+       last_name_vernacular,
+       street_address,
+       country,
+       state_region,
+       postal_code,
+       city,
+       gender,
+       marital_status,
+       date_of_birth,
+       primary_email,
+       alternate_email_1,
+       alternate_email_2,
+       first_language,
+       other_language_1,
+       other_language_2,
+       other_language_3,
+       other_language_4,
+       listening_language,
+       reading_language,
+       email_language,
+       study_start_year,
+       study_framework,
+       has_ten_group,
+       wants_ten_group,
+       name_of_ten_group
+	FROM users
+	WHERE keycloak_id = $1`, keycloakID).Scan(
+		&userID,
+		&profile.firstNameLatin,
+		&profile.firstNameVernacular,
+		&profile.lastNameLatin,
+		&profile.lastNameVernacular,
+		&profile.address.streetAddress,
+		&profile.address.country,
+		&profile.address.stateOrRegion,
+		&profile.address.postalCode,
+		&profile.address.city,
+		&profile.gender,
+		&profile.maritalStatus,
+		&profile.dateOfBirth,
+		&profile.emails.primary,
+		&profile.emails.alternate1,
+		&profile.emails.alternate2,
+		&profile.languages.first,
+		&profile.languages.other1,
+		&profile.languages.other2,
+		&profile.languages.other3,
+		&profile.languages.other4,
+		&profile.languages.listening,
+		&profile.languages.reading,
+		&profile.languages.email,
+		&profile.studyStartYear,
+		&profile.studyFramework,
+		&profile.ten.hasGroup,
+		&profile.ten.wantsGroup,
+		&profile.ten.nameOfGroup,
+	); err != nil {
+		return user{}, err
+	}
+
+	var phoneNumbers []phone
+	rows, err := db.Query(ctx, `
+	SELECT phone_number, 
+		type 
+	FROM phone_numbers
+	WHERE user_id = $1`, userID)
+	if err != nil {
+		return user{}, err
+	}
+	for rows.Next() {
+		var temp phone
+		if err := rows.Scan(&temp.number, &temp.phoneType); err != nil {
+			return user{}, err
+		}
+		phoneNumbers = append(phoneNumbers, temp)
+	}
+
+	var mobileNumber, whatsAppNumber, telegramNumber *string
+	for _, num := range phoneNumbers {
+		switch num.phoneType {
+		case mobile:
+			mobileNumber = &num.number
+		case whatsApp:
+			whatsAppNumber = &num.number
+		case telegram:
+			telegramNumber = &num.number
+		}
+	}
+
+	profile.phones = phones{
+		mobileNumber:   mobileNumber,
+		whatsAppNumber: whatsAppNumber,
+		telegramNumber: telegramNumber,
+	}
+
+	return profile, nil
 }
