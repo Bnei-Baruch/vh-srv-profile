@@ -42,9 +42,9 @@ type emails struct {
 }
 
 type phones struct {
-	mobileNumber   *string
-	whatsAppNumber *string
-	telegramNumber *string
+	mobileNumber   *int
+	whatsAppNumber *int
+	telegramNumber *int
 }
 
 type languages struct {
@@ -177,7 +177,7 @@ func (db *pgProfileDB) createUser(ctx context.Context, user user) error {
 	return tx.Commit(ctx)
 }
 
-func insertPhone(tx pgx.Tx, userID uuid.UUID, number string, phoneType string) error {
+func insertPhone(tx pgx.Tx, userID uuid.UUID, number int, phoneType string) error {
 	_, err := tx.Exec(context.Background(), `INSERT INTO phone_numbers (user_id, phone_number, type) VALUES ($1, $2, $3)`,
 		userID, number, phoneType)
 	return err
