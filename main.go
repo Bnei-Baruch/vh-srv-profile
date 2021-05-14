@@ -43,6 +43,7 @@ func main() {
 
 	app := initApp(appHandlers{
 		create: profile.create,
+		get:    profile.get,
 	})
 
 	if err := app.Run(config.appPort); err != nil {
@@ -52,6 +53,7 @@ func main() {
 
 type appHandlers struct {
 	create gin.HandlerFunc
+	get    gin.HandlerFunc
 }
 
 func initApp(handlers appHandlers) *gin.Engine {
@@ -59,6 +61,7 @@ func initApp(handlers appHandlers) *gin.Engine {
 	app.Use(cors.Default())
 
 	app.POST("/v1/profile", handlers.create)
+	app.GET("/v1/profile/:keycloakID", handlers.get)
 
 	return app
 }

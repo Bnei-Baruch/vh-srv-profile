@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 
@@ -43,14 +42,6 @@ type createUserRequest struct {
 	NameOfGroup         *bool   `json:"name_ten_group"`
 }
 
-type storage interface {
-	createUser(ctx context.Context, user user) error
-}
-
-type profileManager struct {
-	db storage
-}
-
 func (p *profileManager) create(c *gin.Context) {
 	var request createUserRequest
 
@@ -59,7 +50,7 @@ func (p *profileManager) create(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
-	if err := p.db.createUser(c.Request.Context(), user{
+	if err := p.db.createUser(c.Request.Context(), userInput{
 		keycloakID:          request.KeycloakID,
 		firstNameVernacular: request.FirstNameVernacular,
 		firstNameLatin:      request.FirstNameLatin,

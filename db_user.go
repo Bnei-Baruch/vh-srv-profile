@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -10,6 +11,13 @@ import (
 )
 
 type user struct {
+	updatedAt time.Time
+	createdAt time.Time
+	deleted   bool
+	userInput userInput
+}
+
+type userInput struct {
 	keycloakID          string
 	firstNameLatin      *string
 	firstNameVernacular string
@@ -83,7 +91,7 @@ func newPgProfileDB(ctx context.Context, databaseURL string) (*pgProfileDB, erro
 	return &pgProfileDB{pool}, nil
 }
 
-func (db *pgProfileDB) createUser(ctx context.Context, user user) error {
+func (db *pgProfileDB) createUser(ctx context.Context, user userInput) error {
 	tx, err := db.Begin(ctx)
 	if err != nil {
 		return err
@@ -183,16 +191,14 @@ func insertPhone(tx pgx.Tx, userID uuid.UUID, number string, phoneType string) e
 	return err
 }
 
-type phone struct {
-	number    string
-	phoneType string
-}
-
 func (db *pgProfileDB) getUser(ctx context.Context, keycloakID string) (user, error) {
-	profile := user{keycloakID: keycloakID}
+	profile := user{userInput: userInput{keycloakID: keycloakID}}
 	var userID uuid.UUID
 	if err := db.QueryRow(ctx, `
 	SELECT user_id,
+       updated_at,
+       created_at,
+       deleted,
        first_name_latin,
        first_name_vernacular,
        last_name_latin,
@@ -224,38 +230,45 @@ func (db *pgProfileDB) getUser(ctx context.Context, keycloakID string) (user, er
 	FROM users
 	WHERE keycloak_id = $1`, keycloakID).Scan(
 		&userID,
-		&profile.firstNameLatin,
-		&profile.firstNameVernacular,
-		&profile.lastNameLatin,
-		&profile.lastNameVernacular,
-		&profile.address.streetAddress,
-		&profile.address.country,
-		&profile.address.stateOrRegion,
-		&profile.address.postalCode,
-		&profile.address.city,
-		&profile.gender,
-		&profile.maritalStatus,
-		&profile.dateOfBirth,
-		&profile.emails.primary,
-		&profile.emails.alternate1,
-		&profile.emails.alternate2,
-		&profile.languages.first,
-		&profile.languages.other1,
-		&profile.languages.other2,
-		&profile.languages.other3,
-		&profile.languages.other4,
-		&profile.languages.listening,
-		&profile.languages.reading,
-		&profile.languages.email,
-		&profile.studyStartYear,
-		&profile.studyFramework,
-		&profile.ten.hasGroup,
-		&profile.ten.wantsGroup,
-		&profile.ten.nameOfGroup,
+		&profile.updatedAt,
+		&profile.createdAt,
+		&profile.deleted,
+		&profile.userInput.firstNameLatin,
+		&profile.userInput.firstNameVernacular,
+		&profile.userInput.lastNameLatin,
+		&profile.userInput.lastNameVernacular,
+		&profile.userInput.address.streetAddress,
+		&profile.userInput.address.country,
+		&profile.userInput.address.stateOrRegion,
+		&profile.userInput.address.postalCode,
+		&profile.userInput.address.city,
+		&profile.userInput.gender,
+		&profile.userInput.maritalStatus,
+		&profile.userInput.dateOfBirth,
+		&profile.userInput.emails.primary,
+		&profile.userInput.emails.alternate1,
+		&profile.userInput.emails.alternate2,
+		&profile.userInput.languages.first,
+		&profile.userInput.languages.other1,
+		&profile.userInput.languages.other2,
+		&profile.userInput.languages.other3,
+		&profile.userInput.languages.other4,
+		&profile.userInput.languages.listening,
+		&profile.userInput.languages.reading,
+		&profile.userInput.languages.email,
+		&profile.userInput.studyStartYear,
+		&profile.userInput.studyFramework,
+		&profile.userInput.ten.hasGroup,
+		&profile.userInput.ten.wantsGroup,
+		&profile.userInput.ten.nameOfGroup,
 	); err != nil {
 		return user{}, err
 	}
 
+	type phone struct {
+		number    *string
+		phoneType string
+	}
 	var phoneNumbers []phone
 	rows, err := db.Query(ctx, `
 	SELECT phone_number, 
@@ -277,15 +290,15 @@ func (db *pgProfileDB) getUser(ctx context.Context, keycloakID string) (user, er
 	for _, num := range phoneNumbers {
 		switch num.phoneType {
 		case mobile:
-			mobileNumber = &num.number
+			mobileNumber = num.number
 		case whatsApp:
-			whatsAppNumber = &num.number
+			whatsAppNumber = num.number
 		case telegram:
-			telegramNumber = &num.number
+			telegramNumber = num.number
 		}
 	}
 
-	profile.phones = phones{
+	profile.userInput.phones = phones{
 		mobileNumber:   mobileNumber,
 		whatsAppNumber: whatsAppNumber,
 		telegramNumber: telegramNumber,
