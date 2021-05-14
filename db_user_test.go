@@ -42,9 +42,23 @@ func Test_pgProfileDb_createUser_with_minimum_info_succeeds(t *testing.T) {
 	err := db.createUser(context.Background(), user{
 		keycloakID:          "some keycloak id",
 		firstNameVernacular: "first name",
-		lastNameVernacular:  "last name ",
+		lastNameVernacular:  "last name",
 		emails:              emails{primary: "someemail@email.email"},
 	})
 
 	assert.NoError(t, err)
+	actualRows, err := db.Query(context.Background(), `SELECT keycloak_id, first_name_vernacular, last_name_vernacular,
+	primary_email FROM users`)
+	require.NoError(t, err)
+	defer actualRows.Close()
+	var actual [][]interface{}
+	for actualRows.Next() {
+		actualRow, err := actualRows.Values()
+		require.NoError(t, err)
+
+		actual = append(actual, actualRow)
+	}
+	assert.Len(t, actual, 1)
+	assert.Equal(t, [][]interface{}{{"some keycloak id", "first name", "last name", "someemail@email.email"}}, actual)
+
 }
