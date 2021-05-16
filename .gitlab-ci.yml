@@ -37,12 +37,12 @@ deploy_staging:
   image: gitlab.bbdev.team:5050/vh/buildutils/buildutil:0.2.0
   stage: deploy
   tags:
-    - master
+    - staging
   script:
     - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY
-    - IMAGE_NAME=$STAGING_IMAGE docker-compose up -d
+    - IMAGE_NAME=$staging_IMAGE docker-compose up -d
   only:
-    - updated-build
+    - master
 
 
 build_production:
