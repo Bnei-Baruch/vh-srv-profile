@@ -1,12 +1,12 @@
 version: '2.2'
 services:
-  profiledb:
-    image: postgres:9.6
-    container_name: profiledb
-    environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_DB: ${DB_DATABASE}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+  # profiledb:
+  #   image: postgres:9.6
+  #   container_name: profiledb
+  #   environment:
+  #     POSTGRES_USER: ${DB_USER}
+  #     POSTGRES_DB: ${DB_DATABASE}
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD}
   vh-srv-profile:
     container_name: 'vh-srv-profile'
     environment: 
