@@ -1,7 +1,22 @@
 version: '2.2'
 services:
+  # profiledb:
+  #   image: postgres:9.6
+  #   container_name: profiledb
+  #   environment:
+  #     POSTGRES_USER: ${DB_USER}
+  #     POSTGRES_DB: ${DB_DATABASE}
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD}
   vh-srv-profile:
     container_name: 'vh-srv-profile'
+    environment: 
+      DB_NETWORK: "tcp"
+      DB_USERNAME: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_HOST: "${DB_HOST}:${DB_PORT}"
+      PGPORT: ${DB_PORT}
+      DB_NAME: ${DB_DATABASE}
+      DB_APPNAME: "bbdev"
     image: "${IMAGE_NAME}"
     cpus: '0.5'
     mem_limit: 250M

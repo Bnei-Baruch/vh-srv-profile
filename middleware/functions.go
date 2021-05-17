@@ -55,7 +55,7 @@ func CheckEndpointAccess(c *gin.Context) {
 
 	tokenString := c.Request.Header.Get("Authorization")
 
-	tokenParts := strings.Split(tokenString," ")
+	tokenParts := strings.Split(tokenString, " ")
 
 	validToken := tokenParts[1]
 
