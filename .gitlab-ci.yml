@@ -40,7 +40,7 @@ deploy_staging:
     - staging
   script:
     - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY
-    - IMAGE_NAME=$staging_IMAGE docker-compose up -d --remove-orphans
+    - IMAGE_NAME=$STAGING_IMAGE docker-compose up -d --remove-orphans
   only:
     - master
 
