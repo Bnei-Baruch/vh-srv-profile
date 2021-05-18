@@ -6,31 +6,15 @@ import (
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
-	"gitlab.bbdev.team/vh/vh-srv-profile/app"
-	"gitlab.bbdev.team/vh/vh-srv-profile/models"
 )
 
-//GetOpenEndpoints
-func GetOpenEndpoints() (url []string) {
-
-	url = []string{
-		"/v1/profile/login",
-		"/v1/profile/create",
-	}
-
-	return
+type TokenClaims struct {
+	Token string `json:"token"`
+	jwt.StandardClaims
 }
 
 //CheckEndpointAccess
 func CheckEndpointAccess(c *gin.Context) {
-
-	path := c.FullPath()
-
-	for _, endpoint := range GetOpenEndpoints() {
-		if endpoint == path {
-			return
-		}
-	}
 	// This is the kind of headers to expect, when the request is been proxied
 	//User-Agent   =>  curl/7.64.1
 	//Accept   =>  application/json
@@ -61,15 +45,15 @@ func CheckEndpointAccess(c *gin.Context) {
 
 	if validToken == "" {
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-			"error": app.GetSystemMessage("access_denied"),
+			"error": "access_denied",
 		})
 		return
 	}
 
-	claims := &app.TokenClaims{}
+	claims := &TokenClaims{}
 
 	token, err := jwt.ParseWithClaims(validToken, claims, func(token *jwt.Token) (interface{}, error) {
-		return app.GetJWTKey(), nil
+		return []byte("ONLY_FOR_TEST_KEY"), nil
 	})
 
 	if err != nil {
@@ -85,23 +69,6 @@ func CheckEndpointAccess(c *gin.Context) {
 		return
 	}
 
-	user, err := models.FindUserByToken(claims.Token)
-
-	if err != nil {
-		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-			"error": app.GetSystemMessage("access_denied"),
-		})
-		return
-	}
-
-	c.Set("UserID", user.ID)
-
 	c.Next()
 
-}
-
-//CheckAuth
-func CheckAuth(token string) bool {
-
-	return false
 }

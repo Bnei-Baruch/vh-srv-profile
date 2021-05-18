@@ -1,66 +1,71 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
+	"time"
+
+	"gitlab.bbdev.team/vh/vh-srv-profile/middleware"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
-	"gitlab.bbdev.team/vh/vh-srv-profile/app"
-	"gitlab.bbdev.team/vh/vh-srv-profile/config"
-	"gitlab.bbdev.team/vh/vh-srv-profile/controllers"
-	"gitlab.bbdev.team/vh/vh-srv-profile/middleware"
-	"gitlab.bbdev.team/vh/vh-srv-profile/models"
 )
 
-func init() {
-
-	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found. Read variables from environment.")
-	}
-
-	//Init log output to file
-	logOutput, err := os.OpenFile("./output.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-	if err != nil {
-		log.Panicf("Error opening log file: %v", err)
-	}
-	log.SetOutput(logOutput)
-
-	app.Config = config.New()
-
-	models.OpenDBConnection()
-}
-
 func main() {
+	if err := godotenv.Load(); err != nil {
+		log.Fatal(err)
+	}
 
-	if app.Config.IsDev() {
+	config := loadConfig()
+	if config.appMode == "dev" {
 		gin.SetMode(gin.DebugMode)
 	} else {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	server := gin.Default()
+	//Init log output to file
+	logOutput, err := os.OpenFile("./output.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	if err != nil {
+		log.Fatalf("Error opening log file: %s", err)
+	}
+	log.SetOutput(logOutput)
+	gin.DefaultWriter = logOutput
+	gin.DefaultErrorWriter = logOutput
 
-	server.Use(cors.New(cors.Config{
-		AllowAllOrigins: true,
-		AllowMethods:    cors.DefaultConfig().AllowMethods,
-		AllowHeaders:    cors.DefaultConfig().AllowHeaders,
-		MaxAge:          cors.DefaultConfig().MaxAge,
-		AllowWebSockets: true,
-	}))
-
-	server.Use(middleware.CheckEndpointAccess)
-
-	api := server.Group("/v1")
-	{
-		api.PUT("/profile/create", controllers.ProfileCreate)
-		api.POST("/profile/login", controllers.ProfileLogin)
-		api.POST("/profile/update", controllers.ProfileUpdate)
-		api.POST("/profile/update/login", controllers.ProfileUpdateLogin)
-		api.GET("/profiles", controllers.Profiles)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	profileDB, err := newPgProfileDB(ctx, getEnvOrFatal("DATABASE_URL"))
+	if err != nil {
+		log.Fatalf("Unable to initialize profile db: %s", err)
 	}
 
-	server.Run(":" + app.Config.AppPort)
+	profile := &profileManager{db: profileDB}
 
+	app := initApp(appHandlers{
+		create: profile.create,
+		get:    profile.get,
+	})
+
+	if err := app.Run(config.appPort); err != nil {
+		log.Printf("server stopped: %s", err)
+	}
+}
+
+type appHandlers struct {
+	create gin.HandlerFunc
+	get    gin.HandlerFunc
+}
+
+func initApp(handlers appHandlers) *gin.Engine {
+	app := gin.Default()
+	app.Use(cors.Default())
+
+	app.Use(middleware.CheckEndpointAccess)
+
+	app.POST("/v1/profile", handlers.create)
+	app.GET("/v1/profile/:keycloakID", handlers.get)
+
+	return app
 }
