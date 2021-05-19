@@ -59,10 +59,10 @@ func (p *profileManager) create(c *gin.Context) {
 		return
 	}
 	if err := p.db.createUser(c.Request.Context(), userInput{
-		keycloakID:          *request.KeycloakID,
-		firstNameVernacular: *request.FirstNameVernacular,
+		keycloakID:          request.KeycloakID,
+		firstNameVernacular: request.FirstNameVernacular,
 		firstNameLatin:      request.FirstNameLatin,
-		lastNameVernacular:  *request.LastNameVernacular,
+		lastNameVernacular:  request.LastNameVernacular,
 		lastNameLatin:       request.LastNameLatin,
 		address: address{
 			streetAddress: request.StreetAddress,
@@ -75,7 +75,7 @@ func (p *profileManager) create(c *gin.Context) {
 		maritalStatus: request.MaritalStatus,
 		dateOfBirth:   request.DateOfBirth,
 		emails: emails{
-			primary:    *request.PrimaryEmail,
+			primary:    request.PrimaryEmail,
 			alternate1: request.AlternateEmail1,
 			alternate2: request.AlternateEmail2,
 		},

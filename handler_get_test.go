@@ -24,10 +24,10 @@ func Test_profileHandler_get_succeeds_with_minimal_required_fields(t *testing.T)
 			createdAt: time.Date(2019, 12, 12, 12, 0, 0, 0, parisTZ),
 			deleted:   false,
 			userInput: userInput{
-				keycloakID:          "some keycloak id",
-				firstNameVernacular: "first name",
-				lastNameVernacular:  "last name",
-				emails:              emails{primary: "someemail@email.com"},
+				keycloakID:          pointerString("11000000-0000-0000-0000-000000000000"),
+				firstNameVernacular: pointerString("first name"),
+				lastNameVernacular:  pointerString("last name"),
+				emails:              emails{primary: pointerString("someemail@email.com")},
 			},
 		}, nil)
 	profile := profileManager{db: &sm}

@@ -18,11 +18,11 @@ type user struct {
 }
 
 type userInput struct {
-	keycloakID          string
+	keycloakID          *string
 	firstNameLatin      *string
-	firstNameVernacular string
+	firstNameVernacular *string
 	lastNameLatin       *string
-	lastNameVernacular  string
+	lastNameVernacular  *string
 	address             address
 	gender              *string
 	maritalStatus       *string
@@ -44,7 +44,7 @@ type address struct {
 }
 
 type emails struct {
-	primary    string
+	primary    *string
 	alternate1 *string
 	alternate2 *string
 }
@@ -192,7 +192,7 @@ func insertPhone(tx pgx.Tx, userID uuid.UUID, number string, phoneType string) e
 }
 
 func (db *pgProfileDB) getUser(ctx context.Context, keycloakID string) (user, error) {
-	profile := user{userInput: userInput{keycloakID: keycloakID}}
+	profile := user{userInput: userInput{keycloakID: &keycloakID}}
 	var userID uuid.UUID
 	if err := db.QueryRow(ctx, `
 	SELECT user_id,
