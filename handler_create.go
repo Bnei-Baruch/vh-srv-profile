@@ -7,12 +7,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type createUserRequest struct {
-	KeycloakID          string  `json:"keycloak_id" binding:"required"`
+type profileRequest struct {
+	KeycloakID          *string `json:"keycloak_id"`
 	FirstNameLatin      *string `json:"first_name_latin"`
-	FirstNameVernacular string  `json:"first_name_vernacular" binding:"required"`
+	FirstNameVernacular *string `json:"first_name_vernacular"`
 	LastNameLatin       *string `json:"last_name_latin"`
-	LastNameVernacular  string  `json:"last_name_vernacular"  binding:"required"`
+	LastNameVernacular  *string `json:"last_name_vernacular"`
 	StreetAddress       *string `json:"street_address"`
 	Country             *string `json:"country"`
 	StateOrRegion       *string `json:"state_region"`
@@ -21,7 +21,7 @@ type createUserRequest struct {
 	Gender              *string `json:"gender"`
 	MaritalStatus       *string `json:"marital_status"`
 	DateOfBirth         *string `json:"date_of_birth"`
-	PrimaryEmail        string  `json:"primary_email" binding:"required"`
+	PrimaryEmail        *string `json:"primary_email"`
 	AlternateEmail1     *string `json:"alternate_email_1"`
 	AlternateEmail2     *string `json:"alternate_email_2"`
 	MobileNumber        *string `json:"mobile_number"`
@@ -43,18 +43,26 @@ type createUserRequest struct {
 }
 
 func (p *profileManager) create(c *gin.Context) {
-	var request createUserRequest
+	var request profileRequest
 
 	if err := c.Bind(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		_ = c.Error(err)
 		return
 	}
+
+	if request.KeycloakID == nil || request.FirstNameVernacular == nil || request.LastNameVernacular == nil ||
+		request.PrimaryEmail == nil {
+		err := fmt.Errorf("missing a required field")
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		_ = c.Error(err)
+		return
+	}
 	if err := p.db.createUser(c.Request.Context(), userInput{
-		keycloakID:          request.KeycloakID,
-		firstNameVernacular: request.FirstNameVernacular,
+		keycloakID:          *request.KeycloakID,
+		firstNameVernacular: *request.FirstNameVernacular,
 		firstNameLatin:      request.FirstNameLatin,
-		lastNameVernacular:  request.LastNameVernacular,
+		lastNameVernacular:  *request.LastNameVernacular,
 		lastNameLatin:       request.LastNameLatin,
 		address: address{
 			streetAddress: request.StreetAddress,
@@ -67,7 +75,7 @@ func (p *profileManager) create(c *gin.Context) {
 		maritalStatus: request.MaritalStatus,
 		dateOfBirth:   request.DateOfBirth,
 		emails: emails{
-			primary:    request.PrimaryEmail,
+			primary:    *request.PrimaryEmail,
 			alternate1: request.AlternateEmail1,
 			alternate2: request.AlternateEmail2,
 		},
@@ -95,7 +103,7 @@ func (p *profileManager) create(c *gin.Context) {
 		},
 	}); err != nil {
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while creating user %q: %w", request.KeycloakID, err))
+		_ = c.Error(fmt.Errorf("error while creating user %q: %w", *request.KeycloakID, err))
 		return
 	}
 
