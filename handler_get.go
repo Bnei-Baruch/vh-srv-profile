@@ -13,9 +13,9 @@ type userResponse struct {
 	CreatedAt           time.Time `json:"created_at"`
 	Deleted             bool      `json:"deleted"`
 	FirstNameLatin      *string   `json:"first_name_latin,omitempty"`
-	FirstNameVernacular string    `json:"first_name_vernacular" `
+	FirstNameVernacular *string   `json:"first_name_vernacular" `
 	LastNameLatin       *string   `json:"last_name_latin,omitempty"`
-	LastNameVernacular  string    `json:"last_name_vernacular"  `
+	LastNameVernacular  *string   `json:"last_name_vernacular"  `
 	StreetAddress       *string   `json:"street_address,omitempty"`
 	Country             *string   `json:"country,omitempty"`
 	StateOrRegion       *string   `json:"state_region,omitempty"`
@@ -24,7 +24,7 @@ type userResponse struct {
 	Gender              *string   `json:"gender,omitempty"`
 	MaritalStatus       *string   `json:"marital_status,omitempty"`
 	DateOfBirth         *string   `json:"date_of_birth,omitempty"`
-	PrimaryEmail        string    `json:"primary_email" `
+	PrimaryEmail        *string   `json:"primary_email" `
 	AlternateEmail1     *string   `json:"alternate_email_1,omitempty"`
 	AlternateEmail2     *string   `json:"alternate_email_2,omitempty"`
 	MobileNumber        *string   `json:"mobile_number,omitempty"`

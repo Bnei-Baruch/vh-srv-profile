@@ -16,10 +16,10 @@ func Test_profileHandler_create_succeeds_with_minimal_required_fields(t *testing
 	sm := storageMock{}
 	sm.On("createUser", mock.Anything,
 		userInput{
-			keycloakID:          "11000000-0000-0000-0000-000000000000",
-			firstNameVernacular: "First",
-			lastNameVernacular:  "Name",
-			emails:              emails{primary: "something@fakemail.com"},
+			keycloakID:          pointerString("11000000-0000-0000-0000-000000000000"),
+			firstNameVernacular: pointerString("First"),
+			lastNameVernacular:  pointerString("Name"),
+			emails:              emails{primary: pointerString("something@fakemail.com")},
 		}).Return(nil)
 	profile := profileManager{db: &sm}
 	g := gin.New()

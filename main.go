@@ -6,8 +6,6 @@ import (
 	"os"
 	"time"
 
-	"gitlab.bbdev.team/vh/vh-srv-profile/middleware"
-
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -61,8 +59,6 @@ type appHandlers struct {
 func initApp(handlers appHandlers) *gin.Engine {
 	app := gin.Default()
 	app.Use(cors.Default())
-
-	app.Use(middleware.CheckEndpointAccess)
 
 	app.POST("/v1/profile", handlers.create)
 	app.GET("/v1/profile/:keycloakID", handlers.get)

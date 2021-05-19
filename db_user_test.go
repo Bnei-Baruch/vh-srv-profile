@@ -42,10 +42,10 @@ func Test_pgProfileDb_createUser_with_minimum_info_succeeds(t *testing.T) {
 	defer newTestPgProfileDb(t)
 
 	err := db.createUser(context.Background(), userInput{
-		keycloakID:          "some keycloak id",
-		firstNameVernacular: "first name",
-		lastNameVernacular:  "last name",
-		emails:              emails{primary: "someemail@email.email"},
+		keycloakID:          pointerString("some keycloak id"),
+		firstNameVernacular: pointerString("first name"),
+		lastNameVernacular:  pointerString("last name"),
+		emails:              emails{primary: pointerString("someemail@email.email")},
 	})
 
 	assert.NoError(t, err)
@@ -113,10 +113,10 @@ func Test_pgProfileDb_getUser_minimal_data_succeeds(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, userInput{
-		keycloakID:          "some keycloak id",
-		firstNameVernacular: "first name",
-		lastNameVernacular:  "last name",
-		emails:              emails{primary: "someemail@email.email"},
+		keycloakID:          pointerString("some keycloak id"),
+		firstNameVernacular: pointerString("first name"),
+		lastNameVernacular:  pointerString("last name"),
+		emails:              emails{primary: pointerString("someemail@email.email")},
 	}, actual.userInput)
 	assert.WithinDuration(t, time.Now(), actual.createdAt, 3*time.Second)
 	assert.WithinDuration(t, time.Now(), actual.updatedAt, 3*time.Second)
@@ -142,10 +142,10 @@ func Test_pgProfileDb_getUser_with_phone_numbers_succeeds(t *testing.T) {
 	expectedWhatsApp := "0200000000"
 	assert.NoError(t, err)
 	assert.Equal(t, userInput{
-		keycloakID:          "some keycloak id",
-		firstNameVernacular: "first name",
-		lastNameVernacular:  "last name",
-		emails:              emails{primary: "someemail@email.email"},
+		keycloakID:          pointerString("some keycloak id"),
+		firstNameVernacular: pointerString("first name"),
+		lastNameVernacular:  pointerString("last name"),
+		emails:              emails{primary: pointerString("someemail@email.email")},
 		phones: phones{
 			mobileNumber:   &expectedMobile,
 			whatsAppNumber: &expectedWhatsApp,
