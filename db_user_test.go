@@ -77,6 +77,10 @@ func Test_pgProfileDb_createUser_with_phone_number_succeeds(t *testing.T) {
 	mobile := "0100000000"
 	whatsApp := "0200000000"
 	err := db.createProfile(context.Background(), userInput{
+		keycloakID:          pointerUUID(uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000")),
+		firstNameVernacular: pointerString("first name"),
+		lastNameVernacular:  pointerString("last name"),
+		emails:              emails{primary: pointerString("someemail@email.email")},
 		phones: phones{
 			mobileNumber:   &mobile,
 			whatsAppNumber: &whatsApp,
