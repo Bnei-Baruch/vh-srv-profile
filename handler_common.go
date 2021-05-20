@@ -11,8 +11,13 @@ type storage interface {
 	getProfile(ctx context.Context, keycloakID uuid.UUID) (user, error)
 }
 
+type updateStorage interface {
+	updateProfile(ctx context.Context, keycloakID string, toUpdate userInput) error
+}
+
 type profileManager struct {
-	db storage
+	db      storage
+	updater updateStorage
 }
 
 type profileRequest struct {
