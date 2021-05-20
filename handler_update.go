@@ -36,14 +36,3 @@ func (p *profileManager) update(c *gin.Context) {
 
 	c.Status(http.StatusCreated)
 }
-
-var columnNames = map[string]struct{}{
-	"first_name_latin": {},
-}
-
-//TODO: move this close to the profile struct
-
-func isKnownToProfileStorage(k string) bool {
-	_, ok := columnNames[k]
-	return ok
-}
