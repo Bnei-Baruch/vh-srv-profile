@@ -41,7 +41,7 @@ func Test_pgProfileDb_createUser_with_minimum_info_succeeds(t *testing.T) {
 	db := newTestPgProfileDb(t)
 	defer newTestPgProfileDb(t)
 
-	err := db.createUser(context.Background(), userInput{
+	err := db.createProfile(context.Background(), userInput{
 		keycloakID:          pointerString("some keycloak id"),
 		firstNameVernacular: pointerString("first name"),
 		lastNameVernacular:  pointerString("last name"),
@@ -76,7 +76,7 @@ func Test_pgProfileDb_createUser_with_phone_number_succeeds(t *testing.T) {
 
 	mobile := "0100000000"
 	whatsApp := "0200000000"
-	err := db.createUser(context.Background(), userInput{
+	err := db.createProfile(context.Background(), userInput{
 		phones: phones{
 			mobileNumber:   &mobile,
 			whatsAppNumber: &whatsApp,
@@ -109,7 +109,7 @@ func Test_pgProfileDb_getUser_minimal_data_succeeds(t *testing.T) {
 	VALUES ('some keycloak id', 'first name', 'last name', 'someemail@email.email')`)
 	require.NoError(t, err)
 
-	actual, err := db.getUser(context.Background(), "some keycloak id")
+	actual, err := db.getProfile(context.Background(), "some keycloak id")
 
 	assert.NoError(t, err)
 	assert.Equal(t, userInput{
@@ -136,7 +136,7 @@ func Test_pgProfileDb_getUser_with_phone_numbers_succeeds(t *testing.T) {
 	INSERT into phone_numbers (user_id, phone_number, type) VALUES ($1, '0100000000', 'mobile'), ($1, '0200000000', 'WhatsApp')`, userID)
 	require.NoError(t, err)
 
-	actual, err := db.getUser(context.Background(), "some keycloak id")
+	actual, err := db.getProfile(context.Background(), "some keycloak id")
 
 	expectedMobile := "0100000000"
 	expectedWhatsApp := "0200000000"

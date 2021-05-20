@@ -18,7 +18,7 @@ func Test_profileHandler_get_succeeds_with_minimal_required_fields(t *testing.T)
 	sm := storageMock{}
 	parisTZ, err := time.LoadLocation("Europe/Paris")
 	require.NoError(t, err)
-	sm.On("getUser", mock.Anything, "11000000-0000-0000-0000-000000000000").
+	sm.On("getProfile", mock.Anything, "11000000-0000-0000-0000-000000000000").
 		Return(user{
 			updatedAt: time.Date(2020, 1, 1, 1, 0, 0, 0, parisTZ),
 			createdAt: time.Date(2019, 12, 12, 12, 0, 0, 0, parisTZ),
@@ -52,7 +52,7 @@ func Test_profileHandler_get_succeeds_with_minimal_required_fields(t *testing.T)
 
 func Test_profileHandler_get_returns_500_when_storage_returns_error(t *testing.T) {
 	sm := storageMock{}
-	sm.On("getUser", mock.Anything, mock.Anything).Return(user{}, fmt.Errorf("some error"))
+	sm.On("getProfile", mock.Anything, mock.Anything).Return(user{}, fmt.Errorf("some error"))
 	profile := profileManager{db: &sm}
 	g := gin.New()
 	g.GET("/:keycloak_id", profile.get)

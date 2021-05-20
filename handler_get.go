@@ -52,7 +52,7 @@ func (p *profileManager) get(c *gin.Context) {
 		return
 	}
 
-	profile, err := p.db.getUser(c.Request.Context(), keycloakID)
+	profile, err := p.db.getProfile(c.Request.Context(), keycloakID)
 	if err != nil {
 		c.Status(http.StatusInternalServerError)
 		_ = c.Error(fmt.Errorf("error while getting user %q: %w", keycloakID, err))
