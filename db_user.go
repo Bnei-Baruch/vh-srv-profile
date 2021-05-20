@@ -192,7 +192,7 @@ func insertPhone(tx pgx.Tx, userID uuid.UUID, number string, phoneType string) e
 }
 
 func (db *pgProfileDB) getProfile(ctx context.Context, keycloakID uuid.UUID) (user, error) {
-	profile := user{userInput: userInput{keycloakID: &keycloakID}}
+	var profile user
 	var userID uuid.UUID
 	if err := db.QueryRow(ctx, `
 	SELECT user_id,

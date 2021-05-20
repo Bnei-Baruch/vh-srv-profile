@@ -117,7 +117,6 @@ func Test_pgProfileDb_getUser_minimal_data_succeeds(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, userInput{
-		keycloakID:          pointerUUID(uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000")),
 		firstNameVernacular: pointerString("first name"),
 		lastNameVernacular:  pointerString("last name"),
 		emails:              emails{primary: pointerString("someemail@email.email")},
@@ -146,7 +145,6 @@ func Test_pgProfileDb_getUser_with_phone_numbers_succeeds(t *testing.T) {
 	expectedWhatsApp := "0200000000"
 	assert.NoError(t, err)
 	assert.Equal(t, userInput{
-		keycloakID:          pointerUUID(uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000")),
 		firstNameVernacular: pointerString("first name"),
 		lastNameVernacular:  pointerString("last name"),
 		emails:              emails{primary: pointerString("someemail@email.email")},
