@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	uuid "github.com/satori/go.uuid"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -16,7 +18,7 @@ func Test_profileHandler_create_succeeds_with_minimal_required_fields(t *testing
 	sm := storageMock{}
 	sm.On("createProfile", mock.Anything,
 		userInput{
-			keycloakID:          pointerString("11000000-0000-0000-0000-000000000000"),
+			keycloakID:          pointerUUID(uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000")),
 			firstNameVernacular: pointerString("First"),
 			lastNameVernacular:  pointerString("Name"),
 			emails:              emails{primary: pointerString("something@fakemail.com")},

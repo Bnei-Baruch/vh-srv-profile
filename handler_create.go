@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
+	uuid "github.com/satori/go.uuid"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -23,8 +25,16 @@ func (p *profileManager) create(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
+
+	keycloakID, err := uuid.FromString(*request.KeycloakID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		_ = c.Error(err)
+		return
+	}
+
 	if err := p.db.createProfile(c.Request.Context(), userInput{
-		keycloakID:          request.KeycloakID,
+		keycloakID:          &keycloakID,
 		firstNameVernacular: request.FirstNameVernacular,
 		firstNameLatin:      request.FirstNameLatin,
 		lastNameVernacular:  request.LastNameVernacular,

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	uuid "github.com/satori/go.uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gin-gonic/gin"
@@ -18,13 +19,13 @@ func Test_profileHandler_get_succeeds_with_minimal_required_fields(t *testing.T)
 	sm := storageMock{}
 	parisTZ, err := time.LoadLocation("Europe/Paris")
 	require.NoError(t, err)
-	sm.On("getProfile", mock.Anything, "11000000-0000-0000-0000-000000000000").
+	sm.On("getProfile", mock.Anything, uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000")).
 		Return(user{
 			updatedAt: time.Date(2020, 1, 1, 1, 0, 0, 0, parisTZ),
 			createdAt: time.Date(2019, 12, 12, 12, 0, 0, 0, parisTZ),
 			deleted:   false,
 			userInput: userInput{
-				keycloakID:          pointerString("11000000-0000-0000-0000-000000000000"),
+				keycloakID:          pointerUUID(uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000")),
 				firstNameVernacular: pointerString("first name"),
 				lastNameVernacular:  pointerString("last name"),
 				emails:              emails{primary: pointerString("someemail@email.com")},

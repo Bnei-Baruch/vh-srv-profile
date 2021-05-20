@@ -42,7 +42,7 @@ func Test_pgProfileDb_createUser_with_minimum_info_succeeds(t *testing.T) {
 	defer newTestPgProfileDb(t)
 
 	err := db.createProfile(context.Background(), userInput{
-		keycloakID:          pointerString("some keycloak id"),
+		keycloakID:          pointerUUID(uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000")),
 		firstNameVernacular: pointerString("first name"),
 		lastNameVernacular:  pointerString("last name"),
 		emails:              emails{primary: pointerString("someemail@email.email")},
@@ -61,7 +61,7 @@ func Test_pgProfileDb_createUser_with_minimum_info_succeeds(t *testing.T) {
 		actual = append(actual, actualRow)
 	}
 	require.Len(t, actual, 1)
-	assert.Equal(t, [][]interface{}{{false, "some keycloak id", "first name", "last name", "someemail@email.email"}}, actual)
+	assert.Equal(t, [][]interface{}{{false, "11000000-0000-0000-0000-000000000000", "first name", "last name", "someemail@email.email"}}, actual)
 
 	var createdAt, updatedAt time.Time
 	require.NoError(t, db.QueryRow(context.Background(), `SELECT created_at, updated_at FROM users`).Scan(&createdAt, &updatedAt))
@@ -106,14 +106,14 @@ func Test_pgProfileDb_getUser_minimal_data_succeeds(t *testing.T) {
 	defer newTestPgProfileDb(t)
 	_, err := db.Exec(context.Background(), `
 	INSERT into users (keycloak_id, first_name_vernacular, last_name_vernacular, primary_email) 
-	VALUES ('some keycloak id', 'first name', 'last name', 'someemail@email.email')`)
+	VALUES ('11000000-0000-0000-0000-000000000000', 'first name', 'last name', 'someemail@email.email')`)
 	require.NoError(t, err)
 
-	actual, err := db.getProfile(context.Background(), "some keycloak id")
+	actual, err := db.getProfile(context.Background(), uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000"))
 
 	assert.NoError(t, err)
 	assert.Equal(t, userInput{
-		keycloakID:          pointerString("some keycloak id"),
+		keycloakID:          pointerUUID(uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000")),
 		firstNameVernacular: pointerString("first name"),
 		lastNameVernacular:  pointerString("last name"),
 		emails:              emails{primary: pointerString("someemail@email.email")},
@@ -130,19 +130,19 @@ func Test_pgProfileDb_getUser_with_phone_numbers_succeeds(t *testing.T) {
 	var userID uuid.UUID
 	err := db.QueryRow(context.Background(), `
 	INSERT into users (keycloak_id, first_name_vernacular, last_name_vernacular, primary_email) 
-	VALUES ('some keycloak id', 'first name', 'last name', 'someemail@email.email') RETURNING user_id`).Scan(&userID)
+	VALUES ('11000000-0000-0000-0000-000000000000', 'first name', 'last name', 'someemail@email.email') RETURNING user_id`).Scan(&userID)
 	require.NoError(t, err)
 	_, err = db.Exec(context.Background(), `
 	INSERT into phone_numbers (user_id, phone_number, type) VALUES ($1, '0100000000', 'mobile'), ($1, '0200000000', 'WhatsApp')`, userID)
 	require.NoError(t, err)
 
-	actual, err := db.getProfile(context.Background(), "some keycloak id")
+	actual, err := db.getProfile(context.Background(), uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000"))
 
 	expectedMobile := "0100000000"
 	expectedWhatsApp := "0200000000"
 	assert.NoError(t, err)
 	assert.Equal(t, userInput{
-		keycloakID:          pointerString("some keycloak id"),
+		keycloakID:          pointerUUID(uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000")),
 		firstNameVernacular: pointerString("first name"),
 		lastNameVernacular:  pointerString("last name"),
 		emails:              emails{primary: pointerString("someemail@email.email")},

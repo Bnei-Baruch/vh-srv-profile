@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	uuid "github.com/satori/go.uuid"
 )
 
 type userResponse struct {
@@ -46,16 +47,22 @@ type userResponse struct {
 }
 
 func (p *profileManager) get(c *gin.Context) {
-	keycloakID, ok := c.Params.Get("keycloak_id")
+	keycloakIDString, ok := c.Params.Get("keycloak_id")
 	if !ok {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "keycloak ID missing"})
+		return
+	}
+	keycloakID, err := uuid.FromString(keycloakIDString)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		_ = c.Error(err)
 		return
 	}
 
 	profile, err := p.db.getProfile(c.Request.Context(), keycloakID)
 	if err != nil {
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while getting user %q: %w", keycloakID, err))
+		_ = c.Error(fmt.Errorf("error while getting user %q: %w", keycloakIDString, err))
 		return
 	}
 

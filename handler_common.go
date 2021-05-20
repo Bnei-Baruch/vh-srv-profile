@@ -1,10 +1,14 @@
 package main
 
-import "context"
+import (
+	"context"
+
+	uuid "github.com/satori/go.uuid"
+)
 
 type storage interface {
 	createProfile(ctx context.Context, user userInput) error
-	getProfile(ctx context.Context, keycloakID string) (user, error)
+	getProfile(ctx context.Context, keycloakID uuid.UUID) (user, error)
 }
 
 type profileManager struct {
