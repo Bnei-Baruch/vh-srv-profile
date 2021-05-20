@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	uuid "github.com/satori/go.uuid"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -14,9 +16,9 @@ import (
 
 func Test_profileHandler_create_succeeds_with_minimal_required_fields(t *testing.T) {
 	sm := storageMock{}
-	sm.On("createUser", mock.Anything,
+	sm.On("createProfile", mock.Anything,
 		userInput{
-			keycloakID:          pointerString("11000000-0000-0000-0000-000000000000"),
+			keycloakID:          pointerUUID(uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000")),
 			firstNameVernacular: pointerString("First"),
 			lastNameVernacular:  pointerString("Name"),
 			emails:              emails{primary: pointerString("something@fakemail.com")},
@@ -40,7 +42,7 @@ func Test_profileHandler_create_succeeds_with_minimal_required_fields(t *testing
 
 func Test_profileHandler_create_returns_500_when_storage_returns_error(t *testing.T) {
 	sm := storageMock{}
-	sm.On("createUser", mock.Anything, mock.Anything).Return(fmt.Errorf("some error"))
+	sm.On("createProfile", mock.Anything, mock.Anything).Return(fmt.Errorf("some error"))
 	profile := profileManager{db: &sm}
 	g := gin.New()
 	g.POST("/", profile.create)
