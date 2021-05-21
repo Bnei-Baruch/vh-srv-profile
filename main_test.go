@@ -36,3 +36,13 @@ func Test_initApp_configures_profile_read_route(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, recorder.Code)
 }
+
+func Test_initApp_configures_profile_update_route(t *testing.T) {
+	app := initApp(appHandlers{
+		update: okHandler,
+	})
+	recorder := httptest.NewRecorder()
+	app.ServeHTTP(recorder, httptest.NewRequest(http.MethodPatch, "/v1/profile/some-keycloak-id", nil))
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+}
