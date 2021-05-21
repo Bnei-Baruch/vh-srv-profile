@@ -1,5 +1,7 @@
 BEGIN;
 
+CREATE EXTENSION pgcrypto;
+
 CREATE TABLE gender_types
 (
     name text PRIMARY KEY
