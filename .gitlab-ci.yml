@@ -33,7 +33,7 @@ deploy_staging:
     # DB_PORT: ${DEV_PG_PORT} 
     DB_USER: ${DEV_REG_PG_USER}
     DB_DATABASE: ${DEV_PROFILE_PG_DBNAME}
-    DB_PASSWORD: ${DEV_PG_PWD}
+    DB_PASSWORD: "password" #${DEV_PG_PWD}
     DATABASE_URL: "postgres://${DEV_REG_PG_USER}:${DEV_PG_PWD}@profiledb:5432/${DEV_PROFILE_PG_DBNAME}"
     APP_PORT: 7471
     APP_MODE: "dev"
