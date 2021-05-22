@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func Test_profileHandler_get_succeeds_with_minimal_required_fields(t *testing.T) {
+func Test_profileHandler_get_succeeds(t *testing.T) {
 	sm := storageMock{}
 	parisTZ, err := time.LoadLocation("Europe/Paris")
 	require.NoError(t, err)
@@ -31,7 +31,7 @@ func Test_profileHandler_get_succeeds_with_minimal_required_fields(t *testing.T)
 				emails:              emails{primary: pointerString("someemail@email.com")},
 			},
 		}, nil)
-	profile := profileManager{db: &sm}
+	profile := profileManager{getter: &sm}
 	g := gin.New()
 	g.GET("/:keycloak_id", profile.get)
 
@@ -54,7 +54,7 @@ func Test_profileHandler_get_succeeds_with_minimal_required_fields(t *testing.T)
 func Test_profileHandler_get_returns_500_when_storage_returns_error(t *testing.T) {
 	sm := storageMock{}
 	sm.On("getProfile", mock.Anything, mock.Anything).Return(user{}, fmt.Errorf("some error"))
-	profile := profileManager{db: &sm}
+	profile := profileManager{getter: &sm}
 	g := gin.New()
 	g.GET("/:keycloak_id", profile.get)
 

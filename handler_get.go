@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -8,6 +9,10 @@ import (
 	"github.com/gin-gonic/gin"
 	uuid "github.com/satori/go.uuid"
 )
+
+type readStorage interface {
+	getProfile(ctx context.Context, keycloakID uuid.UUID) (user, error)
+}
 
 type userResponse struct {
 	UpdatedAt           time.Time `json:"updated_at"`
@@ -59,7 +64,7 @@ func (p *profileManager) get(c *gin.Context) {
 		return
 	}
 
-	profile, err := p.db.getProfile(c.Request.Context(), keycloakID)
+	profile, err := p.getter.getProfile(c.Request.Context(), keycloakID)
 	if err != nil {
 		c.Status(http.StatusInternalServerError)
 		_ = c.Error(fmt.Errorf("error while getting user %q: %w", keycloakIDString, err))

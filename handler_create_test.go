@@ -23,7 +23,7 @@ func Test_profileHandler_create_succeeds_with_minimal_required_fields(t *testing
 			lastNameVernacular:  pointerString("Name"),
 			emails:              emails{primary: pointerString("something@fakemail.com")},
 		}).Return(nil)
-	profile := profileManager{db: &sm}
+	profile := profileManager{creator: &sm}
 	g := gin.New()
 	g.POST("/", profile.create)
 
@@ -43,7 +43,7 @@ func Test_profileHandler_create_succeeds_with_minimal_required_fields(t *testing
 func Test_profileHandler_create_returns_500_when_storage_returns_error(t *testing.T) {
 	sm := storageMock{}
 	sm.On("createProfile", mock.Anything, mock.Anything).Return(fmt.Errorf("some error"))
-	profile := profileManager{db: &sm}
+	profile := profileManager{creator: &sm}
 	g := gin.New()
 	g.POST("/", profile.create)
 
