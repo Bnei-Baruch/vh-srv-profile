@@ -26,3 +26,8 @@ func (m *storageMock) updateProfile(ctx context.Context, keycloakID uuid.UUID, u
 	args := m.Called(ctx, keycloakID, user)
 	return args.Error(0)
 }
+
+func (m *storageMock) deleteProfile(ctx context.Context, keycloakID uuid.UUID) error {
+	args := m.Called(ctx, keycloakID)
+	return args.Error(0)
+}

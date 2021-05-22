@@ -4,6 +4,7 @@ type profileManager struct {
 	creator createStorage
 	getter  readStorage
 	updater updateStorage
+	deleter deleteStorage
 }
 
 type profileRequest struct {
