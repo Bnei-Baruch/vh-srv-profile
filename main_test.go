@@ -46,3 +46,13 @@ func Test_initApp_configures_profile_update_route(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, recorder.Code)
 }
+
+func Test_initApp_configures_profile_delete_route(t *testing.T) {
+	app := initApp(appHandlers{
+		delete: okHandler,
+	})
+	recorder := httptest.NewRecorder()
+	app.ServeHTTP(recorder, httptest.NewRequest(http.MethodDelete, "/v1/profile/some-keycloak-id", nil))
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+}

@@ -39,7 +39,7 @@ func main() {
 		log.Fatalf("Unable to initialize profile db: %s", err)
 	}
 
-	profile := &profileManager{creator: profileDB, updater: profileDB}
+	profile := &profileManager{creator: profileDB, getter: profileDB, updater: profileDB, deleter: profileDB}
 
 	app := initApp(appHandlers{
 		create: profile.create,
@@ -55,6 +55,7 @@ type appHandlers struct {
 	create gin.HandlerFunc
 	get    gin.HandlerFunc
 	update gin.HandlerFunc
+	delete gin.HandlerFunc
 }
 
 func initApp(handlers appHandlers) *gin.Engine {
@@ -64,6 +65,7 @@ func initApp(handlers appHandlers) *gin.Engine {
 	app.POST("/v1/profile", handlers.create)
 	app.GET("/v1/profile/:keycloakID", handlers.get)
 	app.PATCH("/v1/profile/:keycloakID", handlers.update)
+	app.DELETE("/v1/profile/:keycloakID", handlers.delete)
 
 	return app
 }
