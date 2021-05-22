@@ -1,0 +1,102 @@
+package main
+
+import (
+	"context"
+	"testing"
+
+	uuid "github.com/satori/go.uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func Test_pgProfileDb_updateProfile_succeeds(t *testing.T) {
+	checkIntegrationTest(t)
+	db := newTestPgProfileDb(t)
+	defer newTestPgProfileDb(t)
+	_, err := db.Exec(context.Background(), `
+	INSERT into users (user_id, keycloak_id, first_name_vernacular, last_name_vernacular, primary_email) 
+	VALUES ('22000000-0000-0000-0000-000000000000', '11000000-0000-0000-0000-000000000000', 'first name', 'last name', 
+	'someemail@email.email')`)
+	require.NoError(t, err)
+
+	err = db.updateProfile(context.Background(), uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000"),
+		userInput{firstNameVernacular: pointerString("updated name")})
+
+	actualRows, err := db.Query(context.Background(), `SELECT deleted, keycloak_id::text, first_name_vernacular, last_name_vernacular,
+	primary_email FROM users`)
+	require.NoError(t, err)
+	defer actualRows.Close()
+	var actual [][]interface{}
+	for actualRows.Next() {
+		actualRow, err := actualRows.Values()
+		require.NoError(t, err)
+
+		actual = append(actual, actualRow)
+	}
+	require.Len(t, actual, 1)
+	assert.Equal(t, [][]interface{}{{false, "11000000-0000-0000-0000-000000000000", "updated name", "last name", "someemail@email.email"}}, actual)
+
+	assert.NoError(t, err)
+}
+
+func Test_pgProfileDb_updateProfile_with_phone_numbers_succeeds(t *testing.T) {
+	checkIntegrationTest(t)
+	db := newTestPgProfileDb(t)
+	defer newTestPgProfileDb(t)
+	_, err := db.Exec(context.Background(), `
+	INSERT into users (user_id, keycloak_id, first_name_vernacular, last_name_vernacular, primary_email) 
+	VALUES ('22000000-0000-0000-0000-000000000000', '11000000-0000-0000-0000-000000000000', 'first name', 'last name', 
+	'someemail@email.email')`)
+	require.NoError(t, err)
+	_, err = db.Exec(context.Background(), `
+	INSERT into phone_numbers (user_id, phone_number, type) VALUES 
+	('22000000-0000-0000-0000-000000000000', '0100000000', 'mobile'),
+	('22000000-0000-0000-0000-000000000000', '0200000000', 'WhatsApp')`)
+	require.NoError(t, err)
+
+	err = db.updateProfile(context.Background(), uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000"),
+		userInput{phones: phones{mobileNumber: pointerString("updated number")}})
+
+	actualRows, err := db.Query(context.Background(), `SELECT phone_number, type FROM phone_numbers`)
+	require.NoError(t, err)
+	defer actualRows.Close()
+	var actual [][]interface{}
+	for actualRows.Next() {
+		actualRow, err := actualRows.Values()
+		require.NoError(t, err)
+
+		actual = append(actual, actualRow)
+	}
+	require.Len(t, actual, 2)
+	assert.Equal(t, [][]interface{}{{"0200000000", "WhatsApp"}, {"updated number", "mobile"}}, actual)
+
+	assert.NoError(t, err)
+}
+
+func Test_pgProfileDb_updateProfile_add_phone_number_succeeds(t *testing.T) {
+	checkIntegrationTest(t)
+	db := newTestPgProfileDb(t)
+	defer newTestPgProfileDb(t)
+	_, err := db.Exec(context.Background(), `
+	INSERT into users (user_id, keycloak_id, first_name_vernacular, last_name_vernacular, primary_email) 
+	VALUES ('22000000-0000-0000-0000-000000000000', '11000000-0000-0000-0000-000000000000', 'first name', 'last name', 
+	'someemail@email.email')`)
+	require.NoError(t, err)
+
+	err = db.updateProfile(context.Background(), uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000"),
+		userInput{phones: phones{whatsAppNumber: pointerString("added number")}})
+
+	actualRows, err := db.Query(context.Background(), `SELECT phone_number, type FROM phone_numbers`)
+	require.NoError(t, err)
+	defer actualRows.Close()
+	var actual [][]interface{}
+	for actualRows.Next() {
+		actualRow, err := actualRows.Values()
+		require.NoError(t, err)
+
+		actual = append(actual, actualRow)
+	}
+	require.Len(t, actual, 1)
+	assert.Equal(t, [][]interface{}{{"added number", "WhatsApp"}}, actual)
+	assert.NoError(t, err)
+}
