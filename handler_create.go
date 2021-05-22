@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -8,6 +9,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+type createStorage interface {
+	createProfile(ctx context.Context, user userInput) error
+}
 
 func (p *profileManager) create(c *gin.Context) {
 	var request profileRequest
@@ -33,7 +38,7 @@ func (p *profileManager) create(c *gin.Context) {
 		return
 	}
 
-	if err := p.db.createProfile(c.Request.Context(), userInput{
+	if err := p.creator.createProfile(c.Request.Context(), userInput{
 		keycloakID:          &keycloakID,
 		firstNameVernacular: request.FirstNameVernacular,
 		firstNameLatin:      request.FirstNameLatin,

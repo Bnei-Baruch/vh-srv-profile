@@ -39,7 +39,7 @@ func main() {
 		log.Fatalf("Unable to initialize profile db: %s", err)
 	}
 
-	profile := &profileManager{db: profileDB, updater: profileDB}
+	profile := &profileManager{creator: profileDB, updater: profileDB}
 
 	app := initApp(appHandlers{
 		create: profile.create,
