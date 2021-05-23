@@ -43,6 +43,8 @@ deploy_staging:
     - staging
   script:
     - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY
+    - "[ ! -d /opt/srv-profile-db ] && mkdir /opt/srv-profile-db"
+    - cp -f db/initial.sql /opt/srv-profile-db/initial.sql
     - IMAGE_NAME=$STAGING_IMAGE docker-compose up -d --remove-orphans
   only:
     - master
