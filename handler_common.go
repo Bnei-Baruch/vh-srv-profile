@@ -7,10 +7,11 @@ var (
 )
 
 type profileManager struct {
-	creator createStorage
-	getter  readStorage
-	updater updateStorage
-	deleter deleteStorage
+	creator     createStorage
+	getter      readStorage
+	updater     updateStorage
+	deleter     deleteStorage
+	hardDeleter hardDeleteStorage
 }
 
 type profileRequest struct {

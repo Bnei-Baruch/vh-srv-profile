@@ -1,0 +1,39 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+	uuid "github.com/satori/go.uuid"
+)
+
+type hardDeleteStorage interface {
+	hardDeleteProfile(ctx context.Context, keycloakID uuid.UUID) error
+}
+
+func (p *profileManager) hardDelete(c *gin.Context) {
+	keycloakIDString, ok := c.Params.Get("keycloak_id")
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "keycloak ID missing"})
+		return
+	}
+	keycloakID, err := uuid.FromString(keycloakIDString)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		_ = c.Error(err)
+		return
+	}
+
+	if err := p.hardDeleter.hardDeleteProfile(c.Request.Context(), keycloakID); err != nil {
+		if errors.Is(err, errProfileNotFound) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.Status(http.StatusInternalServerError)
+		_ = c.Error(fmt.Errorf("error while getting user %q: %w", keycloakIDString, err))
+		return
+	}
+}
