@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/jackc/pgx/v4"
+
 	uuid "github.com/satori/go.uuid"
 )
 
@@ -16,7 +18,10 @@ func (db *pgProfileDB) updateProfile(ctx context.Context, keycloakID uuid.UUID, 
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	var userID uuid.UUID
-	if err = tx.QueryRow(ctx, `SELECT user_id FROM users WHERE keycloak_id=$1`, keycloakID).Scan(&userID); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT user_id FROM users WHERE keycloak_id=$1 AND deleted=false`, keycloakID).Scan(&userID); err != nil {
+		if err == pgx.ErrNoRows {
+			return fmt.Errorf("%w: %q", errProfileNotFound, keycloakID)
+		}
 		return fmt.Errorf("problem finding profile for keycloak id %q: %w", keycloakID, err)
 	}
 

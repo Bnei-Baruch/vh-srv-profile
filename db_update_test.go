@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	uuid "github.com/satori/go.uuid"
@@ -99,4 +100,21 @@ func Test_pgProfileDb_updateProfile_add_phone_number_succeeds(t *testing.T) {
 	require.Len(t, actual, 1)
 	assert.Equal(t, [][]interface{}{{"added number", "WhatsApp"}}, actual)
 	assert.NoError(t, err)
+}
+
+func Test_pgProfileDb_updateProfile_returns_error_on_deleted_profile(t *testing.T) {
+	checkIntegrationTest(t)
+	db := newTestPgProfileDb(t)
+	defer newTestPgProfileDb(t)
+	_, err := db.Exec(context.Background(), `
+	INSERT into users (user_id, keycloak_id, first_name_vernacular, last_name_vernacular, primary_email, deleted) 
+	VALUES ('22000000-0000-0000-0000-000000000000', '11000000-0000-0000-0000-000000000000', 'first name', 'last name', 
+	'someemail@email.email', true)`)
+	require.NoError(t, err)
+
+	err = db.updateProfile(context.Background(), uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000"),
+		userInput{firstNameVernacular: pointerString("updated name")})
+
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, errProfileNotFound))
 }

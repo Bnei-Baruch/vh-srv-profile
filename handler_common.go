@@ -1,5 +1,11 @@
 package main
 
+import "fmt"
+
+var (
+	errProfileNotFound = fmt.Errorf("no profile found for keycloak id")
+)
+
 type profileManager struct {
 	creator createStorage
 	getter  readStorage

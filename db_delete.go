@@ -14,17 +14,12 @@ func (db *pgProfileDB) deleteProfile(ctx context.Context, keycloakID uuid.UUID) 
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	_, err = tx.Exec(ctx, `DELETE FROM phone_numbers WHERE user_id=(SELECT user_id FROM users WHERE keycloak_id=$1)`, keycloakID)
+	tag, err := tx.Exec(ctx, `UPDATE users SET deleted=true WHERE keycloak_id=$1`, keycloakID)
 	if err != nil {
-		return fmt.Errorf("problem deleting phone numbers for keycloak id %q: %w", keycloakID, err)
-	}
-
-	tag, err := tx.Exec(ctx, `DELETE FROM users WHERE keycloak_id=$1`, keycloakID)
-	if err != nil {
-		return fmt.Errorf("problem deleting users for keycloak id %q: %w", keycloakID, err)
+		return fmt.Errorf("problem deleting user for keycloak id %q: %w", keycloakID, err)
 	}
 	if tag.RowsAffected() != 1 {
-		return fmt.Errorf("no profile found for keycloak id %q", keycloakID)
+		return fmt.Errorf("%w: %q", errProfileNotFound, keycloakID)
 	}
 
 	return tx.Commit(ctx)

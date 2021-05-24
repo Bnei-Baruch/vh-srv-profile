@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -59,4 +60,19 @@ func Test_pgProfileDb_getUser_with_phone_numbers_succeeds(t *testing.T) {
 			whatsAppNumber: &expectedWhatsApp,
 		},
 	}, actual.userInput)
+}
+
+func Test_pgProfileDb_getUser_deleted_true_returns_nothing(t *testing.T) {
+	checkIntegrationTest(t)
+	db := newTestPgProfileDb(t)
+	defer newTestPgProfileDb(t)
+	_, err := db.Exec(context.Background(), `
+	INSERT into users (keycloak_id, first_name_vernacular, last_name_vernacular, primary_email, deleted) 
+	VALUES ('11000000-0000-0000-0000-000000000000', 'first name', 'last name', 'someemail@email.email', true)`)
+	require.NoError(t, err)
+
+	_, err = db.getProfile(context.Background(), uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000"))
+
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, errProfileNotFound))
 }
