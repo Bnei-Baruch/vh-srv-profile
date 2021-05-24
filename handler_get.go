@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -66,6 +67,10 @@ func (p *profileManager) get(c *gin.Context) {
 
 	profile, err := p.getter.getProfile(c.Request.Context(), keycloakID)
 	if err != nil {
+		if errors.Is(err, errProfileNotFound) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		c.Status(http.StatusInternalServerError)
 		_ = c.Error(fmt.Errorf("error while getting user %q: %w", keycloakIDString, err))
 		return

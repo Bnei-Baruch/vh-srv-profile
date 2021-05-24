@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -27,6 +28,10 @@ func (p *profileManager) delete(c *gin.Context) {
 	}
 
 	if err := p.deleter.deleteProfile(c.Request.Context(), keycloakID); err != nil {
+		if errors.Is(err, errProfileNotFound) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		c.Status(http.StatusInternalServerError)
 		_ = c.Error(fmt.Errorf("error while getting user %q: %w", keycloakIDString, err))
 		return

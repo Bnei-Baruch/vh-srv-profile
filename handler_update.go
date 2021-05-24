@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -75,6 +76,10 @@ func (p *profileManager) update(c *gin.Context) {
 			nameOfGroup: request.NameOfGroup,
 		},
 	}); err != nil {
+		if errors.Is(err, errProfileNotFound) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		c.Status(http.StatusInternalServerError)
 		_ = c.Error(fmt.Errorf("error while updating user %q: %w", keycloakID, err))
 		return

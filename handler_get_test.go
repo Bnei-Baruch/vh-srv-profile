@@ -51,6 +51,22 @@ func Test_profileHandler_get_succeeds(t *testing.T) {
 	}`, w.Body.String())
 }
 
+func Test_profileHandler_get_returns_400_when_storage_returns_errProfileNotFound(t *testing.T) {
+	sm := storageMock{}
+	sm.On("getProfile", mock.Anything, mock.Anything).Return(user{}, fmt.Errorf("%w: %q",
+		errProfileNotFound, "example string"))
+	profile := profileManager{getter: &sm}
+	g := gin.New()
+	g.GET("/:keycloak_id", profile.get)
+
+	r := httptest.NewRequest(http.MethodGet, "/11000000-0000-0000-0000-000000000000", nil)
+	w := httptest.NewRecorder()
+	g.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.JSONEq(t, `{"error":"no profile found for keycloak id: \"example string\""}`, w.Body.String())
+}
+
 func Test_profileHandler_get_returns_500_when_storage_returns_error(t *testing.T) {
 	sm := storageMock{}
 	sm.On("getProfile", mock.Anything, mock.Anything).Return(user{}, fmt.Errorf("some error"))

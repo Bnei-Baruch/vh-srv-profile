@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
+
+	"github.com/jackc/pgx/v4"
 
 	uuid "github.com/satori/go.uuid"
 )
@@ -43,7 +46,8 @@ func (db *pgProfileDB) getProfile(ctx context.Context, keycloakID uuid.UUID) (us
        wants_ten_group,
        name_of_ten_group
 	FROM users
-	WHERE keycloak_id = $1`, keycloakID).Scan(
+	WHERE keycloak_id = $1
+	AND deleted = false`, keycloakID).Scan(
 		&userID,
 		&profile.updatedAt,
 		&profile.createdAt,
@@ -77,6 +81,9 @@ func (db *pgProfileDB) getProfile(ctx context.Context, keycloakID uuid.UUID) (us
 		&profile.userInput.ten.wantsGroup,
 		&profile.userInput.ten.nameOfGroup,
 	); err != nil {
+		if err == pgx.ErrNoRows {
+			return user{}, fmt.Errorf("%w: %q", errProfileNotFound, keycloakID)
+		}
 		return user{}, err
 	}
 
