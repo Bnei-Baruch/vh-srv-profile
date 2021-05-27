@@ -1,0 +1,2 @@
+- use requester token
+- sanitize date of birth with Aleks in db

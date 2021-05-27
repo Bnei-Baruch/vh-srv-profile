@@ -67,7 +67,7 @@ type languages struct {
 type ten struct {
 	hasGroup    *bool
 	wantsGroup  *bool
-	nameOfGroup *bool
+	nameOfGroup *string
 }
 
 func (db *pgProfileDB) createProfile(ctx context.Context, user userInput) error {
