@@ -1,0 +1,17 @@
+version: '2.2'
+services:
+  profiledb:
+    image: postgres:9.6
+    container_name: profiledb
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - /opt/srv-profile-db:/docker-entrypoint-initdb.d
+    ports:
+      - ${DB_PORT}:5432
+networks:
+    default:
+        external:
+            name: vh
