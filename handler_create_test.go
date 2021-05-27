@@ -40,6 +40,21 @@ func Test_profileHandler_create_succeeds_with_minimal_required_fields(t *testing
 	assert.Equal(t, http.StatusCreated, w.Code)
 }
 
+func Test_profileHandler_create_returns_bad_request_when_request_is_empty(t *testing.T) {
+	sm := storageMock{}
+	sm.On("createProfile", mock.Anything, mock.Anything).Return(nil)
+	profile := profileManager{creator: &sm}
+	g := gin.New()
+	g.POST("/", profile.create)
+
+	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{}`))
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	g.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
 func Test_profileHandler_create_returns_500_when_storage_returns_error(t *testing.T) {
 	sm := storageMock{}
 	sm.On("createProfile", mock.Anything, mock.Anything).Return(fmt.Errorf("some error"))

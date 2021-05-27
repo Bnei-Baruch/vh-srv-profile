@@ -25,7 +25,7 @@ func (p *profileManager) create(c *gin.Context) {
 
 	if request.KeycloakID == nil || request.FirstNameVernacular == nil || request.LastNameVernacular == nil ||
 		request.PrimaryEmail == nil {
-		err := fmt.Errorf("missing a required field")
+		err := fmt.Errorf("missing a required field for provided request: %#v", request)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		_ = c.Error(err)
 		return
