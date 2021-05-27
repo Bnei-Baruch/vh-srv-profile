@@ -49,7 +49,7 @@ type userResponse struct {
 	StudyFramework      *string   `json:"study_framework,omitempty"`
 	HasGroup            *bool     `json:"has_ten_group,omitempty"`
 	WantsGroup          *bool     `json:"wants_ten_group,omitempty"`
-	NameOfGroup         *bool     `json:"name_ten_group,omitempty"`
+	NameOfGroup         *string   `json:"name_ten_group,omitempty"`
 }
 
 func (p *profileManager) get(c *gin.Context) {

@@ -67,10 +67,10 @@ func initApp(handlers appHandlers) *gin.Engine {
 	app.Use(cors.Default())
 
 	app.POST("/v1/profile", handlers.create)
-	app.GET("/v1/profile/:keycloakID", handlers.get)
-	app.PATCH("/v1/profile/:keycloakID", handlers.update)
-	app.DELETE("/v1/profile/:keycloakID", handlers.delete)
-	app.DELETE("/admin/v1/profile/:keycloakID", handlers.hardDelete)
+	app.GET("/v1/profile/:keycloak_id", handlers.get)
+	app.PATCH("/v1/profile/:keycloak_id", handlers.update)
+	app.DELETE("/v1/profile/:keycloak_id", handlers.delete)
+	app.DELETE("/admin/v1/profile/:keycloak_id", handlers.hardDelete)
 
 	return app
 }

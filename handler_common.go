@@ -46,5 +46,5 @@ type profileRequest struct {
 	StudyFramework      *string `json:"study_framework"`
 	HasGroup            *bool   `json:"has_ten_group"`
 	WantsGroup          *bool   `json:"wants_ten_group"`
-	NameOfGroup         *bool   `json:"name_ten_group"`
+	NameOfGroup         *string `json:"name_ten_group"`
 }
