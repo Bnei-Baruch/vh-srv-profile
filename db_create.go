@@ -24,7 +24,7 @@ type userInput struct {
 	address             address
 	gender              *string
 	maritalStatus       *string
-	dateOfBirth         *string
+	dateOfBirth         *time.Time
 	emails              emails
 	phones              phones
 	languages           languages
