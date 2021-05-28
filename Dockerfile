@@ -1,4 +1,4 @@
-FROM golang:1.14.14-stretch
+FROM golang:1.14.14-stretch AS base
 
 RUN apt-get update && apt-get upgrade -y
 
@@ -8,8 +8,14 @@ ADD . /app
 
 WORKDIR /app
 
-RUN go build -o main .
+RUN CGO_ENABLED=0 go build -o profile .
+
+FROM alpine:latest
+
+COPY --from=base /app/profile /
+
+COPY ./.env /
 
 EXPOSE 7471
 
-ENTRYPOINT /app/main --port 7471
+CMD ["./profile", "--port",  "7471"]
