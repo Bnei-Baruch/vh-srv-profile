@@ -31,3 +31,8 @@ func (m *storageMock) deleteProfile(ctx context.Context, keycloakID uuid.UUID) e
 	args := m.Called(ctx, keycloakID)
 	return args.Error(0)
 }
+
+func (m *storageMock) hardDeleteProfile(ctx context.Context, keycloakID uuid.UUID) error {
+	args := m.Called(ctx, keycloakID)
+	return args.Error(0)
+}
