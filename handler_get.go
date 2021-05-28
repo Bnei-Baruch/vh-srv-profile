@@ -77,8 +77,10 @@ func (p *profileManager) get(c *gin.Context) {
 	}
 
 	result := userResponse{
-		UpdatedAt:           profile.updatedAt,
-		CreatedAt:           profile.createdAt,
+		UpdatedAt: profile.updatedAt,
+		//UpdatedAt:           profile.updatedAt.Format(time.RFC3339),
+		CreatedAt: profile.createdAt,
+		//CreatedAt:           profile.createdAt.Format(time.RFC3339),
 		Deleted:             profile.deleted,
 		FirstNameLatin:      profile.userInput.firstNameLatin,
 		FirstNameVernacular: profile.userInput.firstNameVernacular,
@@ -91,7 +93,6 @@ func (p *profileManager) get(c *gin.Context) {
 		City:                profile.userInput.address.city,
 		Gender:              profile.userInput.gender,
 		MaritalStatus:       profile.userInput.maritalStatus,
-		DateOfBirth:         profile.userInput.dateOfBirth,
 		PrimaryEmail:        profile.userInput.emails.primary,
 		AlternateEmail1:     profile.userInput.emails.alternate1,
 		AlternateEmail2:     profile.userInput.emails.alternate2,
@@ -112,6 +113,13 @@ func (p *profileManager) get(c *gin.Context) {
 		WantsGroup:          profile.userInput.ten.wantsGroup,
 		NameOfGroup:         profile.userInput.ten.nameOfGroup,
 	}
+
+	var birthDate *string
+	if profile.userInput.dateOfBirth != nil {
+		birthDate = pointerString(profile.userInput.dateOfBirth.Format("2006-01-02"))
+	}
+
+	result.DateOfBirth = birthDate
 
 	c.JSON(http.StatusOK, result)
 }

@@ -1,2 +1,3 @@
 - use requester token
 - sanitize date of birth with Aleks in db
+- clarify: use language code for reference, not language name 
