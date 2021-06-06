@@ -6,7 +6,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
@@ -64,7 +63,6 @@ type appHandlers struct {
 
 func initApp(handlers appHandlers) *gin.Engine {
 	app := gin.Default()
-	//app.Use(cors.Default())
 
 	app.POST("/v1/profile", handlers.create)
 	app.GET("/v1/profile/:keycloak_id", handlers.get)
