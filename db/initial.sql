@@ -35,8 +35,8 @@ VALUES ('mobile'),
 
 CREATE TABLE language_list
 (
-    code text,
-    name text PRIMARY KEY
+    code text PRIMARY KEY,
+    name text
 );
 
 INSERT INTO language_list
@@ -245,14 +245,14 @@ CREATE TABLE users
     primary_email         text        NOT NULL,
     alternate_email_1     text,
     alternate_email_2     text,
-    first_language        text REFERENCES language_list (name),
-    other_language_1      text REFERENCES language_list (name),
-    other_language_2      text REFERENCES language_list (name),
-    other_language_3      text REFERENCES language_list (name),
-    other_language_4      text REFERENCES language_list (name),
-    listening_language    text REFERENCES language_list (name),
-    reading_language      text REFERENCES language_list (name),
-    email_language        text REFERENCES language_list (name),
+    first_language        text REFERENCES language_list (code),
+    other_language_1      text REFERENCES language_list (code),
+    other_language_2      text REFERENCES language_list (code),
+    other_language_3      text REFERENCES language_list (code),
+    other_language_4      text REFERENCES language_list (code),
+    listening_language    text REFERENCES language_list (code),
+    reading_language      text REFERENCES language_list (code),
+    email_language        text REFERENCES language_list (code),
     study_start_year      int,
     study_framework       text,
     has_ten_group         boolean,
