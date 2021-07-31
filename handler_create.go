@@ -17,7 +17,7 @@ type createStorage interface {
 func (p *profileManager) create(c *gin.Context) {
 	var request profileRequest
 
-	if err := c.Bind(&request); err != nil {
+	if err := c.ShouldBind(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		_ = c.Error(err)
 		return
