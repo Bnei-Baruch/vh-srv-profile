@@ -9,6 +9,7 @@ export DATABASE_URL="postgres://${DB_USER}:password@localhost:${DB_PORT}/${DB_DA
 export APP_PORT=":7471"
 export APP_MODE="dev"
 export IMAGE_NAME="vh-srv-profile"
+export CORSACTIVE="true"
 
 case $1 in 
 	"dbup")
