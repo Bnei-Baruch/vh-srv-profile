@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"log"
-	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -21,15 +20,6 @@ func main() {
 	} else {
 		gin.SetMode(gin.ReleaseMode)
 	}
-
-	//Init log output to file
-	logOutput, err := os.OpenFile("./output.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-	if err != nil {
-		log.Fatalf("Error opening log file: %s", err)
-	}
-	log.SetOutput(logOutput)
-	gin.DefaultWriter = logOutput
-	gin.DefaultErrorWriter = logOutput
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
