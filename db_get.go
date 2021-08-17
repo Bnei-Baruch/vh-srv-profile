@@ -126,5 +126,9 @@ func (db *pgProfileDB) getProfile(ctx context.Context, keycloakID uuid.UUID) (us
 		telegramNumber: telegramNumber,
 	}
 
+	// Attach keycloak & user Id to profile struct
+	profile.userInput.keycloakID = &keycloakID
+	profile.userID = &userID
+
 	return profile, nil
 }
