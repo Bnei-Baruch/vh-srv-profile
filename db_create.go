@@ -9,6 +9,7 @@ import (
 )
 
 type user struct {
+	userID    *uuid.UUID
 	updatedAt time.Time
 	createdAt time.Time
 	deleted   bool
