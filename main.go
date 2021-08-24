@@ -28,14 +28,15 @@ func main() {
 		log.Fatalf("Unable to initialize profile db: %s", err)
 	}
 
-	profile := &profileManager{creator: profileDB, getter: profileDB, updater: profileDB, deleter: profileDB, hardDeleter: profileDB}
+	profile := &profileManager{creator: profileDB, getter: profileDB, updater: profileDB, deleter: profileDB, hardDeleter: profileDB, fetchProfiles: profileDB}
 
 	app := initApp(appHandlers{
-		create:     profile.create,
-		get:        profile.get,
-		update:     profile.update,
-		delete:     profile.delete,
-		hardDelete: profile.hardDelete,
+		create:      profile.create,
+		get:         profile.get,
+		update:      profile.update,
+		delete:      profile.delete,
+		hardDelete:  profile.hardDelete,
+		getProfiles: profile.getProfiles,
 	})
 
 	if err := app.Run(config.appPort); err != nil {
@@ -44,11 +45,12 @@ func main() {
 }
 
 type appHandlers struct {
-	create     gin.HandlerFunc
-	get        gin.HandlerFunc
-	update     gin.HandlerFunc
-	delete     gin.HandlerFunc
-	hardDelete gin.HandlerFunc
+	create      gin.HandlerFunc
+	get         gin.HandlerFunc
+	update      gin.HandlerFunc
+	delete      gin.HandlerFunc
+	hardDelete  gin.HandlerFunc
+	getProfiles gin.HandlerFunc
 }
 
 func initApp(handlers appHandlers) *gin.Engine {
@@ -56,6 +58,7 @@ func initApp(handlers appHandlers) *gin.Engine {
 	//app.Use(cors.Default())
 
 	app.POST("/v1/profile", handlers.create)
+	app.GET("/v1/profiles", handlers.getProfiles)
 	app.GET("/v1/profile/:keycloak_id", handlers.get)
 	app.PATCH("/v1/profile/:keycloak_id", handlers.update)
 	app.DELETE("/v1/profile/:keycloak_id", handlers.delete)

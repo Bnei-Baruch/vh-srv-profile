@@ -7,14 +7,16 @@ import (
 
 var (
 	errProfileNotFound = fmt.Errorf("no profile found for keycloak id")
+	errUserNotFound    = fmt.Errorf("no profile found")
 )
 
 type profileManager struct {
-	creator     createStorage
-	getter      readStorage
-	updater     updateStorage
-	deleter     deleteStorage
-	hardDeleter hardDeleteStorage
+	creator       createStorage
+	getter        readStorage
+	updater       updateStorage
+	deleter       deleteStorage
+	hardDeleter   hardDeleteStorage
+	fetchProfiles readMultipleProfileStorage
 }
 
 type profileRequest struct {
