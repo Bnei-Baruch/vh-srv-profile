@@ -83,7 +83,7 @@ func (p *profileManager) getProfiles(c *gin.Context) {
 		profile, err := p.fetchProfiles.fetchProfileBasedOnPhoneNumber(c.Request.Context(), phoneNumber)
 		if err != nil {
 			if errors.Is(err, errUserNotFound) {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 				return
 			}
 			c.Status(http.StatusInternalServerError)
@@ -164,7 +164,7 @@ func (p *profileManager) getProfiles(c *gin.Context) {
 		profiles, err := p.fetchProfiles.getMultipleProfiles(c.Request.Context(), intSkip, intLimit, country, email, name, tenGroupName, language, firstLanguage, otherLanguageOne, otherLanguageTwo, otherLanguageThree, otherLanguageFour)
 		if err != nil {
 			if errors.Is(err, errUserNotFound) {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 				return
 			}
 			c.Status(http.StatusInternalServerError)
@@ -242,7 +242,7 @@ func (p *profileManager) get(c *gin.Context) {
 	profile, err := p.getter.getProfile(c.Request.Context(), keycloakID)
 	if err != nil {
 		if errors.Is(err, errProfileNotFound) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 			return
 		}
 		c.Status(http.StatusInternalServerError)
