@@ -5,6 +5,7 @@ export DB_PORT=5436
 export DB_USER="dev_db_user"
 export DB_DATABASE="dev_profile_db"
 export DB_PASSWORD="password"
+export PGPASSWORD="password"
 export DATABASE_URL="postgres://${DB_USER}:password@localhost:${DB_PORT}/${DB_DATABASE}"
 export APP_PORT=":7471"
 export APP_MODE="dev"
@@ -20,6 +21,15 @@ case $1 in
 		;;
 	"dbdown")
  	docker-compose -f docker-compose.local.yml down
+	;;
+	"dbconnect")
+		psql -h localhost --port $DB_PORT -d $DB_DATABASE -U $DB_USER
+	;;
+	"dbexec")
+		psql -h localhost --port $DB_PORT -d $DB_DATABASE -U $DB_USER -c "$2"
+	;;
+	"dbrun")
+		psql -h localhost --port $DB_PORT -d $DB_DATABASE -U $DB_USER < "$2"
 	;;
 	"build")
 	go build .
