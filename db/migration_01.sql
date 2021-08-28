@@ -6,7 +6,7 @@ CREATE TABLE status (
     ticket bool default false,
     convention bool default false,
     galaxy bool default false,
-    user_id      uuid NOT NULL REFERENCES users (user_id),
-)
+    user_id  uuid NOT NULL REFERENCES users (user_id)
+);
 
 COMMIT;
