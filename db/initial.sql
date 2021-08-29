@@ -34,9 +34,9 @@ VALUES ('mobile'),
        ('Telegram');
 
 CREATE TABLE IF NOT EXISTS "country_list" (
-    "name" TEXT NULL,
+    "name" TEXT NOT NULL,
     "dial_code" TEXT NULL,
-    "code" TEXT NULL PRIMARY KEY
+    "code" TEXT NOT NULL PRIMARY KEY
 );
 
 INSERT INTO country_list VALUES
