@@ -304,11 +304,16 @@ func (db *pgProfileDB) fetchProfileBasedOnPhoneNumber(ctx context.Context, phone
 	}
 
 	if err := db.QueryRow(ctx, `
-		SELECT user_id,
+		SELECT users.user_id,
 		keycloak_id,
 		updated_at,
 		created_at,
 		deleted,
+		status.membership,
+		status.membership_type,
+		status.ticket,
+		status.convention,
+		status.galaxy,
 		first_name_latin,
 		first_name_vernacular,
 		last_name_latin,
@@ -338,13 +343,19 @@ func (db *pgProfileDB) fetchProfileBasedOnPhoneNumber(ctx context.Context, phone
 		wants_ten_group,
 		name_of_ten_group
 		FROM users
-		WHERE user_id = $1
+		LEFT JOIN status ON users.user_id = status.user_id
+		WHERE users.user_id = $1
 		AND deleted = false`, phoneNum.userID).Scan(
 		&profile.userID,
 		&keycloakId,
 		&profile.updatedAt,
 		&profile.createdAt,
 		&profile.deleted,
+		&profile.userInput.status.membership,
+		&profile.userInput.status.membershipType,
+		&profile.userInput.status.ticket,
+		&profile.userInput.status.convention,
+		&profile.userInput.status.galaxy,
 		&profile.userInput.firstNameLatin,
 		&profile.userInput.firstNameVernacular,
 		&profile.userInput.lastNameLatin,
