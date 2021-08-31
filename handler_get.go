@@ -22,12 +22,21 @@ type readMultipleProfileStorage interface {
 	fetchProfileBasedOnPhoneNumber(ctx context.Context, phoneNumber string) (user, error)
 }
 
+type status struct {
+	UserID         *string `json:"user_id,omitempty"`
+	Membership     *bool   `json:"membership,omitempty"`
+	MembershipType *string `json:"membership_type,omitempty"`
+	Ticket         *bool   `json:"ticket,omitempty"`
+	Convention     *bool   `json:"convention,omitempty"`
+	Galaxy         *bool   `json:"galaxy,omitempty"`
+}
 type userResponse struct {
 	UserID              *uuid.UUID `json:"user_id"`
 	KeycloakID          *uuid.UUID `json:"keycloak_id"`
 	UpdatedAt           time.Time  `json:"updated_at"`
 	CreatedAt           time.Time  `json:"created_at"`
 	Deleted             bool       `json:"deleted"`
+	Status              status     `json:"status"`
 	FirstNameLatin      *string    `json:"first_name_latin,omitempty"`
 	FirstNameVernacular *string    `json:"first_name_vernacular" `
 	LastNameLatin       *string    `json:"last_name_latin,omitempty"`
@@ -92,11 +101,18 @@ func (p *profileManager) getProfiles(c *gin.Context) {
 		}
 
 		result := userResponse{
-			UserID:              profile.userID,
-			KeycloakID:          profile.userInput.keycloakID,
-			UpdatedAt:           profile.updatedAt,
-			CreatedAt:           profile.createdAt,
-			Deleted:             profile.deleted,
+			UserID:     profile.userID,
+			KeycloakID: profile.userInput.keycloakID,
+			UpdatedAt:  profile.updatedAt,
+			CreatedAt:  profile.createdAt,
+			Deleted:    profile.deleted,
+			Status: status{
+				Membership:     profile.userInput.status.membership,
+				MembershipType: profile.userInput.status.membershipType,
+				Ticket:         profile.userInput.status.ticket,
+				Convention:     profile.userInput.status.convention,
+				Galaxy:         profile.userInput.status.galaxy,
+			},
 			FirstNameLatin:      profile.userInput.firstNameLatin,
 			FirstNameVernacular: profile.userInput.firstNameVernacular,
 			LastNameLatin:       profile.userInput.lastNameLatin,
@@ -176,11 +192,18 @@ func (p *profileManager) getProfiles(c *gin.Context) {
 
 		for _, profile := range profiles {
 			result := userResponse{
-				UserID:              profile.userID,
-				KeycloakID:          profile.userInput.keycloakID,
-				UpdatedAt:           profile.updatedAt,
-				CreatedAt:           profile.createdAt,
-				Deleted:             profile.deleted,
+				UserID:     profile.userID,
+				KeycloakID: profile.userInput.keycloakID,
+				UpdatedAt:  profile.updatedAt,
+				CreatedAt:  profile.createdAt,
+				Deleted:    profile.deleted,
+				Status: status{
+					Membership:     profile.userInput.status.membership,
+					MembershipType: profile.userInput.status.membershipType,
+					Ticket:         profile.userInput.status.ticket,
+					Convention:     profile.userInput.status.convention,
+					Galaxy:         profile.userInput.status.galaxy,
+				},
 				FirstNameLatin:      profile.userInput.firstNameLatin,
 				FirstNameVernacular: profile.userInput.firstNameVernacular,
 				LastNameLatin:       profile.userInput.lastNameLatin,
@@ -251,11 +274,18 @@ func (p *profileManager) get(c *gin.Context) {
 	}
 
 	result := userResponse{
-		UserID:              profile.userID,
-		KeycloakID:          profile.userInput.keycloakID,
-		UpdatedAt:           profile.updatedAt,
-		CreatedAt:           profile.createdAt,
-		Deleted:             profile.deleted,
+		UserID:     profile.userID,
+		KeycloakID: profile.userInput.keycloakID,
+		UpdatedAt:  profile.updatedAt,
+		CreatedAt:  profile.createdAt,
+		Deleted:    profile.deleted,
+		Status: status{
+			Membership:     profile.userInput.status.membership,
+			MembershipType: profile.userInput.status.membershipType,
+			Ticket:         profile.userInput.status.ticket,
+			Convention:     profile.userInput.status.convention,
+			Galaxy:         profile.userInput.status.galaxy,
+		},
 		FirstNameLatin:      profile.userInput.firstNameLatin,
 		FirstNameVernacular: profile.userInput.firstNameVernacular,
 		LastNameLatin:       profile.userInput.lastNameLatin,

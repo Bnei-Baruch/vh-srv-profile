@@ -13,10 +13,15 @@ func (db *pgProfileDB) getProfile(ctx context.Context, keycloakID uuid.UUID) (us
 	var profile user
 	var userID uuid.UUID
 	if err := db.QueryRow(ctx, `
-	SELECT user_id,
+	SELECT users.user_id,
        updated_at,
        created_at,
        deleted,
+	   status.membership,
+	   status.membership_type,
+	   status.ticket,
+	   status.convention,
+	   status.galaxy,
        first_name_latin,
        first_name_vernacular,
        last_name_latin,
@@ -46,12 +51,18 @@ func (db *pgProfileDB) getProfile(ctx context.Context, keycloakID uuid.UUID) (us
        wants_ten_group,
        name_of_ten_group
 	FROM users
+	LEFT JOIN status ON users.user_id = status.user_id
 	WHERE keycloak_id = $1
 	AND deleted = false`, keycloakID).Scan(
 		&userID,
 		&profile.updatedAt,
 		&profile.createdAt,
 		&profile.deleted,
+		&profile.userInput.status.membership,
+		&profile.userInput.status.membershipType,
+		&profile.userInput.status.ticket,
+		&profile.userInput.status.convention,
+		&profile.userInput.status.galaxy,
 		&profile.userInput.firstNameLatin,
 		&profile.userInput.firstNameVernacular,
 		&profile.userInput.lastNameLatin,

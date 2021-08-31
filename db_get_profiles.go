@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/jackc/pgx/v4"
@@ -105,11 +104,16 @@ func (db *pgProfileDB) getMultipleProfiles(ctx context.Context, intSkip int, int
 	}
 
 	rows, err := db.Query(ctx, `
-		SELECT user_id,
+		SELECT users.user_id,
 		keycloak_id,
 		updated_at,
 		created_at,
 		deleted,
+		status.membership,
+		status.membership_type,
+		status.ticket,
+		status.convention,
+		status.galaxy,
 		first_name_latin,
 		first_name_vernacular,
 		last_name_latin,
@@ -138,9 +142,10 @@ func (db *pgProfileDB) getMultipleProfiles(ctx context.Context, intSkip int, int
 		has_ten_group,
 		wants_ten_group,
 		name_of_ten_group
-	FROM users`+whereString.String()+" LIMIT $1 OFFSET $2", intLimit, intSkip)
+	FROM users
+	LEFT JOIN status ON users.user_id = status.user_id`+whereString.String()+" LIMIT $1 OFFSET $2", intLimit, intSkip)
 	if err != nil {
-		log.Fatal(err)
+		return []user{}, err
 	}
 	defer rows.Close()
 	for rows.Next() {
@@ -151,6 +156,11 @@ func (db *pgProfileDB) getMultipleProfiles(ctx context.Context, intSkip int, int
 			&profile.updatedAt,
 			&profile.createdAt,
 			&profile.deleted,
+			&profile.userInput.status.membership,
+			&profile.userInput.status.membershipType,
+			&profile.userInput.status.ticket,
+			&profile.userInput.status.convention,
+			&profile.userInput.status.galaxy,
 			&profile.userInput.firstNameLatin,
 			&profile.userInput.firstNameVernacular,
 			&profile.userInput.lastNameLatin,
@@ -180,7 +190,7 @@ func (db *pgProfileDB) getMultipleProfiles(ctx context.Context, intSkip int, int
 			&profile.userInput.ten.wantsGroup,
 			&profile.userInput.ten.nameOfGroup,
 		); err != nil {
-			log.Fatal(err)
+			return []user{}, err
 		}
 
 		// Add keycloakID and userID to user struct

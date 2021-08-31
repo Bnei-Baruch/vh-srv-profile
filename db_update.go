@@ -46,6 +46,16 @@ func (db *pgProfileDB) updateProfile(ctx context.Context, keycloakID uuid.UUID, 
 		}
 	}
 
+	/* Update status of the user in the status table if provided in the request */
+	userStatusToUpdate, userStatusArgs := prepareUserStatusUpdateQuery(user)
+
+	if len(userStatusArgs) != 0 {
+		if _, err = tx.Exec(ctx, fmt.Sprintf(`UPDATE status SET %s WHERE user_id='%s'`, userStatusToUpdate, userID),
+			userStatusArgs...); err != nil {
+			return fmt.Errorf("problem updating users status: %w", err)
+		}
+	}
+
 	return tx.Commit(ctx)
 }
 
@@ -185,6 +195,37 @@ func preparePhoneUpdate(userID uuid.UUID, user userInput) (string, []interface{}
 	if user.phones.telegramNumber != nil {
 		updateStrings = append(updateStrings, fmt.Sprintf("('%s', $%d, '%s')", userID, len(updateStrings)+1, telegram))
 		args = append(args, user.phones.telegramNumber)
+	}
+
+	updateArgument := strings.Join(updateStrings, ",")
+
+	return updateArgument, args
+}
+
+/* status update query builder */
+func prepareUserStatusUpdateQuery(user userInput) (string, []interface{}) {
+	var updateStrings []string
+	var args []interface{}
+
+	if user.status.membership != nil {
+		updateStrings = append(updateStrings, fmt.Sprintf("membership=$%d", len(updateStrings)+1))
+		args = append(args, user.status.membership)
+	}
+	if user.status.membershipType != nil {
+		updateStrings = append(updateStrings, fmt.Sprintf("membership_type=$%d", len(updateStrings)+1))
+		args = append(args, user.status.membershipType)
+	}
+	if user.status.convention != nil {
+		updateStrings = append(updateStrings, fmt.Sprintf("convention=$%d", len(updateStrings)+1))
+		args = append(args, user.status.convention)
+	}
+	if user.status.galaxy != nil {
+		updateStrings = append(updateStrings, fmt.Sprintf("galaxy=$%d", len(updateStrings)+1))
+		args = append(args, user.status.galaxy)
+	}
+	if user.status.ticket != nil {
+		updateStrings = append(updateStrings, fmt.Sprintf("ticket=$%d", len(updateStrings)+1))
+		args = append(args, user.status.ticket)
 	}
 
 	updateArgument := strings.Join(updateStrings, ",")
