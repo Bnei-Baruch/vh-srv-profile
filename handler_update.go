@@ -45,6 +45,13 @@ func (p *profileManager) update(c *gin.Context) {
 			postalCode:    request.PostalCode,
 			city:          request.City,
 		},
+		status: userStatus{
+			membership:     request.Status.Membership,
+			membershipType: request.Status.MembershipType,
+			ticket:         request.Status.Ticket,
+			convention:     request.Status.Convention,
+			galaxy:         request.Status.Galaxy,
+		},
 		gender:        request.Gender,
 		maritalStatus: request.MaritalStatus,
 		dateOfBirth:   request.DateOfBirth,

@@ -23,6 +23,7 @@ type userInput struct {
 	lastNameLatin       *string
 	lastNameVernacular  *string
 	address             address
+	status              userStatus
 	gender              *string
 	maritalStatus       *string
 	dateOfBirth         *time.Time
@@ -32,6 +33,15 @@ type userInput struct {
 	studyStartYear      *int
 	studyFramework      *string
 	ten                 ten
+}
+
+type userStatus struct {
+	userID         *uuid.UUID
+	membership     *bool
+	membershipType *string
+	ticket         *bool
+	convention     *bool
+	galaxy         *bool
 }
 
 type address struct {
@@ -162,11 +172,51 @@ func (db *pgProfileDB) createProfile(ctx context.Context, user userInput) error 
 		}
 	}
 
+	if err := insertUserMembershipStatus(tx, userID, user.status.membership, user.status.membershipType, user.status.ticket, user.status.convention, user.status.galaxy); err != nil {
+		return err
+	}
+
 	return tx.Commit(ctx)
 }
 
 func insertPhone(tx pgx.Tx, userID uuid.UUID, number string, phoneType string) error {
 	_, err := tx.Exec(context.Background(), `INSERT INTO phone_numbers (user_id, phone_number, type) VALUES ($1, $2, $3)`,
 		userID, number, phoneType)
+	return err
+}
+
+/* Function to insert status of user if provided else will inser default values */
+func insertUserMembershipStatus(tx pgx.Tx, userID uuid.UUID, membership *bool, membershipType *string, ticket *bool, convention *bool, galaxy *bool) error {
+
+	/* Setting default values */
+	boolMembership := false
+	boolTicket := false
+	boolConvention := false
+	boolGalaxy := false
+
+	strMembershipType := "inactive"
+
+	if membership != nil {
+		boolMembership = *membership
+	}
+
+	if membershipType != nil {
+		strMembershipType = *membershipType
+	}
+
+	if ticket != nil {
+		boolTicket = *ticket
+	}
+
+	if convention != nil {
+		boolConvention = *convention
+	}
+
+	if galaxy != nil {
+		boolGalaxy = *galaxy
+	}
+
+	_, err := tx.Exec(context.Background(), `INSERT INTO status (user_id, membership, membership_type, ticket, convention, galaxy) VALUES ($1, $2, $3, $4, $5, $6)`,
+		userID, boolMembership, strMembershipType, boolTicket, boolConvention, boolGalaxy)
 	return err
 }

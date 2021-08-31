@@ -19,6 +19,12 @@ func (db *pgProfileDB) hardDeleteProfile(ctx context.Context, keycloakID uuid.UU
 		return fmt.Errorf("problem deleting phone numbers for keycloak id %q: %w", keycloakID, err)
 	}
 
+	/* Delete status related to the user */
+	_, err = tx.Exec(ctx, `DELETE FROM status WHERE user_id=(SELECT user_id FROM users WHERE keycloak_id=$1)`, keycloakID)
+	if err != nil {
+		return fmt.Errorf("problem deleting phone numbers for keycloak id %q: %w", keycloakID, err)
+	}
+
 	tag, err := tx.Exec(ctx, `DELETE FROM users WHERE keycloak_id=$1`, keycloakID)
 	if err != nil {
 		return fmt.Errorf("problem deleting users for keycloak id %q: %w", keycloakID, err)
