@@ -50,9 +50,17 @@ func (db *pgProfileDB) updateProfile(ctx context.Context, keycloakID uuid.UUID, 
 	userStatusToUpdate, userStatusArgs := prepareUserStatusUpdateQuery(user)
 
 	if len(userStatusArgs) != 0 {
-		if _, err = tx.Exec(ctx, fmt.Sprintf(`UPDATE status SET %s WHERE user_id='%s'`, userStatusToUpdate, userID),
-			userStatusArgs...); err != nil {
+		updateRes, err := tx.Exec(ctx, fmt.Sprintf(`UPDATE status SET %s WHERE user_id='%s'`, userStatusToUpdate, userID),
+			userStatusArgs...)
+		if err != nil {
 			return fmt.Errorf("problem updating users status: %w", err)
+		}
+
+		/* Add new status row for the user if 0 rows are affected i.e user status is not present in status table */
+		if updateRes.RowsAffected() == 0 {
+			if err := insertUserMembershipStatus(tx, userID, user.status.membership, user.status.membershipType, user.status.ticket, user.status.convention, user.status.galaxy); err != nil {
+				return err
+			}
 		}
 	}
 
