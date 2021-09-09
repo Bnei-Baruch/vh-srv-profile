@@ -184,7 +184,7 @@ func (p *profileManager) getProfiles(c *gin.Context) {
 				return
 			}
 			c.Status(http.StatusInternalServerError)
-			_ = c.Error(fmt.Errorf("error while getting users"))
+			_ = c.Error(fmt.Errorf("error while getting users: %w", err))
 			return
 		}
 
