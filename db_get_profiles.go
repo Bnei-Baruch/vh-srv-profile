@@ -103,7 +103,7 @@ func (db *pgProfileDB) getMultipleProfiles(ctx context.Context, intSkip int, int
 		whereString.Reset()
 	}
 
-	rows, err := db.Query(ctx, `
+	rows, err := db.Query(context.Background(), `
 		SELECT users.user_id,
 		keycloak_id,
 		updated_at,
@@ -145,9 +145,10 @@ func (db *pgProfileDB) getMultipleProfiles(ctx context.Context, intSkip int, int
 	FROM users
 	LEFT JOIN status ON users.user_id = status.user_id`+whereString.String()+" LIMIT $1 OFFSET $2", intLimit, intSkip)
 	if err != nil {
+		fmt.Println(err)
 		return []user{}, err
 	}
-	defer rows.Close()
+	// defer rows.Close()
 	for rows.Next() {
 		var profile user
 		if err := rows.Scan(
