@@ -209,7 +209,7 @@ func (db *pgProfileDB) getMultipleProfiles(ctx context.Context, intSkip int, int
 
 		var phoneNumbers []phone
 
-		phoneRows, err := db.Query(ctx, `
+		rows, err := db.Query(ctx, `
 		SELECT phone_number, 
 			type 
 		FROM phone_numbers
@@ -220,9 +220,9 @@ func (db *pgProfileDB) getMultipleProfiles(ctx context.Context, intSkip int, int
 			return []user{}, err
 		}
 
-		for phoneRows.Next() {
+		for rows.Next() {
 			var temp phone
-			if err := phoneRows.Scan(&temp.number, &temp.phoneType); err != nil {
+			if err := rows.Scan(&temp.number, &temp.phoneType); err != nil {
 				return []user{}, err
 			}
 			phoneNumbers = append(phoneNumbers, temp)
