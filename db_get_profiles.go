@@ -102,7 +102,7 @@ func (db *pgProfileDB) getMultipleProfiles(ctx context.Context, intSkip int, int
 	} else {
 		whereString.Reset()
 	}
-	rows, err := db.Query(context.Background(), `
+	rows, err := db.Query(ctx, `
 		SELECT users.user_id,
 		keycloak_id,
 		updated_at,
@@ -209,7 +209,7 @@ func (db *pgProfileDB) getMultipleProfiles(ctx context.Context, intSkip int, int
 
 		var phoneNumbers []phone
 
-		phoneRows, err := db.Query(context.Background(), `
+		phoneRows, err := db.Query(ctx, `
 		SELECT phone_number, 
 			type 
 		FROM phone_numbers
