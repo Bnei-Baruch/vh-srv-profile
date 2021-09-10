@@ -102,8 +102,7 @@ func (db *pgProfileDB) getMultipleProfiles(ctx context.Context, intSkip int, int
 	} else {
 		whereString.Reset()
 	}
-
-	rows, err := db.Query(ctx, `
+	rows, err := db.Query(context.Background(), `
 		SELECT users.user_id,
 		keycloak_id,
 		updated_at,
@@ -148,7 +147,7 @@ func (db *pgProfileDB) getMultipleProfiles(ctx context.Context, intSkip int, int
 		fmt.Println("--error-while-executing-query", err)
 		return []user{}, err
 	}
-	// defer rows.Close()
+	defer rows.Close()
 	for rows.Next() {
 		var profile user
 		if err := rows.Scan(
@@ -210,19 +209,20 @@ func (db *pgProfileDB) getMultipleProfiles(ctx context.Context, intSkip int, int
 
 		var phoneNumbers []phone
 
-		rows, err := db.Query(ctx, `
+		phoneRows, err := db.Query(context.Background(), `
 		SELECT phone_number, 
 			type 
 		FROM phone_numbers
 		WHERE user_id = $1`, userID)
 
 		if err != nil {
+			fmt.Println("--error-while-executing-phone-num-query", err)
 			return []user{}, err
 		}
 
-		for rows.Next() {
+		for phoneRows.Next() {
 			var temp phone
-			if err := rows.Scan(&temp.number, &temp.phoneType); err != nil {
+			if err := phoneRows.Scan(&temp.number, &temp.phoneType); err != nil {
 				return []user{}, err
 			}
 			phoneNumbers = append(phoneNumbers, temp)
