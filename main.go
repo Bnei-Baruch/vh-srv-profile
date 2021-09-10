@@ -21,7 +21,7 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
 	defer cancel()
 	profileDB, err := newPgProfileDB(ctx, getEnvOrFatal("DATABASE_URL"))
 	if err != nil {
