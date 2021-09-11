@@ -17,7 +17,7 @@ type readStorage interface {
 }
 type readMultipleProfileStorage interface {
 	//Fetch multiple profile based on paramteres
-	getMultipleProfiles(ctx context.Context, intSkip int, intLimit int, country string, email string, firstLastName string, tenGroupName string, language string, firstLanguage string, otherLanguageOne string, otherLanguageTwo string, otherLanguageThree string, otherLanguageFour string) ([]user, error)
+	getMultipleProfiles(ctx context.Context, intSkip int, intLimit int, country string, email string, firstLastName string, tenGroupName string, language string, firstLanguage string, otherLanguageOne string, otherLanguageTwo string, otherLanguageThree string, otherLanguageFour string, updatedAt string, createdAt string, membership string, membershipType string, convention string, ticket string, galaxy string) ([]user, error)
 	// Fetch single profle based on phone number provided
 	fetchProfileBasedOnPhoneNumber(ctx context.Context, phoneNumber string) (user, error)
 }
@@ -86,6 +86,42 @@ func (p *profileManager) getProfiles(c *gin.Context) {
 	otherLanguageThree := c.Query("other-language-3")
 	otherLanguageFour := c.Query("other-language-4")
 	phoneNumber := c.Query("phone-number")
+	updatedAt := c.Query("updated")
+	if updatedAt != "" && updatedAt != "desc" && updatedAt != "asc" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid updatedAt value! Accepted values are desc for descending & asc for ascending"})
+		return
+	}
+
+	createdAt := c.Query("created")
+	if createdAt != "" && createdAt != "desc" && createdAt != "asc" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid createdAt value! Accepted values are desc for descending & asc for ascending"})
+		return
+	}
+
+	membership := c.Query("membership")
+	if membership != "" && membership != "false" && membership != "true" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid membership value! Accepted value is either true or false"})
+		return
+	}
+
+	membershipType := c.Query("membership-type")
+	convention := c.Query("convention")
+	if convention != "" && convention != "false" && convention != "true" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid convention value! Accepted value is either true or false"})
+		return
+	}
+
+	ticket := c.Query("ticket")
+	if ticket != "" && ticket != "false" && ticket != "true" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ticket value! Accepted value is either true or false"})
+		return
+	}
+
+	galaxy := c.Query("galaxy")
+	if galaxy != "" && galaxy != "false" && galaxy != "true" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid galaxy value! Accepted value is either true or false"})
+		return
+	}
 
 	// To fetch single user based on mobile number
 	if phoneNumber != "" {
@@ -166,18 +202,18 @@ func (p *profileManager) getProfiles(c *gin.Context) {
 		// String conversion to int
 		intSkip, err := strconv.Atoi(skip)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid skip value"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid skip value! Accepted value is INTEGER"})
 			return
 		}
 
 		// String conversion to int
 		intLimit, err := strconv.Atoi(limit)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid limit value"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid limit value! Accepted value is INTEGER"})
 			return
 		}
 
-		profiles, err := p.fetchProfiles.getMultipleProfiles(c.Request.Context(), intSkip, intLimit, country, email, name, tenGroupName, language, firstLanguage, otherLanguageOne, otherLanguageTwo, otherLanguageThree, otherLanguageFour)
+		profiles, err := p.fetchProfiles.getMultipleProfiles(c.Request.Context(), intSkip, intLimit, country, email, name, tenGroupName, language, firstLanguage, otherLanguageOne, otherLanguageTwo, otherLanguageThree, otherLanguageFour, updatedAt, createdAt, membership, membershipType, convention, ticket, galaxy)
 		if err != nil {
 			if errors.Is(err, errUserNotFound) {
 				c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})

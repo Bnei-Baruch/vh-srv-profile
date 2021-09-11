@@ -10,98 +10,13 @@ import (
 )
 
 // Fetch multiple profiles based in parameters provided ( If more than one parameters then AND operation will execute on them )
-func (db *pgProfileDB) getMultipleProfiles(ctx context.Context, intSkip int, intLimit int, country string, email string, firstLastName string, tenGroupName string, language string, firstLanguage string, otherLanguageOne string, otherLanguageTwo string, otherLanguageThree string, otherLanguageFour string) ([]user, error) {
+func (db *pgProfileDB) getMultipleProfiles(ctx context.Context, intSkip int, intLimit int, country string, email string, firstLastName string, tenGroupName string, language string, firstLanguage string, otherLanguageOne string, otherLanguageTwo string, otherLanguageThree string, otherLanguageFour string, updatedAt string, createdAt string, membership string, membershipType string, convention string, ticket string, galaxy string) ([]user, error) {
 	var userID uuid.UUID
 	var keycloakId string
 	users := []user{}
 
-	var whereString strings.Builder
-	var whereCondition strings.Builder
-	whereString.WriteString(" WHERE")
-	whereCondition.WriteString("")
+	userDbWhereQuery, orderByQuery := buildAndGetWhereUserQuery(country, email, firstLastName, tenGroupName, language, firstLanguage, otherLanguageOne, otherLanguageTwo, otherLanguageThree, otherLanguageFour, updatedAt, createdAt, membership, membershipType, convention, ticket, galaxy)
 
-	// WHERE query generation based on parameters
-	if country != "" {
-		whereCondition.WriteString(fmt.Sprintf(" country='%s'", country))
-	}
-
-	if email != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND primary_email LIKE '%%%s%%'", email))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" primary_email LIKE '%%%s%%'", email))
-		}
-	}
-
-	if firstLastName != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND (first_name_latin LIKE '%%%s%%' OR last_name_latin LIKE '%%%s%%')", firstLastName, firstLastName))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" first_name_latin LIKE '%%%s%%' OR last_name_latin LIKE '%%%s%%'", firstLastName, firstLastName))
-		}
-	}
-
-	if tenGroupName != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND name_of_ten_group='%s'", tenGroupName))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" name_of_ten_group='%s'", tenGroupName))
-		}
-	}
-
-	if language != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND (first_language='%s' OR other_language_1='%s' OR other_language_2='%s' OR other_language_3='%s' OR other_language_4='%s')", language, language, language, language, language))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" first_language='%s' OR other_language_1='%s' OR other_language_2='%s' OR other_language_3='%s' OR other_language_4='%s'", language, language, language, language, language))
-		}
-	}
-
-	if firstLanguage != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND first_language='%s'", firstLanguage))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" first_language='%s'", firstLanguage))
-		}
-	}
-
-	if otherLanguageOne != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND other_language_1='%s'", otherLanguageOne))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" other_language_1='%s'", otherLanguageOne))
-		}
-	}
-
-	if otherLanguageTwo != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND other_language_2='%s'", otherLanguageTwo))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" other_language_2='%s'", otherLanguageTwo))
-		}
-	}
-
-	if otherLanguageThree != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND other_language_3='%s'", otherLanguageThree))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" other_language_3='%s'", otherLanguageThree))
-		}
-	}
-
-	if otherLanguageFour != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND other_language_4='%s'", otherLanguageFour))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" other_language_4='%s'", otherLanguageFour))
-		}
-	}
-
-	if whereCondition.String() != "" {
-		whereString.WriteString(whereCondition.String())
-	} else {
-		whereString.Reset()
-	}
 	rows, err := db.Query(ctx, `
 		SELECT users.user_id,
 		keycloak_id,
@@ -142,7 +57,9 @@ func (db *pgProfileDB) getMultipleProfiles(ctx context.Context, intSkip int, int
 		wants_ten_group,
 		name_of_ten_group
 	FROM users
-	LEFT JOIN status ON users.user_id = status.user_id`+whereString.String()+" LIMIT $1 OFFSET $2", intLimit, intSkip)
+	LEFT JOIN status ON users.user_id = status.user_id`+userDbWhereQuery+
+		orderByQuery+
+		" LIMIT $1 OFFSET $2", intLimit, intSkip)
 	if err != nil {
 		fmt.Println("--error-while-executing-query", err)
 		return []user{}, err
@@ -402,4 +319,143 @@ func (db *pgProfileDB) fetchProfileBasedOnPhoneNumber(ctx context.Context, phone
 	profile.userInput.keycloakID = &keyCloakUUID
 
 	return profile, nil
+}
+
+func buildAndGetWhereUserQuery(country string, email string, firstLastName string, tenGroupName string, language string, firstLanguage string, otherLanguageOne string, otherLanguageTwo string, otherLanguageThree string, otherLanguageFour string, updatedAt string, createdAt string, membership string, membershipType string, convention string, ticket string, galaxy string) (string, string) {
+
+	var whereString strings.Builder
+	var orderBy strings.Builder
+	var whereCondition strings.Builder
+	whereString.WriteString(" WHERE")
+	whereCondition.WriteString("")
+
+	// WHERE query generation based on parameters
+	if country != "" {
+		whereCondition.WriteString(fmt.Sprintf(" country='%s'", country))
+	}
+
+	if email != "" {
+		if whereCondition.String() != "" {
+			whereCondition.WriteString(fmt.Sprintf(" AND primary_email LIKE '%%%s%%'", email))
+		} else {
+			whereCondition.WriteString(fmt.Sprintf(" primary_email LIKE '%%%s%%'", email))
+		}
+	}
+
+	if firstLastName != "" {
+		if whereCondition.String() != "" {
+			whereCondition.WriteString(fmt.Sprintf(" AND (first_name_latin LIKE '%%%s%%' OR last_name_latin LIKE '%%%s%%')", firstLastName, firstLastName))
+		} else {
+			whereCondition.WriteString(fmt.Sprintf(" first_name_latin LIKE '%%%s%%' OR last_name_latin LIKE '%%%s%%'", firstLastName, firstLastName))
+		}
+	}
+
+	if tenGroupName != "" {
+		if whereCondition.String() != "" {
+			whereCondition.WriteString(fmt.Sprintf(" AND name_of_ten_group='%s'", tenGroupName))
+		} else {
+			whereCondition.WriteString(fmt.Sprintf(" name_of_ten_group='%s'", tenGroupName))
+		}
+	}
+
+	if language != "" {
+		if whereCondition.String() != "" {
+			whereCondition.WriteString(fmt.Sprintf(" AND (first_language='%s' OR other_language_1='%s' OR other_language_2='%s' OR other_language_3='%s' OR other_language_4='%s')", language, language, language, language, language))
+		} else {
+			whereCondition.WriteString(fmt.Sprintf(" first_language='%s' OR other_language_1='%s' OR other_language_2='%s' OR other_language_3='%s' OR other_language_4='%s'", language, language, language, language, language))
+		}
+	}
+
+	if firstLanguage != "" {
+		if whereCondition.String() != "" {
+			whereCondition.WriteString(fmt.Sprintf(" AND first_language='%s'", firstLanguage))
+		} else {
+			whereCondition.WriteString(fmt.Sprintf(" first_language='%s'", firstLanguage))
+		}
+	}
+
+	if otherLanguageOne != "" {
+		if whereCondition.String() != "" {
+			whereCondition.WriteString(fmt.Sprintf(" AND other_language_1='%s'", otherLanguageOne))
+		} else {
+			whereCondition.WriteString(fmt.Sprintf(" other_language_1='%s'", otherLanguageOne))
+		}
+	}
+
+	if otherLanguageTwo != "" {
+		if whereCondition.String() != "" {
+			whereCondition.WriteString(fmt.Sprintf(" AND other_language_2='%s'", otherLanguageTwo))
+		} else {
+			whereCondition.WriteString(fmt.Sprintf(" other_language_2='%s'", otherLanguageTwo))
+		}
+	}
+
+	if otherLanguageThree != "" {
+		if whereCondition.String() != "" {
+			whereCondition.WriteString(fmt.Sprintf(" AND other_language_3='%s'", otherLanguageThree))
+		} else {
+			whereCondition.WriteString(fmt.Sprintf(" other_language_3='%s'", otherLanguageThree))
+		}
+	}
+
+	if otherLanguageFour != "" {
+		if whereCondition.String() != "" {
+			whereCondition.WriteString(fmt.Sprintf(" AND other_language_4='%s'", otherLanguageFour))
+		} else {
+			whereCondition.WriteString(fmt.Sprintf(" other_language_4='%s'", otherLanguageFour))
+		}
+	}
+	if membership != "" {
+		if whereCondition.String() != "" {
+			whereCondition.WriteString(fmt.Sprintf(" AND status.membership=%s", membership))
+		} else {
+			whereCondition.WriteString(fmt.Sprintf(" status.membership=%s", membership))
+		}
+	}
+	if membershipType != "" {
+		if whereCondition.String() != "" {
+			whereCondition.WriteString(fmt.Sprintf(" AND status.membership_type='%s'", membershipType))
+		} else {
+			whereCondition.WriteString(fmt.Sprintf(" status.membership_type='%s'", membershipType))
+		}
+	}
+	if convention != "" {
+		if whereCondition.String() != "" {
+			whereCondition.WriteString(fmt.Sprintf(" AND status.convention=%s", convention))
+		} else {
+			whereCondition.WriteString(fmt.Sprintf(" status.convention=%s", convention))
+		}
+	}
+	if ticket != "" {
+		if whereCondition.String() != "" {
+			whereCondition.WriteString(fmt.Sprintf(" AND status.ticket=%s", ticket))
+		} else {
+			whereCondition.WriteString(fmt.Sprintf(" status.ticket=%s", ticket))
+		}
+	}
+	if galaxy != "" {
+		if whereCondition.String() != "" {
+			whereCondition.WriteString(fmt.Sprintf(" AND status.galaxy=%s", galaxy))
+		} else {
+			whereCondition.WriteString(fmt.Sprintf(" status.galaxy=%s", galaxy))
+		}
+	}
+	if updatedAt != "" {
+		if strings.ToLower(updatedAt) != "desc" && strings.ToLower(updatedAt) != "asc" {
+			updatedAt = "asc"
+		}
+		orderBy.WriteString(fmt.Sprintf(" ORDER BY updated_at %s", updatedAt))
+	} else {
+		if strings.ToLower(createdAt) == "" || (strings.ToLower(createdAt) != "desc" && strings.ToLower(createdAt) != "asc") {
+			createdAt = "asc"
+		}
+		orderBy.WriteString(fmt.Sprintf(" ORDER BY created_at %s", createdAt))
+	}
+
+	if whereCondition.String() != "" {
+		whereString.WriteString(whereCondition.String())
+	} else {
+		whereString.Reset()
+	}
+	return whereString.String(), orderBy.String()
 }
