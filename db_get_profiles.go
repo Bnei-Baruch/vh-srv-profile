@@ -10,12 +10,12 @@ import (
 )
 
 // Fetch multiple profiles based in parameters provided ( If more than one parameters then AND operation will execute on them )
-func (db *pgProfileDB) getMultipleProfiles(ctx context.Context, intSkip int, intLimit int, country string, email string, firstLastName string, tenGroupName string, language string, firstLanguage string, otherLanguageOne string, otherLanguageTwo string, otherLanguageThree string, otherLanguageFour string, updatedAt string, createdAt string, membership string, membershipType string, convention string, ticket string, galaxy string) ([]user, error) {
+func (db *pgProfileDB) getMultipleProfiles(ctx context.Context, intSkip int, intLimit int, country string, email string, firstLastName string, tenGroupName string, language string, firstLanguage string, otherLanguageOne string, otherLanguageTwo string, otherLanguageThree string, otherLanguageFour string, updatedAt string, createdAt string, membership string, membershipType string, convention string, ticket string, galaxy string, gender string) ([]user, error) {
 	var userID uuid.UUID
 	var keycloakId string
 	users := []user{}
 
-	userDbWhereQuery, orderByQuery := buildAndGetWhereUserQuery(country, email, firstLastName, tenGroupName, language, firstLanguage, otherLanguageOne, otherLanguageTwo, otherLanguageThree, otherLanguageFour, updatedAt, createdAt, membership, membershipType, convention, ticket, galaxy)
+	userDbWhereQuery, orderByQuery := buildAndGetWhereUserQuery(country, email, firstLastName, tenGroupName, language, firstLanguage, otherLanguageOne, otherLanguageTwo, otherLanguageThree, otherLanguageFour, updatedAt, createdAt, membership, membershipType, convention, ticket, galaxy, gender)
 
 	rows, err := db.Query(ctx, `
 		SELECT users.user_id,
@@ -321,7 +321,7 @@ func (db *pgProfileDB) fetchProfileBasedOnPhoneNumber(ctx context.Context, phone
 	return profile, nil
 }
 
-func buildAndGetWhereUserQuery(country string, email string, firstLastName string, tenGroupName string, language string, firstLanguage string, otherLanguageOne string, otherLanguageTwo string, otherLanguageThree string, otherLanguageFour string, updatedAt string, createdAt string, membership string, membershipType string, convention string, ticket string, galaxy string) (string, string) {
+func buildAndGetWhereUserQuery(country string, email string, firstLastName string, tenGroupName string, language string, firstLanguage string, otherLanguageOne string, otherLanguageTwo string, otherLanguageThree string, otherLanguageFour string, updatedAt string, createdAt string, membership string, membershipType string, convention string, ticket string, galaxy string, gender string) (string, string) {
 
 	var whereString strings.Builder
 	var orderBy strings.Builder
@@ -355,6 +355,14 @@ func buildAndGetWhereUserQuery(country string, email string, firstLastName strin
 			whereCondition.WriteString(fmt.Sprintf(" AND name_of_ten_group='%s'", tenGroupName))
 		} else {
 			whereCondition.WriteString(fmt.Sprintf(" name_of_ten_group='%s'", tenGroupName))
+		}
+	}
+
+	if gender != "" {
+		if whereCondition.String() != "" {
+			whereCondition.WriteString(fmt.Sprintf(" AND gender='%s'", gender))
+		} else {
+			whereCondition.WriteString(fmt.Sprintf(" gender='%s'", gender))
 		}
 	}
 
