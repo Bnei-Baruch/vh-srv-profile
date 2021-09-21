@@ -346,7 +346,7 @@ func buildAndGetWhereUserQuery(country string, email string, firstLastName strin
 		if whereCondition.String() != "" {
 			whereCondition.WriteString(fmt.Sprintf(" AND (first_name_latin LIKE '%%%s%%' OR last_name_latin LIKE '%%%s%%')", firstLastName, firstLastName))
 		} else {
-			whereCondition.WriteString(fmt.Sprintf(" first_name_latin LIKE '%%%s%%' OR last_name_latin LIKE '%%%s%%'", firstLastName, firstLastName))
+			whereCondition.WriteString(fmt.Sprintf(" (first_name_latin LIKE '%%%s%%' OR last_name_latin LIKE '%%%s%%')", firstLastName, firstLastName))
 		}
 	}
 
@@ -362,7 +362,7 @@ func buildAndGetWhereUserQuery(country string, email string, firstLastName strin
 		if whereCondition.String() != "" {
 			whereCondition.WriteString(fmt.Sprintf(" AND (first_language='%s' OR other_language_1='%s' OR other_language_2='%s' OR other_language_3='%s' OR other_language_4='%s')", language, language, language, language, language))
 		} else {
-			whereCondition.WriteString(fmt.Sprintf(" first_language='%s' OR other_language_1='%s' OR other_language_2='%s' OR other_language_3='%s' OR other_language_4='%s'", language, language, language, language, language))
+			whereCondition.WriteString(fmt.Sprintf(" (first_language='%s' OR other_language_1='%s' OR other_language_2='%s' OR other_language_3='%s' OR other_language_4='%s')", language, language, language, language, language))
 		}
 	}
 
