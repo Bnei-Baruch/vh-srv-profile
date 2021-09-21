@@ -17,7 +17,7 @@ type readStorage interface {
 }
 type readMultipleProfileStorage interface {
 	//Fetch multiple profile based on paramteres
-	getMultipleProfiles(ctx context.Context, intSkip int, intLimit int, country string, email string, firstLastName string, tenGroupName string, language string, firstLanguage string, otherLanguageOne string, otherLanguageTwo string, otherLanguageThree string, otherLanguageFour string, updatedAt string, createdAt string, membership string, membershipType string, convention string, ticket string, galaxy string) ([]user, error)
+	getMultipleProfiles(ctx context.Context, intSkip int, intLimit int, country string, email string, firstLastName string, tenGroupName string, language string, firstLanguage string, otherLanguageOne string, otherLanguageTwo string, otherLanguageThree string, otherLanguageFour string, updatedAt string, createdAt string, membership string, membershipType string, convention string, ticket string, galaxy string, gender string) ([]user, error)
 	// Fetch single profle based on phone number provided
 	fetchProfileBasedOnPhoneNumber(ctx context.Context, phoneNumber string) (user, error)
 }
@@ -87,6 +87,7 @@ func (p *profileManager) getProfiles(c *gin.Context) {
 	otherLanguageFour := c.Query("other-language-4")
 	phoneNumber := c.Query("phone-number")
 	updatedAt := c.Query("updated")
+	gender := c.Query("gender")
 	if updatedAt != "" && updatedAt != "desc" && updatedAt != "asc" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid updatedAt value! Accepted values are desc for descending & asc for ascending"})
 		return
@@ -213,7 +214,7 @@ func (p *profileManager) getProfiles(c *gin.Context) {
 			return
 		}
 
-		profiles, err := p.fetchProfiles.getMultipleProfiles(c.Request.Context(), intSkip, intLimit, country, email, name, tenGroupName, language, firstLanguage, otherLanguageOne, otherLanguageTwo, otherLanguageThree, otherLanguageFour, updatedAt, createdAt, membership, membershipType, convention, ticket, galaxy)
+		profiles, err := p.fetchProfiles.getMultipleProfiles(c.Request.Context(), intSkip, intLimit, country, email, name, tenGroupName, language, firstLanguage, otherLanguageOne, otherLanguageTwo, otherLanguageThree, otherLanguageFour, updatedAt, createdAt, membership, membershipType, convention, ticket, galaxy, gender)
 		if err != nil {
 			if errors.Is(err, errUserNotFound) {
 				c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
