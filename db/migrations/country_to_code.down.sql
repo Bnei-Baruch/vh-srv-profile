@@ -1,16 +1,12 @@
 BEGIN;
 
-ALTER TABLE users ADD countriesWithCode text;
-
-UPDATE users
-SET countriesWithCode = country_list.name
-FROM country_list 
-WHERE users.country = country_list.code;
-
 ALTER TABLE users DROP CONSTRAINT country_code_fkey;
 
-ALTER TABLE users DROP COLUMN country;
+update users
+set country = muc.country 
+from migration_users_country muc
+where users.user_id = muc.user_id;
 
-ALTER TABLE users RENAME countriesWithCode TO country;
+DROP TABLE migration_users_country;
 
 COMMIT;
