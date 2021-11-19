@@ -17,7 +17,7 @@ type readStorage interface {
 }
 type readMultipleProfileStorage interface {
 	//Fetch multiple profile based on paramteres
-	getMultipleProfiles(ctx context.Context, intSkip int, intLimit int, country string, email string, firstLastName string, tenGroupName string, language string, firstLanguage string, otherLanguageOne string, otherLanguageTwo string, otherLanguageThree string, otherLanguageFour string, updatedAt string, createdAt string, membership string, membershipType string, convention string, ticket string, galaxy string, gender string) ([]user, error)
+	getMultipleProfiles(ctx context.Context, intSkip int, intLimit int, country string, email string, name string, tenGroupName string, language string, firstLanguage string, otherLanguageOne string, otherLanguageTwo string, otherLanguageThree string, otherLanguageFour string, updatedAt string, createdAt string, membership string, membershipType string, convention string, ticket string, galaxy string, gender string) ([]user, error)
 	// Fetch single profle based on phone number provided
 	fetchProfileBasedOnPhoneNumber(ctx context.Context, phoneNumber string) (user, error)
 }
