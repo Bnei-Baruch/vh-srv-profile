@@ -344,9 +344,9 @@ func buildAndGetWhereUserQuery(country string, email string, name string, tenGro
 
 	if name != "" {
 		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND (first_name_vernacular LIKE LOWER('%%%s%%'); OR last_name_vernacular LIKE LOWER('%%%s%%'))", name, name))
+			whereCondition.WriteString(fmt.Sprintf(" AND (LOWER(first_name_vernacular) LIKE LOWER('%%%s%%'); OR LOWER(last_name_vernacular) LIKE LOWER('%%%s%%'))", name, name))
 		} else {
-			whereCondition.WriteString(fmt.Sprintf(" (first_name_vernacular LIKE LOWER('%%%s%%') OR last_name_vernacular LIKE LOWER('%%%s%%'))", name, name))
+			whereCondition.WriteString(fmt.Sprintf(" (LOWER(first_name_vernacular) LIKE LOWER('%%%s%%') OR LOWER(last_name_vernacular) LIKE LOWER('%%%s%%'))", name, name))
 		}
 	}
 
