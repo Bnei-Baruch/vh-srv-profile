@@ -331,14 +331,14 @@ func buildAndGetWhereUserQuery(country string, email string, name string, tenGro
 
 	// WHERE query generation based on parameters
 	if country != "" {
-		whereCondition.WriteString(fmt.Sprintf(" country='%s'", country))
+		whereCondition.WriteString(fmt.Sprintf(" LOWER(country)=LOWER('%s')", country))
 	}
 
 	if email != "" {
 		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND primary_email LIKE '%%%s%%'", email))
+			whereCondition.WriteString(fmt.Sprintf(" AND LOWER(primary_email) LIKE LOWER('%%%s%%')", email))
 		} else {
-			whereCondition.WriteString(fmt.Sprintf(" primary_email LIKE '%%%s%%'", email))
+			whereCondition.WriteString(fmt.Sprintf(" LOWER(primary_email) LIKE LOWER('%%%s%%')", email))
 		}
 	}
 
@@ -422,9 +422,9 @@ func buildAndGetWhereUserQuery(country string, email string, name string, tenGro
 	}
 	if membershipType != "" {
 		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND status.membership_type='%s'", membershipType))
+			whereCondition.WriteString(fmt.Sprintf(" AND LOWER(status.membership_type)=LOWER('%s')", membershipType))
 		} else {
-			whereCondition.WriteString(fmt.Sprintf(" status.membership_type='%s'", membershipType))
+			whereCondition.WriteString(fmt.Sprintf(" LOWER(status.membership_type)=LOWER('%s')", membershipType))
 		}
 	}
 	if convention != "" {
