@@ -352,9 +352,9 @@ func buildAndGetWhereUserQuery(country string, email string, name string, tenGro
 
 	if tenGroupName != "" {
 		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND name_of_ten_group='%s'", tenGroupName))
+			whereCondition.WriteString(fmt.Sprintf(" AND LOWER(name_of_ten_group)=LOWER('%s')", tenGroupName))
 		} else {
-			whereCondition.WriteString(fmt.Sprintf(" name_of_ten_group='%s'", tenGroupName))
+			whereCondition.WriteString(fmt.Sprintf(" LOWER(name_of_ten_group)=LOWER('%s')", tenGroupName))
 		}
 	}
 
