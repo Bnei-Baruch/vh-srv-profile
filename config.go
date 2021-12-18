@@ -20,7 +20,7 @@ func loadConfig() appConfig {
 func getEnvOrFatal(key string) string {
 	value, ok := os.LookupEnv(key)
 	if !ok {
-		log.Fatalf("Required ENV variable %q not found", key)
+		log.Println("Required ENV variable %q not found", key)
 	}
 	return value
 }
