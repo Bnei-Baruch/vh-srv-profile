@@ -42,7 +42,7 @@ func main() {
 		getProfiles: profile.getProfiles,
 	})
 
-	if err := app.Run(config.appPort); err != nil {
+	if err := app.Run(":"+config.appPort); err != nil {
 		log.Printf("server stopped: %s", err)
 	}
 }
