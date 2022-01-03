@@ -24,11 +24,11 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	db_url := makeDBURL()
 
-
-	profileDB, err := newPgProfileDB(ctx, makeDBURL())
+	profileDB, err := newPgProfileDB(ctx, db_url)
 	if err != nil {
-		log.Fatalf("Unable to initialize profile db: %s", err)
+		log.Fatalf("Unable to initialize profile db: %s \n***\n %s \n ***", err, db_url)
 	}
 
 	profile := &profileManager{creator: profileDB, getter: profileDB, updater: profileDB, deleter: profileDB, hardDeleter: profileDB, fetchProfiles: profileDB}
