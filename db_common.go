@@ -24,7 +24,7 @@ func getDBUser() string{
 	return "DEFAULT_USER"
 }
 func getDBPassword() string{
-	if value, ok := os.LookupEnv("DB_PASS"); ok{
+	if value, ok := os.LookupEnv("DB_PASSWORD"); ok{
 		return value
 	}
 	return "DEFAULT_PASS"
