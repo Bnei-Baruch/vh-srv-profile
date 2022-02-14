@@ -95,5 +95,14 @@ func (p *profileManager) create(c *gin.Context) {
 		return
 	}
 
+	// check and update first name and last name if they are not same in keycloak
+	updateErr := SyncWithKeycloak(c.Request.Header.Get("Authorization"), *request.KeycloakID, *request.FirstNameVernacular, *request.LastNameVernacular)
+
+	if updateErr != nil {
+		c.Status(http.StatusInternalServerError)
+		_ = c.Error(fmt.Errorf("error while syncing user with keycloak %q: %w", *request.KeycloakID, updateErr))
+		return
+	}
+
 	c.Status(http.StatusCreated)
 }
