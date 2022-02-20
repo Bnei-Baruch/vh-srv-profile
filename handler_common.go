@@ -2,7 +2,11 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"strings"
 	"time"
+
+	"github.com/Nerzal/gocloak"
 )
 
 var (
@@ -60,4 +64,68 @@ type profileRequest struct {
 	HasGroup          *bool      `json:"has_ten_group,omitempty"`
 	WantsGroup        *bool      `json:"wants_ten_group,omitempty"`
 	NameOfGroup       *string    `json:"name_ten_group,omitempty"`
+}
+
+func SyncWithKeycloak(tokenString string, keycloakID string, firstName string, lastName string) error {
+
+	var serverURL string
+	var realm string
+	if value, ok := os.LookupEnv("KEYCLOAK_SERVER_URL"); ok {
+		serverURL = value
+	}
+
+	if realmValue, ok := os.LookupEnv("KEYCLOAK_REALM"); ok {
+		realm = realmValue
+	}
+
+	if serverURL == "" || realm == "" {
+		return fmt.Errorf("missing keycloak server url or realm")
+	}
+
+	tokenParts := strings.Split(tokenString, " ")
+
+	validToken := tokenParts[1]
+
+	if validToken == "" {
+		return fmt.Errorf("no token found")
+	}
+
+	client := gocloak.NewClient(serverURL)
+
+	keycloakUserInfo, infoErr := client.GetUserByID(validToken, realm, keycloakID)
+
+	if infoErr != nil {
+		return infoErr
+	}
+
+	// only update the user if user details are not same
+	if keycloakUserInfo.ID == keycloakID && keycloakUserInfo.FirstName == firstName && keycloakUserInfo.LastName == lastName {
+		return nil
+	}
+
+	// Only update firtName & lastName
+	updateObj := gocloak.User{
+		ID:                         keycloakID,
+		FirstName:                  firstName,
+		LastName:                   lastName,
+		CreatedTimestamp:           keycloakUserInfo.CreatedTimestamp,
+		Username:                   keycloakUserInfo.Username,
+		Enabled:                    keycloakUserInfo.Enabled,
+		Totp:                       keycloakUserInfo.Totp,
+		EmailVerified:              keycloakUserInfo.EmailVerified,
+		Email:                      keycloakUserInfo.Email,
+		FederationLink:             keycloakUserInfo.FederationLink,
+		Attributes:                 keycloakUserInfo.Attributes,
+		DisableableCredentialTypes: keycloakUserInfo.DisableableCredentialTypes,
+		RequiredActions:            keycloakUserInfo.RequiredActions,
+		Access:                     keycloakUserInfo.Access,
+	}
+
+	updaterErr := client.UpdateUser(validToken, realm, updateObj)
+
+	if updaterErr != nil {
+		return updaterErr
+	}
+
+	return nil
 }
