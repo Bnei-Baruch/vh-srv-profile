@@ -22,6 +22,8 @@ services:
       DATABASE_URL: "${DATABASE_URL}"
       APP_PORT: "${APP_PORT}"
       APP_MODE: "${APP_MODE}"
+      KEYCLOAK_SERVER_URL: "${KEYCLOAK_SERVER_URL}"
+      KEYCLOAK_REALM: "${KEYCLOAK_REALM}"
     image: "${IMAGE_NAME}"
     cpus: '0.5'
     mem_limit: 250M
