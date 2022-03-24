@@ -15,12 +15,14 @@ var (
 )
 
 type profileManager struct {
-	creator       createStorage
-	getter        readStorage
-	updater       updateStorage
-	deleter       deleteStorage
-	hardDeleter   hardDeleteStorage
-	fetchProfiles readMultipleProfileStorage
+	creator        createStorage
+	requestCreator createRequestStorage
+	getter         readStorage
+	updater        updateStorage
+	deleter        deleteStorage
+	hardDeleter    hardDeleteStorage
+	fetchProfiles  readMultipleProfileStorage
+	fetchRequests  readMultipleRequestStorage
 }
 
 type profileRequest struct {
@@ -64,6 +66,14 @@ type profileRequest struct {
 	HasGroup          *bool      `json:"has_ten_group,omitempty"`
 	WantsGroup        *bool      `json:"wants_ten_group,omitempty"`
 	NameOfGroup       *string    `json:"name_ten_group,omitempty"`
+}
+
+type newRequest struct {
+	RequestName   *string `json:"request_name"`
+	KeycloakId    *string `json:"keycloak_id"`
+	Status        *string `json:"status"`
+	RequestNote   *string `json:"request_note,omitempty"`
+	RejectionNote *string `json:"rejection_note,omitempty"`
 }
 
 func SyncWithKeycloak(tokenString string, keycloakID string, firstName string, lastName string) error {
