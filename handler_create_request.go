@@ -36,8 +36,8 @@ func (p *profileManager) createRequest(c *gin.Context) {
 	}
 
 	if err := p.requestCreator.createRequest(c.Request.Context(), request); err != nil {
-		c.Status(http.StatusInternalServerError)
 		_ = c.Error(fmt.Errorf("error while creating request %q: %w", *request.KeycloakId, err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 

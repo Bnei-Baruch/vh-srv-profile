@@ -39,7 +39,7 @@ func prepareRequestCreateQuery(req newRequest) (string, string, []interface{}) {
 		args = append(args, *req.RejectionNote)
 	}
 	if req.RequestName != nil {
-		createStrings = append(createStrings, "request_name")
+		createStrings = append(createStrings, "name")
 		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
 		args = append(args, *req.RequestName)
 	}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -14,14 +15,14 @@ type readMultipleRequestStorage interface {
 	getMultipleRequest(ctx context.Context, intSkip int, intLimit int, kcid string, status string, name string) ([]requestResponse, error)
 }
 type requestResponse struct {
-	ID            *int    `json:"id"`
-	RequestName   *string `json:"request_name"`
-	KeycloakID    *string `json:"keycloak_id"`
-	Status        *string `json:"status"`
-	RequestNote   *string `json:"request_note"`
-	RejectionNote *string `json:"rejection_note"`
-	CreatedAt     *string `json:"created_at"`
-	UpdatedAt     *string `json:"updated_at"`
+	ID            *int       `json:"id"`
+	RequestName   *string    `json:"name" db:"name"`
+	KeycloakID    *string    `json:"keycloak_id" db:"keycloak_id"`
+	Status        *string    `json:"status" db:"status"`
+	RequestNote   *string    `json:"request_note" db:"request_note"`
+	RejectionNote *string    `json:"rejection_note" db:"rejection_note"`
+	CreatedAt     *time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt     *time.Time `json:"updated_at" db:"updated_at"`
 }
 
 func (p *profileManager) getRequest(c *gin.Context) {
@@ -42,20 +43,20 @@ func (p *profileManager) getRequest(c *gin.Context) {
 	}
 
 	// String conversion to int
-	intSkip, err := strconv.Atoi(skip)
-	if err != nil {
+	intSkip, serr := strconv.Atoi(skip)
+	if serr != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid skip value! Accepted value is INTEGER"})
 		return
 	}
 
 	// String conversion to int
-	intLimit, err := strconv.Atoi(limit)
-	if err != nil {
+	intLimit, lerr := strconv.Atoi(limit)
+	if lerr != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid limit value! Accepted value is INTEGER"})
 		return
 	}
 
-	request, err := p.fetchRequests.getMultipleRequest(c.Request.Context(), intSkip, intLimit, kcid, status, name)
+	res, err := p.fetchRequests.getMultipleRequest(c.Request.Context(), intSkip, intLimit, kcid, status, name)
 	if err != nil {
 		if errors.Is(err, errUserNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
@@ -66,5 +67,5 @@ func (p *profileManager) getRequest(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, request)
+	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Fetched!", "data": res})
 }

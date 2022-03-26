@@ -13,7 +13,8 @@ func (db *pgProfileDB) getMultipleRequest(ctx context.Context, intSkip int, intL
 
 	rows, err := db.Query(ctx, `
 		SELECT 
-		request_name,
+		id,
+		name,
 		keycloak_id,
 		status,
 		request_note,
@@ -30,16 +31,11 @@ func (db *pgProfileDB) getMultipleRequest(ctx context.Context, intSkip int, intL
 	defer rows.Close()
 	for rows.Next() {
 		var r requestResponse
-		if err := rows.Scan(&r.RequestName, r.KeycloakID, r.Status, r.RequestNote, r.RejectionNote, r.CreatedAt, r.UpdatedAt); err != nil {
+		if err := rows.Scan(&r.ID, &r.RequestName, &r.KeycloakID, &r.Status, &r.RequestNote, &r.RejectionNote, &r.CreatedAt, &r.UpdatedAt); err != nil {
 			return []requestResponse{}, err
 		}
 
 		requests = append(requests, r)
-	}
-
-	// Manage if no user found
-	if len(requests) == 0 {
-		return []requestResponse{}, fmt.Errorf("%w", errUserNotFound)
 	}
 
 	return requests, nil
@@ -68,9 +64,9 @@ func buildAndGetWhereRequestQuery(kcid string, status string, name string) (stri
 
 	if name != "" {
 		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND request_name='%s'", name))
+			whereCondition.WriteString(fmt.Sprintf(" AND name='%s'", name))
 		} else {
-			whereCondition.WriteString(fmt.Sprintf(" request_name='%s'", name))
+			whereCondition.WriteString(fmt.Sprintf(" name='%s'", name))
 		}
 	}
 

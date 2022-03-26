@@ -31,7 +31,7 @@ func main() {
 		log.Fatalf("Unable to initialize profile db: %s \n***\n %s \n ***", err, db_url)
 	}
 
-	profile := &profileManager{creator: profileDB, requestCreator: profileDB, getter: profileDB, updater: profileDB, requestUpdater: profileDB, deleter: profileDB, requestDeleter: profileDB, hardDeleter: profileDB, fetchProfiles: profileDB}
+	profile := &profileManager{creator: profileDB, requestCreator: profileDB, getter: profileDB, updater: profileDB, requestUpdater: profileDB, deleter: profileDB, requestDeleter: profileDB, hardDeleter: profileDB, fetchProfiles: profileDB, fetchRequests: profileDB}
 
 	app := initApp(appHandlers{
 		create:        profile.create,
@@ -78,7 +78,7 @@ func initApp(handlers appHandlers) *gin.Engine {
 	app.GET("/v1/requests", handlers.getRequests)
 	app.POST("/v1/request", handlers.createRequest)
 	app.PATCH("/v1/request/:keycloak_id", handlers.updateRequest)
-	app.DELETE("/v1/requests/:keycloak_id", handlers.deleteRequest)
+	app.DELETE("/v1/request/:keycloak_id", handlers.deleteRequest)
 
 	return app
 }

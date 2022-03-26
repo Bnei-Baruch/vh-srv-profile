@@ -12,6 +12,7 @@ import (
 var (
 	errProfileNotFound = fmt.Errorf("no profile found for keycloak id")
 	errUserNotFound    = fmt.Errorf("no profile found")
+	errNotFound        = fmt.Errorf("not found")
 )
 
 type profileManager struct {
@@ -23,8 +24,8 @@ type profileManager struct {
 	deleter        deleteStorage
 	requestDeleter deleteRequestStorage
 	hardDeleter    hardDeleteStorage
-	fetchProfiles  readMultipleProfileStorage
 	fetchRequests  readMultipleRequestStorage
+	fetchProfiles  readMultipleProfileStorage
 }
 
 type profileRequest struct {
@@ -71,7 +72,7 @@ type profileRequest struct {
 }
 
 type newRequest struct {
-	RequestName   *string `json:"request_name"`
+	RequestName   *string `json:"name"`
 	KeycloakId    *string `json:"keycloak_id"`
 	Status        *string `json:"status"`
 	RequestNote   *string `json:"request_note,omitempty"`
