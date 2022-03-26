@@ -21,6 +21,7 @@ type profileManager struct {
 	updater        updateStorage
 	requestUpdater updateRequestStorage
 	deleter        deleteStorage
+	requestDeleter deleteRequestStorage
 	hardDeleter    hardDeleteStorage
 	fetchProfiles  readMultipleProfileStorage
 	fetchRequests  readMultipleRequestStorage

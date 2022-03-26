@@ -31,15 +31,19 @@ func main() {
 		log.Fatalf("Unable to initialize profile db: %s \n***\n %s \n ***", err, db_url)
 	}
 
-	profile := &profileManager{creator: profileDB, getter: profileDB, updater: profileDB, deleter: profileDB, hardDeleter: profileDB, fetchProfiles: profileDB}
+	profile := &profileManager{creator: profileDB, requestCreator: profileDB, getter: profileDB, updater: profileDB, requestUpdater: profileDB, deleter: profileDB, requestDeleter: profileDB, hardDeleter: profileDB, fetchProfiles: profileDB}
 
 	app := initApp(appHandlers{
-		create:      profile.create,
-		get:         profile.get,
-		update:      profile.update,
-		delete:      profile.delete,
-		hardDelete:  profile.hardDelete,
-		getProfiles: profile.getProfiles,
+		create:        profile.create,
+		createRequest: profile.createRequest,
+		get:           profile.get,
+		update:        profile.update,
+		updateRequest: profile.updateRequest,
+		delete:        profile.delete,
+		deleteRequest: profile.deleteRequest,
+		hardDelete:    profile.hardDelete,
+		getProfiles:   profile.getProfiles,
+		getRequests:   profile.getRequest,
 	})
 
 	if err := app.Run(":" + config.appPort); err != nil {
@@ -48,12 +52,16 @@ func main() {
 }
 
 type appHandlers struct {
-	create      gin.HandlerFunc
-	get         gin.HandlerFunc
-	update      gin.HandlerFunc
-	delete      gin.HandlerFunc
-	hardDelete  gin.HandlerFunc
-	getProfiles gin.HandlerFunc
+	create        gin.HandlerFunc
+	createRequest gin.HandlerFunc
+	get           gin.HandlerFunc
+	update        gin.HandlerFunc
+	updateRequest gin.HandlerFunc
+	delete        gin.HandlerFunc
+	deleteRequest gin.HandlerFunc
+	hardDelete    gin.HandlerFunc
+	getProfiles   gin.HandlerFunc
+	getRequests   gin.HandlerFunc
 }
 
 func initApp(handlers appHandlers) *gin.Engine {
@@ -66,6 +74,11 @@ func initApp(handlers appHandlers) *gin.Engine {
 	app.PATCH("/v1/profile/:keycloak_id", handlers.update)
 	app.DELETE("/v1/profile/:keycloak_id", handlers.delete)
 	app.DELETE("/admin/v1/profile/:keycloak_id", handlers.hardDelete)
+
+	app.GET("/v1/requests", handlers.getRequests)
+	app.POST("/v1/request", handlers.createRequest)
+	app.PATCH("/v1/request/:keycloak_id", handlers.updateRequest)
+	app.DELETE("/v1/requests/:keycloak_id", handlers.deleteRequest)
 
 	return app
 }
