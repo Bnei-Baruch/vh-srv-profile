@@ -19,6 +19,7 @@ type profileManager struct {
 	requestCreator createRequestStorage
 	getter         readStorage
 	updater        updateStorage
+	requestUpdater updateRequestStorage
 	deleter        deleteStorage
 	hardDeleter    hardDeleteStorage
 	fetchProfiles  readMultipleProfileStorage
