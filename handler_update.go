@@ -92,7 +92,7 @@ func (p *profileManager) update(c *gin.Context) {
 		return
 	}
 
-	updateErr := SyncWithKeycloak(c.Request.Header.Get("Authorization"), keycloakIDString, *request.FirstNameVernacular, *request.LastNameVernacular)
+	updateErr := SyncWithKeycloak(c.Request.Header.Get("Authorization"), keycloakIDString, request.FirstNameVernacular, request.LastNameVernacular)
 
 	if updateErr != nil {
 		c.Status(http.StatusInternalServerError)

@@ -79,7 +79,7 @@ type newRequest struct {
 	RejectionNote *string `json:"rejection_note,omitempty"`
 }
 
-func SyncWithKeycloak(tokenString string, keycloakID string, firstName string, lastName string) error {
+func SyncWithKeycloak(tokenString string, keycloakID string, firstName *string, lastName *string) error {
 
 	var serverURL string
 	var realm string
@@ -111,16 +111,24 @@ func SyncWithKeycloak(tokenString string, keycloakID string, firstName string, l
 		return infoErr
 	}
 
+	if firstName == nil {
+		firstName = &keycloakUserInfo.FirstName
+	}
+
+	if lastName == nil {
+		lastName = &keycloakUserInfo.LastName
+	}
+
 	// only update the user if user details are not same
-	if keycloakUserInfo.ID == keycloakID && keycloakUserInfo.FirstName == firstName && keycloakUserInfo.LastName == lastName {
+	if keycloakUserInfo.ID == keycloakID && keycloakUserInfo.FirstName == *firstName && keycloakUserInfo.LastName == *lastName {
 		return nil
 	}
 
 	// Only update firtName & lastName
 	updateObj := gocloak.User{
 		ID:                         keycloakID,
-		FirstName:                  firstName,
-		LastName:                   lastName,
+		FirstName:                  *firstName,
+		LastName:                   *lastName,
 		CreatedTimestamp:           keycloakUserInfo.CreatedTimestamp,
 		Username:                   keycloakUserInfo.Username,
 		Enabled:                    keycloakUserInfo.Enabled,
