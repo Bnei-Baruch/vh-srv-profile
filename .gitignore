@@ -2,3 +2,4 @@ vh-srv-profile
 *.log
 .vscode
 .idea
+.env

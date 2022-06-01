@@ -55,7 +55,10 @@ func (db *pgProfileDB) getMultipleProfiles(ctx context.Context, intSkip int, int
 		study_framework,
 		has_ten_group,
 		wants_ten_group,
-		name_of_ten_group
+		name_of_ten_group,
+		(SELECT phone_number FROM phone_numbers as p WHERE p.user_id = users.user_id and type='WhatsApp' ) as whats_app,
+		(SELECT phone_number FROM phone_numbers as p WHERE p.user_id = users.user_id and type='mobile' ) as mobile,
+		(SELECT phone_number FROM phone_numbers as p WHERE p.user_id = users.user_id and type='Telegram' ) as telegram  
 	FROM users
 	LEFT JOIN status ON users.user_id = status.user_id`+userDbWhereQuery+
 		orderByQuery+
@@ -106,6 +109,9 @@ func (db *pgProfileDB) getMultipleProfiles(ctx context.Context, intSkip int, int
 			&profile.userInput.ten.hasGroup,
 			&profile.userInput.ten.wantsGroup,
 			&profile.userInput.ten.nameOfGroup,
+			&profile.userInput.phones.whatsAppNumber,
+			&profile.userInput.phones.mobileNumber,
+			&profile.userInput.phones.telegramNumber,
 		); err != nil {
 			return []user{}, err
 		}
@@ -117,50 +123,6 @@ func (db *pgProfileDB) getMultipleProfiles(ctx context.Context, intSkip int, int
 
 		if err != nil {
 			return []user{}, err
-		}
-
-		type phone struct {
-			number    *string
-			phoneType string
-		}
-
-		var phoneNumbers []phone
-
-		rows, err := db.Query(ctx, `
-		SELECT phone_number, 
-			type 
-		FROM phone_numbers
-		WHERE user_id = $1`, userID)
-
-		if err != nil {
-			fmt.Println("--error-while-executing-phone-num-query", err)
-			return []user{}, err
-		}
-
-		for rows.Next() {
-			var temp phone
-			if err := rows.Scan(&temp.number, &temp.phoneType); err != nil {
-				return []user{}, err
-			}
-			phoneNumbers = append(phoneNumbers, temp)
-		}
-
-		var mobileNumber, whatsAppNumber, telegramNumber *string
-		for _, num := range phoneNumbers {
-			switch num.phoneType {
-			case mobile:
-				mobileNumber = num.number
-			case whatsApp:
-				whatsAppNumber = num.number
-			case telegram:
-				telegramNumber = num.number
-			}
-		}
-
-		profile.userInput.phones = phones{
-			mobileNumber:   mobileNumber,
-			whatsAppNumber: whatsAppNumber,
-			telegramNumber: telegramNumber,
 		}
 
 		users = append(users, profile)
