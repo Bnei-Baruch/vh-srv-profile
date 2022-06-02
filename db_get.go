@@ -14,42 +14,45 @@ func (db *pgProfileDB) getProfile(ctx context.Context, keycloakID uuid.UUID) (us
 	var userID uuid.UUID
 	if err := db.QueryRow(ctx, `
 	SELECT users.user_id,
-       updated_at,
-       created_at,
-       deleted,
-	   status.membership,
-	   status.membership_type,
-	   status.ticket,
-	   status.convention,
-	   status.galaxy,
-       first_name_latin,
-       first_name_vernacular,
-       last_name_latin,
-       last_name_vernacular,
-       street_address,
-       country,
-       state_region,
-       postal_code,
-       city,
-       gender,
-       marital_status,
-       date_of_birth,
-       primary_email,
-       alternate_email_1,
-       alternate_email_2,
-       first_language,
-       other_language_1,
-       other_language_2,
-       other_language_3,
-       other_language_4,
-       listening_language,
-       reading_language,
-       email_language,
-       study_start_year,
-       study_framework,
-       has_ten_group,
-       wants_ten_group,
-       name_of_ten_group
+		updated_at,
+		created_at,
+		deleted,
+		status.membership,
+		status.membership_type,
+		status.ticket,
+		status.convention,
+		status.galaxy,
+		first_name_latin,
+		first_name_vernacular,
+		last_name_latin,
+		last_name_vernacular,
+		street_address,
+		country,
+		state_region,
+		postal_code,
+		city,
+		gender,
+		marital_status,
+		date_of_birth,
+		primary_email,
+		alternate_email_1,
+		alternate_email_2,
+		first_language,
+		other_language_1,
+		other_language_2,
+		other_language_3,
+		other_language_4,
+		listening_language,
+		reading_language,
+		email_language,
+		study_start_year,
+		study_framework,
+		has_ten_group,
+		wants_ten_group,
+		name_of_ten_group,
+		(SELECT phone_number FROM phone_numbers as p WHERE p.user_id = users.user_id and type='WhatsApp' ) as whats_app,
+		(SELECT phone_number FROM phone_numbers as p WHERE p.user_id = users.user_id and type='mobile' ) as mobile,
+		(SELECT phone_number FROM phone_numbers as p WHERE p.user_id = users.user_id and type='Telegram' ) as telegram 
 	FROM users
 	LEFT JOIN status ON users.user_id = status.user_id
 	WHERE keycloak_id = $1
@@ -91,50 +94,14 @@ func (db *pgProfileDB) getProfile(ctx context.Context, keycloakID uuid.UUID) (us
 		&profile.userInput.ten.hasGroup,
 		&profile.userInput.ten.wantsGroup,
 		&profile.userInput.ten.nameOfGroup,
+		&profile.userInput.phones.whatsAppNumber,
+		&profile.userInput.phones.mobileNumber,
+		&profile.userInput.phones.telegramNumber,
 	); err != nil {
 		if err == pgx.ErrNoRows {
 			return user{}, fmt.Errorf("%w: %q", errProfileNotFound, keycloakID)
 		}
 		return user{}, err
-	}
-
-	type phone struct {
-		number    *string
-		phoneType string
-	}
-	var phoneNumbers []phone
-	rows, err := db.Query(ctx, `
-	SELECT phone_number, 
-		type 
-	FROM phone_numbers
-	WHERE user_id = $1`, userID)
-	if err != nil {
-		return user{}, err
-	}
-	for rows.Next() {
-		var temp phone
-		if err := rows.Scan(&temp.number, &temp.phoneType); err != nil {
-			return user{}, err
-		}
-		phoneNumbers = append(phoneNumbers, temp)
-	}
-
-	var mobileNumber, whatsAppNumber, telegramNumber *string
-	for _, num := range phoneNumbers {
-		switch num.phoneType {
-		case mobile:
-			mobileNumber = num.number
-		case whatsApp:
-			whatsAppNumber = num.number
-		case telegram:
-			telegramNumber = num.number
-		}
-	}
-
-	profile.userInput.phones = phones{
-		mobileNumber:   mobileNumber,
-		whatsAppNumber: whatsAppNumber,
-		telegramNumber: telegramNumber,
 	}
 
 	// Attach keycloak & user Id to profile struct
