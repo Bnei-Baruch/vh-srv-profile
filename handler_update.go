@@ -96,7 +96,7 @@ func (p *profileManager) update(c *gin.Context) {
 
 	if updateErr != nil {
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while syncing user with keycloak %d: %w", keycloakID, updateErr))
+		_ = c.Error(fmt.Errorf("error while syncing user with keycloak %s: %w", keycloakID, updateErr))
 		return
 	}
 
