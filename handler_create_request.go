@@ -35,6 +35,15 @@ func (p *profileManager) createRequest(c *gin.Context) {
 		return
 	}
 
+	if request.Type != nil {
+		if *request.Type != "hhticket" && *request.Type != "hhmembership" && *request.Type != "arvut" {
+			err := fmt.Errorf("invalid type: %s", *request.Type)
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			_ = c.Error(err)
+			return
+		}
+	}
+
 	if err := p.requestCreator.createRequest(c.Request.Context(), request); err != nil {
 		_ = c.Error(fmt.Errorf("error while creating request %q: %w", *request.KeycloakId, err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

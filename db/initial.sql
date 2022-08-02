@@ -529,4 +529,18 @@ CREATE TABLE status (
     user_id  uuid NOT NULL REFERENCES users (user_id)
 );
 
+CREATE TABLE IF NOT EXISTS request (
+    id              SERIAL PRIMARY KEY,
+    name            TEXT NOT NULL,
+    keycloak_id     TEXT NOT NULL,
+    status          TEXT NOT NULL,
+    event_slug      TEXT,
+    type            TEXT,
+    request_note    TEXT,
+    rejection_note  TEXT,
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at      TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    CONSTRAINT fk_request_id FOREIGN KEY(keycloak_id) REFERENCES users(keycloak_id)
+);
+
 COMMIT;

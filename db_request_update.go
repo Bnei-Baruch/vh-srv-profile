@@ -50,6 +50,14 @@ func prepareRequestUpdate(req newRequest) (string, []interface{}) {
 		updateStrings = append(updateStrings, fmt.Sprintf("status=$%d", len(updateStrings)+1))
 		args = append(args, *req.Status)
 	}
+	if req.EventSlug != nil {
+		updateStrings = append(updateStrings, fmt.Sprintf("event_slug=$%d", len(updateStrings)+1))
+		args = append(args, *req.EventSlug)
+	}
+	if req.Type != nil {
+		updateStrings = append(updateStrings, fmt.Sprintf("type=$%d", len(updateStrings)+1))
+		args = append(args, *req.Type)
+	}
 
 	if len(args) != 0 {
 		updateStrings = append(updateStrings, fmt.Sprintf("updated_at=$%d", len(updateStrings)+1))
