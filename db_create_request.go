@@ -53,6 +53,16 @@ func prepareRequestCreateQuery(req newRequest) (string, string, []interface{}) {
 		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
 		args = append(args, *req.Status)
 	}
+	if req.EventSlug != nil {
+		createStrings = append(createStrings, "event_slug")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.EventSlug)
+	}
+	if req.Type != nil {
+		createStrings = append(createStrings, "type")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.Type)
+	}
 
 	concatedCreateString := strings.Join(createStrings, ",")
 	concatedNumString := strings.Join(numString, ",")

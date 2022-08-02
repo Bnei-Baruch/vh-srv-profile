@@ -5,16 +5,14 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	uuid "github.com/satori/go.uuid"
 )
 
-func (db *pgProfileDB) updateRequest(ctx context.Context, keycloakID uuid.UUID, request newRequest) error {
+func (db *pgProfileDB) updateRequest(ctx context.Context, id int, request newRequest) error {
 
 	toUpdate, toUpdateArgs := prepareRequestUpdate(request)
 
 	if len(toUpdateArgs) != 0 {
-		updateRes, err := db.Exec(ctx, fmt.Sprintf(`UPDATE request SET %s WHERE keycloak_id='%s'`, toUpdate, keycloakID),
+		updateRes, err := db.Exec(ctx, fmt.Sprintf(`UPDATE request SET %s WHERE id='%d'`, toUpdate, id),
 			toUpdateArgs...)
 		if err != nil {
 			return fmt.Errorf("problem updating event: %w", err)
@@ -49,6 +47,14 @@ func prepareRequestUpdate(req newRequest) (string, []interface{}) {
 	if req.Status != nil {
 		updateStrings = append(updateStrings, fmt.Sprintf("status=$%d", len(updateStrings)+1))
 		args = append(args, *req.Status)
+	}
+	if req.EventSlug != nil {
+		updateStrings = append(updateStrings, fmt.Sprintf("event_slug=$%d", len(updateStrings)+1))
+		args = append(args, *req.EventSlug)
+	}
+	if req.Type != nil {
+		updateStrings = append(updateStrings, fmt.Sprintf("type=$%d", len(updateStrings)+1))
+		args = append(args, *req.Type)
 	}
 
 	if len(args) != 0 {

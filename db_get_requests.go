@@ -17,6 +17,8 @@ func (db *pgProfileDB) getMultipleRequest(ctx context.Context, intSkip int, intL
 		name,
 		keycloak_id,
 		status,
+		event_slug,
+		type,
 		request_note,
 		rejection_note,
 		created_at,
@@ -31,7 +33,7 @@ func (db *pgProfileDB) getMultipleRequest(ctx context.Context, intSkip int, intL
 	defer rows.Close()
 	for rows.Next() {
 		var r requestResponse
-		if err := rows.Scan(&r.ID, &r.RequestName, &r.KeycloakID, &r.Status, &r.RequestNote, &r.RejectionNote, &r.CreatedAt, &r.UpdatedAt); err != nil {
+		if err := rows.Scan(&r.ID, &r.RequestName, &r.KeycloakID, &r.Status, &r.EventSlug, &r.Type, &r.RequestNote, &r.RejectionNote, &r.CreatedAt, &r.UpdatedAt); err != nil {
 			return []requestResponse{}, err
 		}
 

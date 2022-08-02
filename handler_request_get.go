@@ -19,6 +19,8 @@ type requestResponse struct {
 	RequestName   *string    `json:"name" db:"name"`
 	KeycloakID    *string    `json:"keycloak_id" db:"keycloak_id"`
 	Status        *string    `json:"status" db:"status"`
+	EventSlug     *string    `json:"event_slug" db:"event_slug"`
+	Type          *string    `json:"type" db:"type"`
 	RequestNote   *string    `json:"request_note" db:"request_note"`
 	RejectionNote *string    `json:"rejection_note" db:"rejection_note"`
 	CreatedAt     *time.Time `json:"created_at" db:"created_at"`
