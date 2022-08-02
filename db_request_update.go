@@ -5,16 +5,14 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	uuid "github.com/satori/go.uuid"
 )
 
-func (db *pgProfileDB) updateRequest(ctx context.Context, keycloakID uuid.UUID, request newRequest) error {
+func (db *pgProfileDB) updateRequest(ctx context.Context, id int, request newRequest) error {
 
 	toUpdate, toUpdateArgs := prepareRequestUpdate(request)
 
 	if len(toUpdateArgs) != 0 {
-		updateRes, err := db.Exec(ctx, fmt.Sprintf(`UPDATE request SET %s WHERE keycloak_id='%s'`, toUpdate, keycloakID),
+		updateRes, err := db.Exec(ctx, fmt.Sprintf(`UPDATE request SET %s WHERE id='%d'`, toUpdate, id),
 			toUpdateArgs...)
 		if err != nil {
 			return fmt.Errorf("problem updating event: %w", err)

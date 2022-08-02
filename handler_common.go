@@ -75,6 +75,8 @@ type newRequest struct {
 	RequestName   *string `json:"name"`
 	KeycloakId    *string `json:"keycloak_id"`
 	Status        *string `json:"status"`
+	EventSlug     *string `json:"event_slug"`
+	Type          *string `json:"type"`
 	RequestNote   *string `json:"request_note,omitempty"`
 	RejectionNote *string `json:"rejection_note,omitempty"`
 }
