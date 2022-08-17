@@ -77,8 +77,8 @@ func initApp(handlers appHandlers) *gin.Engine {
 
 	app.GET("/v1/requests", handlers.getRequests)
 	app.POST("/v1/request", handlers.createRequest)
-	app.PATCH("/v1/request/:keycloak_id", handlers.updateRequest)
-	app.DELETE("/v1/request/:keycloak_id", handlers.deleteRequest)
+	app.PATCH("/v1/request/:id", handlers.updateRequest)
+	app.DELETE("/v1/request/:id", handlers.deleteRequest)
 
 	return app
 }

@@ -7,24 +7,22 @@ import (
 	"time"
 )
 
-func (db *pgProfileDB) updateRequest(ctx context.Context, id int, request newRequest) error {
+func (db *pgProfileDB) updateRequest(ctx context.Context, id int, request newRequest) (string, error) {
+
+	var kc_id string
 
 	toUpdate, toUpdateArgs := prepareRequestUpdate(request)
 
 	if len(toUpdateArgs) != 0 {
-		updateRes, err := db.Exec(ctx, fmt.Sprintf(`UPDATE request SET %s WHERE id='%d'`, toUpdate, id),
-			toUpdateArgs...)
-		if err != nil {
-			return fmt.Errorf("problem updating event: %w", err)
+		if err := db.QueryRow(ctx, fmt.Sprintf(`UPDATE request SET %s WHERE id='%d' RETURNING keycloak_id`, toUpdate, id),
+			toUpdateArgs...).
+			Scan(&kc_id); err != nil {
+			return "", fmt.Errorf("problem updating event: %w", err)
 		}
 
-		if updateRes.RowsAffected() == 0 {
-			return errNotFound
-		}
-
-		return nil
+		return kc_id, nil
 	} else {
-		return fmt.Errorf("invalid values")
+		return "", fmt.Errorf("invalid values")
 	}
 }
 
