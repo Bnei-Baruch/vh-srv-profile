@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS gender_types
     name text PRIMARY KEY
 );
 
-CREATE TABLE marital_status_types
+CREATE TABLE IF NOT EXISTS marital_status_types
 (
     name text PRIMARY KEY
 );
