@@ -1,17 +1,20 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"gitlab.bbdev.team/vh/vh-srv-profile/utils"
 )
 
 type updateRequestStorage interface {
-	updateRequest(ctx context.Context, keycloakID int, toUpdate newRequest) error
+	updateRequest(ctx context.Context, keycloakID int, toUpdate newRequest) (string, error)
 }
 
 func (p *profileManager) updateRequest(c *gin.Context) {
@@ -52,15 +55,50 @@ func (p *profileManager) updateRequest(c *gin.Context) {
 		}
 	}
 
-	if err := p.requestUpdater.updateRequest(c.Request.Context(), intID, request); err != nil {
-		if errors.Is(err, errNotFound) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	kc_id, updateErr := p.requestUpdater.updateRequest(c.Request.Context(), intID, request)
+	if updateErr != nil {
+		if errors.Is(updateErr, errNotFound) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": updateErr.Error()})
 			return
 		}
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while updating request %q: %w", intID, err))
+		_ = c.Error(fmt.Errorf("error while updating request %q: %w", intID, updateErr))
 		return
 	}
 
+	if request.Status != nil && request.EventSlug != nil && kc_id != "" {
+		eventParticipationStatusUpdateTrigger(c, kc_id, *request.EventSlug, *request.Status)
+	}
+
 	c.Status(http.StatusOK)
+}
+
+func eventParticipationStatusUpdateTrigger(req *gin.Context, kcId string, slug string, status string) {
+
+	authHeader := req.Request.Header.Get("Authorization")
+
+	var confirmedStatus bool
+	var postBody []byte
+
+	eventUpdateFullUrl := "https://api.kli.one/events/v1/participation-status/kcid/" + kcId + "/event_slug/" + slug
+
+	if status == "APPROVED" || status == "REQUESTED" {
+		if status == "APPROVED" {
+			confirmedStatus = true
+		} else {
+			confirmedStatus = false
+		}
+		postBody, _ = json.Marshal(map[string]interface{}{
+			"confirmed": confirmedStatus,
+		})
+	} else {
+		postBody, _ = json.Marshal(map[string]interface{}{
+			"deleted": true,
+		})
+	}
+
+	buffPostBody := bytes.NewBuffer(postBody)
+
+	_ = utils.PostCallAndGetBody(eventUpdateFullUrl, authHeader, buffPostBody, "PATCH")
+
 }

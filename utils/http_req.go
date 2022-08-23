@@ -1,0 +1,46 @@
+package utils
+
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"net/http"
+)
+
+func PostCallAndGetBody(fullUrl string, authHeader string, bodyBuffer *bytes.Buffer, typeOfReq string) []byte {
+
+	// Send req using http Client
+	client := &http.Client{}
+
+	// Create a new request using http
+	req, err := http.NewRequest(typeOfReq, fullUrl, bodyBuffer)
+
+	if err != nil {
+		fmt.Println("Error while creating new request ::", err)
+	}
+
+	// add authorization header to the req
+	req.Header.Add("Authorization", authHeader)
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+
+	if err != nil {
+		fmt.Println("Error while creating the data ::", err)
+	}
+
+	// To avoid memory leak if the connection is left open
+	defer resp.Body.Close()
+
+	fmt.Println("response Status:", resp.Status)
+
+	// Read all the data until EOF as byte
+	body, err := io.ReadAll(resp.Body)
+
+	if err != nil {
+		fmt.Println("Error while parsing the body ::", err)
+	}
+
+	return body
+}
