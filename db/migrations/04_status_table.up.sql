@@ -1,6 +1,6 @@
 BEGIN;
 
-CREATE TABLE status (
+CREATE TABLE IF NOT EXISTS status (
     membership bool default false,
     membership_type text default 'inactive',
     ticket bool default false,

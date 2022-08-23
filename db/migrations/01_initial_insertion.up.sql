@@ -2,17 +2,20 @@ BEGIN;
 
 INSERT INTO gender_types
 VALUES ('male'),
-       ('female');
+       ('female')
+ON CONFLICT (name) DO NOTHING;
 
 INSERT INTO marital_status_types
 VALUES ('Married'),
        ('Single'),
-       ('Other');
+       ('Other')
+ON CONFLICT (name) DO NOTHING;
 
 INSERT INTO phone_number_types
 VALUES ('mobile'),
        ('WhatsApp'),
-       ('Telegram');
+       ('Telegram')
+ON CONFLICT (name) DO NOTHING;
 
 INSERT INTO country_list VALUES
     ('Afghanistan','93','AF'),
@@ -257,7 +260,8 @@ INSERT INTO country_list VALUES
     ('Venezuela, Bolivarian Republic of','58','VE'),
     ('Viet Nam','84','VN'),
     ('Virgin Islands, British','1 284','VG'),
-    ('Virgin Islands, U.S.','1 340','VI');
+    ('Virgin Islands, U.S.','1 340','VI')
+    ON CONFLICT (code) DO NOTHING;
 
 INSERT INTO language_list
 VALUES ('ab', 'Abkhaz'),
@@ -441,6 +445,7 @@ VALUES ('ab', 'Abkhaz'),
        ('xh', 'Xhosa'),
        ('yi', 'Yiddish'),
        ('yo', 'Yoruba'),
-       ('za', 'Zhuang, Chuang');
+       ('za', 'Zhuang, Chuang')
+        ON CONFLICT (code) DO NOTHING;
 
 COMMIT;
