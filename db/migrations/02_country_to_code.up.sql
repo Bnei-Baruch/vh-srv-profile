@@ -22,6 +22,11 @@ set country = muc.country_code
 from migration_users_country muc
 where users.user_id = muc.user_id;
 
-ALTER TABLE users ADD CONSTRAINT country_code_fkey FOREIGN KEY(country) REFERENCES country_list(code);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'country_code_fkey') THEN
+        ALTER TABLE users ADD CONSTRAINT country_code_fkey FOREIGN KEY(country) REFERENCES country_list(code);
+    END IF;
+END$$;
 
 COMMIT;

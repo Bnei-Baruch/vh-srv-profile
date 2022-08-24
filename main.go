@@ -31,6 +31,11 @@ func main() {
 		log.Fatalf("Unable to initialize profile db: %s \n***\n %s \n ***", err, db_url)
 	}
 
+	migErr := SyncDBStructInsertionAndMigrations()
+	if migErr != nil {
+		log.Fatalf("Unable to migrate profile db: %s \n***\n %s \n ***", migErr, db_url)
+	}
+
 	profile := &profileManager{creator: profileDB, requestCreator: profileDB, getter: profileDB, updater: profileDB, requestUpdater: profileDB, deleter: profileDB, requestDeleter: profileDB, hardDeleter: profileDB, fetchProfiles: profileDB, fetchRequests: profileDB}
 
 	app := initApp(appHandlers{

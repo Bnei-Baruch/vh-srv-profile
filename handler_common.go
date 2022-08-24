@@ -7,6 +7,10 @@ import (
 	"time"
 
 	"github.com/Nerzal/gocloak"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+	_ "github.com/lib/pq"
 )
 
 var (
@@ -148,6 +152,27 @@ func SyncWithKeycloak(tokenString string, keycloakID string, firstName *string, 
 
 	if updaterErr != nil {
 		return updaterErr
+	}
+
+	return nil
+}
+
+func SyncDBStructInsertionAndMigrations() error {
+	m, err := migrate.New(
+		"file://./db/migrations", makeDBURL()+"?sslmode=disable")
+	if err != nil {
+		if err != migrate.ErrNoChange {
+			return nil
+		}
+	}
+	// Syncing Table struct (UP Mig), Insertion ( Up Mig ) & UP Migrations
+	if err := m.Up(); err != nil {
+		m.Close()
+		fmt.Println("UP Migration Done!")
+		if err == migrate.ErrNoChange {
+			return nil
+		}
+		return err
 	}
 
 	return nil
