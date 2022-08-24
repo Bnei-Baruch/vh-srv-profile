@@ -44,8 +44,8 @@ deploy_staging:
   script:
     - for variable in "${!DYN_STAGING@}"; do echo "${variable#DYN_STAGING_}"="${!variable}"; export "${variable#DYN_STAGING_}"="${!variable}"; done;
     - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY
-    - "[ ! -d /opt/srv-profile-db ] && mkdir /opt/srv-profile-db"
-    - cp -f db/initial.sql /opt/srv-profile-db/initial.sql
+    # - "[ ! -d /opt/srv-profile-db ] && mkdir /opt/srv-profile-db"
+    # - cp -f db/initial.sql /opt/srv-profile-db/initial.sql
     - IMAGE_NAME=$STAGING_IMAGE docker-compose up -d --remove-orphans
   only:
     - master
