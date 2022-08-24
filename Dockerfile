@@ -1,4 +1,4 @@
-FROM golang:1.14.14-stretch AS base
+FROM golang:1.19.0-buster AS base
 
 RUN apt-get update && apt-get upgrade -y
 
