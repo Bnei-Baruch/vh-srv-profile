@@ -20,6 +20,9 @@ func loadConfig() appConfig {
 func getEnvOrFatal(key string) string {
 	value, ok := os.LookupEnv(key)
 	if !ok {
+		if key == "DATABASE_URL" {
+			return ""
+		}
 		log.Println("Required ENV variable %q not found", key)
 	}
 	return value
