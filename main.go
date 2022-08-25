@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -26,15 +27,21 @@ func main() {
 
 	db_url := makeDBURL()
 
+	fmt.Println("trying to connect to db:", db_url)
+
 	profileDB, err := newPgProfileDB(ctx, db_url)
 	if err != nil {
 		log.Fatalf("Unable to initialize profile db: %s \n***\n %s \n ***", err, db_url)
 	}
 
+	fmt.Println("Connected to profile db")
+
 	migErr := SyncDBStructInsertionAndMigrations()
 	if migErr != nil {
 		log.Fatalf("Unable to migrate profile db: %s \n***\n %s \n ***", migErr, db_url)
 	}
+
+	fmt.Println("Migrated profile db")
 
 	profile := &profileManager{creator: profileDB, requestCreator: profileDB, getter: profileDB, updater: profileDB, requestUpdater: profileDB, deleter: profileDB, requestDeleter: profileDB, hardDeleter: profileDB, fetchProfiles: profileDB, fetchRequests: profileDB}
 

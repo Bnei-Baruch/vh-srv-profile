@@ -158,6 +158,7 @@ func SyncWithKeycloak(tokenString string, keycloakID string, firstName *string, 
 }
 
 func SyncDBStructInsertionAndMigrations() error {
+	fmt.Println("Syncing starting DB Struct Insertion and Migrations")
 	m, err := migrate.New(
 		"file://./db/migrations", makeDBURL()+"?sslmode=disable")
 	if err != nil {
@@ -168,12 +169,13 @@ func SyncDBStructInsertionAndMigrations() error {
 	// Syncing Table struct (UP Mig), Insertion ( Up Mig ) & UP Migrations
 	if err := m.Up(); err != nil {
 		m.Close()
-		fmt.Println("UP Migration Done!")
 		if err == migrate.ErrNoChange {
+			fmt.Println("No changes in UP migration")
 			return nil
 		}
 		return err
 	}
-
+	m.Close()
+	fmt.Println("UP Migration Done!")
 	return nil
 }
