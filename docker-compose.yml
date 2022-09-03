@@ -14,6 +14,7 @@ services:
     environment: 
       DB_NETWORK: "tcp"
       DB_USERNAME: ${DB_USER}
+      DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_HOST: "${DB_HOST}"
       PGPORT: ${DB_PORT}
