@@ -30,7 +30,7 @@ type profileManager struct {
 	hardDeleter    hardDeleteStorage
 	fetchRequests  readMultipleRequestStorage
 	fetchProfiles  readMultipleProfileStorage
-	fetchGrantByID grantInterface
+	grant          grantInterface
 }
 
 type profileRequest struct {

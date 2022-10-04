@@ -9,20 +9,48 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	uuid "github.com/satori/go.uuid"
 )
 
 type grantInterface interface {
-	getGrantByID(ctx context.Context, id int) (grant, error)
+	getGrantByID(ctx context.Context, id int) (grantRes, error)
+	createGrant(ctx context.Context, grant grantMembershipCreate) (int, error)
+	createGrantMembership(ctx context.Context, grant grantMembershipCreate) (int, error)
+}
+
+type grantMembeship struct {
+	GrantID    *int       `json:"grant_id"`
+	UserID     *uuid.UUID `json:"user_id"`
+	Month      *int       `json:"months"`
+	MonthsUsed *int       `json:"months_used"`
+	MonthsLeft *int       `json:"months_left"`
+}
+
+type grantMembeshipRes struct {
+	grantMembeship
+	ID        *int       `json:"id"`
+	CreatedAt *time.Time `json:"created_at"`
+	UpdatedAt *time.Time `json:"updated_at"`
+	DeleteAt  *time.Time `json:"delete_at"`
+}
+
+type grantMembershipCreate struct {
+	grant
+	grantMembeship
 }
 
 type grant struct {
-	ID        *int       `json:"id" db:"id"`
-	Amount    *int       `json:"amount" db:"amount"`
-	Currency  *string    `json:"currency" db:"currency"`
-	Type      *string    `json:"type" db:"type"`
-	Loaned    *int       `json:"loaned" db:"loaned"`
-	Granted   *int       `json:"granted" db:"granted"`
-	Repayed   *int       `json:"repayed" db:"repayed"`
+	Amount   *int    `json:"amount" db:"amount" validate:"required"`
+	Currency *string `json:"currency" db:"currency" validate:"required"`
+	Type     *string `json:"type" db:"type" validate:"required"`
+	Loaned   *int    `json:"loaned" db:"loaned"`
+	Granted  *int    `json:"granted" db:"granted"`
+	Repayed  *int    `json:"repayed" db:"repayed"`
+}
+
+type grantRes struct {
+	ID *int `json:"id" db:"id"`
+	grant
 	CreatedAt *time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt *time.Time `json:"updated_at" db:"updated_at"`
 	DeletedAt *time.Time `json:"deleted_at" db:"deleted_at"`
@@ -40,7 +68,7 @@ func (p *profileManager) handleGrantFetchByID(c *gin.Context) {
 		return
 	}
 
-	res, dbErr := p.fetchGrantByID.getGrantByID(c.Request.Context(), grantID)
+	res, dbErr := p.grant.getGrantByID(c.Request.Context(), grantID)
 
 	if dbErr != nil {
 		if errors.Is(dbErr, errNotFound) {
@@ -53,4 +81,43 @@ func (p *profileManager) handleGrantFetchByID(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Fetched!", "data": res})
+}
+
+func (p *profileManager) handleGrantCreate(c *gin.Context) {
+
+	var grant grantMembershipCreate
+
+	if err := c.ShouldBindJSON(&grant); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Checking if the grant type is not nil and if it is not equal to membership.
+	// As of now we only have membership grant type.
+	if grant.Type == nil || *grant.Type != "membership" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid grant type"})
+		return
+	}
+
+	ID, dbErr := p.grant.createGrant(c.Request.Context(), grant)
+
+	if dbErr != nil {
+		c.Status(http.StatusInternalServerError)
+		_ = c.Error(fmt.Errorf("error while creating grant: %w", dbErr))
+		return
+	}
+
+	grant.GrantID = &ID
+
+	if *grant.Type == "membership" {
+		_, grantMembErr := p.grant.createGrantMembership(c.Request.Context(), grant)
+
+		if grantMembErr != nil {
+			c.Status(http.StatusInternalServerError)
+			_ = c.Error(fmt.Errorf("error while creating grant: %w", grantMembErr))
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Created!", "data": ID})
 }

@@ -43,7 +43,19 @@ func main() {
 
 	fmt.Println("Migrated profile db")
 
-	profile := &profileManager{creator: profileDB, requestCreator: profileDB, getter: profileDB, updater: profileDB, requestUpdater: profileDB, deleter: profileDB, requestDeleter: profileDB, hardDeleter: profileDB, fetchProfiles: profileDB, fetchRequests: profileDB, fetchGrantByID: profileDB}
+	profile := &profileManager{
+		creator:        profileDB,
+		requestCreator: profileDB,
+		getter:         profileDB,
+		updater:        profileDB,
+		requestUpdater: profileDB,
+		deleter:        profileDB,
+		requestDeleter: profileDB,
+		hardDeleter:    profileDB,
+		fetchProfiles:  profileDB,
+		fetchRequests:  profileDB,
+		grant:          profileDB,
+	}
 
 	app := initApp(appHandlers{
 		create:               profile.create,
@@ -57,6 +69,7 @@ func main() {
 		getProfiles:          profile.getProfiles,
 		getRequests:          profile.getRequest,
 		handleGrantFetchByID: profile.handleGrantFetchByID,
+		handleGrantCreate:    profile.handleGrantCreate,
 	})
 
 	if err := app.Run(":" + config.appPort); err != nil {
@@ -76,6 +89,7 @@ type appHandlers struct {
 	getProfiles          gin.HandlerFunc
 	getRequests          gin.HandlerFunc
 	handleGrantFetchByID gin.HandlerFunc
+	handleGrantCreate    gin.HandlerFunc
 }
 
 func initApp(handlers appHandlers) *gin.Engine {
@@ -100,6 +114,7 @@ func initApp(handlers appHandlers) *gin.Engine {
 	grant := baseV1Path.Group("/grant")
 	{
 		grant.GET("/:id", handlers.handleGrantFetchByID)
+		grant.POST("", handlers.handleGrantCreate)
 	}
 
 	return app
