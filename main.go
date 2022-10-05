@@ -72,6 +72,7 @@ func main() {
 		handleGrantCreate:         profile.handleGrantCreate,
 		handleGrantPatchByID:      profile.handleGrantPatchByID,
 		handleGrantSoftDeleteByID: profile.handleGrantSoftDeleteByID,
+		handleGrantFetchAll:       profile.handleGrantFetchAll,
 	})
 
 	if err := app.Run(":" + config.appPort); err != nil {
@@ -94,6 +95,7 @@ type appHandlers struct {
 	handleGrantCreate         gin.HandlerFunc
 	handleGrantPatchByID      gin.HandlerFunc
 	handleGrantSoftDeleteByID gin.HandlerFunc
+	handleGrantFetchAll       gin.HandlerFunc
 }
 
 func initApp(handlers appHandlers) *gin.Engine {
@@ -122,6 +124,7 @@ func initApp(handlers appHandlers) *gin.Engine {
 		grant.PATCH("/:id", handlers.handleGrantPatchByID)
 		grant.DELETE("/:id", handlers.handleGrantSoftDeleteByID)
 	}
+	baseV1Path.GET("/grants", handlers.handleGrantFetchAll)
 
 	return app
 }

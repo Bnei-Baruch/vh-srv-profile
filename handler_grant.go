@@ -14,6 +14,7 @@ import (
 
 type grantInterface interface {
 	getGrantByID(ctx context.Context, id int) (grantRes, error)
+	getMultipleGrant(ctx context.Context, intSkip int, intLimit int) ([]grantRes, error)
 	createGrant(ctx context.Context, grant grantAndGrantMembership) (int, error)
 	patchGrant(ctx context.Context, grant grant, id int) error
 	softDeleteGrantByID(ctx context.Context, id int) error
@@ -183,4 +184,44 @@ func (p *profileManager) handleGrantSoftDeleteByID(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Soft deleted!", "data": ""})
+}
+
+func (p *profileManager) handleGrantFetchAll(c *gin.Context) {
+
+	skip := c.Query("skip")
+	limit := c.Query("limit")
+
+	if skip == "" {
+		skip = "0"
+	}
+	if limit == "" {
+		limit = "10"
+	}
+
+	// String conversion to int
+	intSkip, serr := strconv.Atoi(skip)
+	if serr != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid skip value! Accepted value is INTEGER"})
+		return
+	}
+
+	// String conversion to int
+	intLimit, lerr := strconv.Atoi(limit)
+	if lerr != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid limit value! Accepted value is INTEGER"})
+		return
+	}
+
+	res, err := p.grant.getMultipleGrant(c.Request.Context(), intSkip, intLimit)
+	if err != nil {
+		if errors.Is(err, errUserNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+		c.Status(http.StatusInternalServerError)
+		_ = c.Error(fmt.Errorf("error while getting users: %w", err))
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Fetched!", "data": res})
 }
