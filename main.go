@@ -43,19 +43,34 @@ func main() {
 
 	fmt.Println("Migrated profile db")
 
-	profile := &profileManager{creator: profileDB, requestCreator: profileDB, getter: profileDB, updater: profileDB, requestUpdater: profileDB, deleter: profileDB, requestDeleter: profileDB, hardDeleter: profileDB, fetchProfiles: profileDB, fetchRequests: profileDB}
+	profile := &profileManager{
+		creator:        profileDB,
+		requestCreator: profileDB,
+		getter:         profileDB,
+		updater:        profileDB,
+		requestUpdater: profileDB,
+		deleter:        profileDB,
+		requestDeleter: profileDB,
+		hardDeleter:    profileDB,
+		fetchProfiles:  profileDB,
+		fetchRequests:  profileDB,
+		grant:          profileDB,
+	}
 
 	app := initApp(appHandlers{
-		create:        profile.create,
-		createRequest: profile.createRequest,
-		get:           profile.get,
-		update:        profile.update,
-		updateRequest: profile.updateRequest,
-		delete:        profile.delete,
-		deleteRequest: profile.deleteRequest,
-		hardDelete:    profile.hardDelete,
-		getProfiles:   profile.getProfiles,
-		getRequests:   profile.getRequest,
+		create:               profile.create,
+		createRequest:        profile.createRequest,
+		get:                  profile.get,
+		update:               profile.update,
+		updateRequest:        profile.updateRequest,
+		delete:               profile.delete,
+		deleteRequest:        profile.deleteRequest,
+		hardDelete:           profile.hardDelete,
+		getProfiles:          profile.getProfiles,
+		getRequests:          profile.getRequest,
+		handleGrantFetchByID: profile.handleGrantFetchByID,
+		handleGrantCreate:    profile.handleGrantCreate,
+		handleGrantPatchByID: profile.handleGrantPatchByID,
 	})
 
 	if err := app.Run(":" + config.appPort); err != nil {
@@ -64,21 +79,27 @@ func main() {
 }
 
 type appHandlers struct {
-	create        gin.HandlerFunc
-	createRequest gin.HandlerFunc
-	get           gin.HandlerFunc
-	update        gin.HandlerFunc
-	updateRequest gin.HandlerFunc
-	delete        gin.HandlerFunc
-	deleteRequest gin.HandlerFunc
-	hardDelete    gin.HandlerFunc
-	getProfiles   gin.HandlerFunc
-	getRequests   gin.HandlerFunc
+	create               gin.HandlerFunc
+	createRequest        gin.HandlerFunc
+	get                  gin.HandlerFunc
+	update               gin.HandlerFunc
+	updateRequest        gin.HandlerFunc
+	delete               gin.HandlerFunc
+	deleteRequest        gin.HandlerFunc
+	hardDelete           gin.HandlerFunc
+	getProfiles          gin.HandlerFunc
+	getRequests          gin.HandlerFunc
+	handleGrantFetchByID gin.HandlerFunc
+	handleGrantCreate    gin.HandlerFunc
+	handleGrantPatchByID gin.HandlerFunc
 }
 
 func initApp(handlers appHandlers) *gin.Engine {
 	app := gin.Default()
 	//app.Use(cors.Default())
+
+	// Creating a group of routes that will be prefixed with `/v1`
+	baseV1Path := app.Group("/v1")
 
 	app.POST("/v1/profile", handlers.create)
 	app.GET("/v1/profiles", handlers.getProfiles)
@@ -91,6 +112,13 @@ func initApp(handlers appHandlers) *gin.Engine {
 	app.POST("/v1/request", handlers.createRequest)
 	app.PATCH("/v1/request/:id", handlers.updateRequest)
 	app.DELETE("/v1/request/:id", handlers.deleteRequest)
+
+	grant := baseV1Path.Group("/grant")
+	{
+		grant.GET("/:id", handlers.handleGrantFetchByID)
+		grant.POST("", handlers.handleGrantCreate)
+		grant.PATCH("/:id", handlers.handleGrantPatchByID)
+	}
 
 	return app
 }
