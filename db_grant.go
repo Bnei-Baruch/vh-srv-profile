@@ -83,7 +83,7 @@ func (db *pgProfileDB) createGrantMembership(ctx context.Context, req grantAndGr
 	}
 }
 
-func (db *pgProfileDB) patchGrantMembership(ctx context.Context, req grantAndGrantMembership, grantId int) (int, error) {
+func (db *pgProfileDB) patchGrantMembership(ctx context.Context, req grantMembeship, grantId int) (int, error) {
 
 	var ID int
 
@@ -102,7 +102,7 @@ func (db *pgProfileDB) patchGrantMembership(ctx context.Context, req grantAndGra
 	}
 }
 
-func (db *pgProfileDB) patchGrant(ctx context.Context, grant grantAndGrantMembership, id int) error {
+func (db *pgProfileDB) patchGrant(ctx context.Context, grant grant, id int) error {
 
 	toUpdate, toUpdateArgs := prepareGrantUpdate(grant)
 
@@ -121,6 +121,82 @@ func (db *pgProfileDB) patchGrant(ctx context.Context, grant grantAndGrantMember
 	} else {
 		return fmt.Errorf("invalid values")
 	}
+}
+
+func (db *pgProfileDB) softDeleteGrantByID(ctx context.Context, id int) error {
+	_, err := db.Exec(ctx, `UPDATE "grant" SET deleted_at=$1 WHERE id=$2`, time.Now(), id)
+	if err != nil {
+		return fmt.Errorf("problem soft deleting grant: %w", err)
+	}
+	return nil
+}
+
+func (db *pgProfileDB) getMultipleGrant(ctx context.Context, intSkip int, intLimit int) ([]grantRes, error) {
+	grants := []grantRes{}
+
+	userDbWhereQuery, orderByQuery := buildAndGetWhereGrantQuery()
+
+	rows, err := db.Query(ctx, `
+		SELECT 
+		id,
+		amount,
+		currency,
+		type,
+		loaned,
+		granted,
+		repayed,
+		created_at,
+		updated_at,
+		deleted_at 
+		FROM "grant" `+userDbWhereQuery+
+		orderByQuery+
+		" LIMIT $1 OFFSET $2", intLimit, intSkip)
+	if err != nil {
+		fmt.Println("--error-while-executing-query", err)
+		return []grantRes{}, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var r grantRes
+		if err := rows.Scan(
+			&r.ID,
+			&r.Amount,
+			&r.Currency,
+			&r.Type,
+			&r.Loaned,
+			&r.Granted,
+			&r.Repayed,
+			&r.CreatedAt,
+			&r.UpdatedAt,
+			&r.DeletedAt,
+		); err != nil {
+			return []grantRes{}, err
+		}
+
+		grants = append(grants, r)
+	}
+
+	return grants, nil
+}
+
+func buildAndGetWhereGrantQuery() (string, string) {
+
+	var whereString strings.Builder
+	var orderBy strings.Builder
+	var whereCondition strings.Builder
+	whereString.WriteString(" WHERE")
+	whereCondition.WriteString("")
+
+	// Add where conditions when required
+
+	orderBy.WriteString(fmt.Sprintf(" ORDER BY updated_at %s", "desc"))
+
+	if whereCondition.String() != "" {
+		whereString.WriteString(whereCondition.String())
+	} else {
+		whereString.Reset()
+	}
+	return whereString.String(), orderBy.String()
 }
 
 func prepareGrantCreateQuery(req grantAndGrantMembership) (string, string, []interface{}) {
@@ -202,7 +278,7 @@ func prepareGrantMembershipCreateQuery(req grantAndGrantMembership) (string, str
 	return concatedCreateString, concatedNumString, args
 }
 
-func prepareGrantMembershipUpdate(req grantAndGrantMembership) (string, []interface{}) {
+func prepareGrantMembershipUpdate(req grantMembeship) (string, []interface{}) {
 	var updateStrings []string
 	var args []interface{}
 
@@ -233,7 +309,7 @@ func prepareGrantMembershipUpdate(req grantAndGrantMembership) (string, []interf
 	return updateArgument, args
 }
 
-func prepareGrantUpdate(req grantAndGrantMembership) (string, []interface{}) {
+func prepareGrantUpdate(req grant) (string, []interface{}) {
 	var updateStrings []string
 	var args []interface{}
 
