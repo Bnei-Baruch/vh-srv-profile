@@ -14,14 +14,16 @@ import (
 
 type grantInterface interface {
 	getGrantByID(ctx context.Context, id int) (grantRes, error)
-	createGrant(ctx context.Context, grant grantMembershipCreate) (int, error)
-	createGrantMembership(ctx context.Context, grant grantMembershipCreate) (int, error)
+	createGrant(ctx context.Context, grant grantAndGrantMembership) (int, error)
+	patchGrant(ctx context.Context, grant grantAndGrantMembership, id int) error
+	createGrantMembership(ctx context.Context, grant grantAndGrantMembership) (int, error)
+	patchGrantMembership(ctx context.Context, grant grantAndGrantMembership, grantId int) (int, error)
 }
 
 type grantMembeship struct {
 	GrantID    *int       `json:"grant_id"`
 	UserID     *uuid.UUID `json:"user_id"`
-	Month      *int       `json:"months"`
+	Month      *int       `json:"nb_months"`
 	MonthsUsed *int       `json:"months_used"`
 	MonthsLeft *int       `json:"months_left"`
 }
@@ -34,7 +36,7 @@ type grantMembeshipRes struct {
 	DeleteAt  *time.Time `json:"delete_at"`
 }
 
-type grantMembershipCreate struct {
+type grantAndGrantMembership struct {
 	grant
 	grantMembeship
 }
@@ -85,7 +87,7 @@ func (p *profileManager) handleGrantFetchByID(c *gin.Context) {
 
 func (p *profileManager) handleGrantCreate(c *gin.Context) {
 
-	var grant grantMembershipCreate
+	var grant grantAndGrantMembership
 
 	if err := c.ShouldBindJSON(&grant); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -120,4 +122,46 @@ func (p *profileManager) handleGrantCreate(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Created!", "data": ID})
+}
+
+func (p *profileManager) handleGrantPatchByID(c *gin.Context) {
+
+	id := c.Param("id")
+
+	// convert id to int
+	grantID, err := strconv.Atoi(id)
+
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+
+	var grant grantAndGrantMembership
+
+	if err := c.ShouldBindJSON(&grant); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	patchErr := p.grant.patchGrant(c.Request.Context(), grant, grantID)
+
+	if patchErr != nil {
+		c.Status(http.StatusInternalServerError)
+		_ = c.Error(fmt.Errorf("error while creating grant: %w", patchErr))
+		return
+	}
+
+	grant.GrantID = &grantID
+
+	if grant.UserID != nil || grant.Month != nil || grant.MonthsUsed != nil || grant.MonthsLeft != nil {
+		_, grantMembErr := p.grant.patchGrantMembership(c.Request.Context(), grant, grantID)
+
+		if grantMembErr != nil {
+			c.Status(http.StatusInternalServerError)
+			_ = c.Error(fmt.Errorf("error while creating grant: %w", grantMembErr))
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Updated!", "data": ""})
 }

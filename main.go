@@ -70,6 +70,7 @@ func main() {
 		getRequests:          profile.getRequest,
 		handleGrantFetchByID: profile.handleGrantFetchByID,
 		handleGrantCreate:    profile.handleGrantCreate,
+		handleGrantPatchByID: profile.handleGrantPatchByID,
 	})
 
 	if err := app.Run(":" + config.appPort); err != nil {
@@ -90,6 +91,7 @@ type appHandlers struct {
 	getRequests          gin.HandlerFunc
 	handleGrantFetchByID gin.HandlerFunc
 	handleGrantCreate    gin.HandlerFunc
+	handleGrantPatchByID gin.HandlerFunc
 }
 
 func initApp(handlers appHandlers) *gin.Engine {
@@ -115,6 +117,7 @@ func initApp(handlers appHandlers) *gin.Engine {
 	{
 		grant.GET("/:id", handlers.handleGrantFetchByID)
 		grant.POST("", handlers.handleGrantCreate)
+		grant.PATCH("/:id", handlers.handleGrantPatchByID)
 	}
 
 	return app

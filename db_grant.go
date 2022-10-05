@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v4"
 )
@@ -44,7 +45,7 @@ func (db *pgProfileDB) getGrantByID(ctx context.Context, id int) (grantRes, erro
 	return grant, nil
 }
 
-func (db *pgProfileDB) createGrant(ctx context.Context, req grantMembershipCreate) (int, error) {
+func (db *pgProfileDB) createGrant(ctx context.Context, req grantAndGrantMembership) (int, error) {
 
 	var ID int
 
@@ -63,7 +64,7 @@ func (db *pgProfileDB) createGrant(ctx context.Context, req grantMembershipCreat
 	}
 }
 
-func (db *pgProfileDB) createGrantMembership(ctx context.Context, req grantMembershipCreate) (int, error) {
+func (db *pgProfileDB) createGrantMembership(ctx context.Context, req grantAndGrantMembership) (int, error) {
 
 	var ID int
 
@@ -82,7 +83,47 @@ func (db *pgProfileDB) createGrantMembership(ctx context.Context, req grantMembe
 	}
 }
 
-func prepareGrantCreateQuery(req grantMembershipCreate) (string, string, []interface{}) {
+func (db *pgProfileDB) patchGrantMembership(ctx context.Context, req grantAndGrantMembership, grantId int) (int, error) {
+
+	var ID int
+
+	toUpdate, toUpdateArgs := prepareGrantMembershipUpdate(req)
+
+	if len(toUpdateArgs) != 0 {
+		if err := db.QueryRow(ctx, fmt.Sprintf(`UPDATE grant_membership SET %s WHERE grant_id='%d' RETURNING id`, toUpdate, grantId),
+			toUpdateArgs...).
+			Scan(&ID); err != nil {
+			return 0, fmt.Errorf("problem updating grant_membership: %w", err)
+		}
+
+		return ID, nil
+	} else {
+		return 0, fmt.Errorf("invalid values")
+	}
+}
+
+func (db *pgProfileDB) patchGrant(ctx context.Context, grant grantAndGrantMembership, id int) error {
+
+	toUpdate, toUpdateArgs := prepareGrantUpdate(grant)
+
+	if len(toUpdateArgs) != 0 {
+		updateRes, err := db.Exec(ctx, fmt.Sprintf(`UPDATE "grant" SET %s WHERE id=%d`, toUpdate, id),
+			toUpdateArgs...)
+		if err != nil {
+			return fmt.Errorf("problem updating grant: %w", err)
+		}
+
+		if updateRes.RowsAffected() == 0 {
+			return fmt.Errorf("not found")
+		}
+
+		return nil
+	} else {
+		return fmt.Errorf("invalid values")
+	}
+}
+
+func prepareGrantCreateQuery(req grantAndGrantMembership) (string, string, []interface{}) {
 	var createStrings []string
 	var numString []string
 	var args []interface{}
@@ -124,7 +165,7 @@ func prepareGrantCreateQuery(req grantMembershipCreate) (string, string, []inter
 	return concatedCreateString, concatedNumString, args
 }
 
-func prepareGrantMembershipCreateQuery(req grantMembershipCreate) (string, string, []interface{}) {
+func prepareGrantMembershipCreateQuery(req grantAndGrantMembership) (string, string, []interface{}) {
 	var createStrings []string
 	var numString []string
 	var args []interface{}
@@ -159,4 +200,74 @@ func prepareGrantMembershipCreateQuery(req grantMembershipCreate) (string, strin
 	concatedNumString := strings.Join(numString, ",")
 
 	return concatedCreateString, concatedNumString, args
+}
+
+func prepareGrantMembershipUpdate(req grantAndGrantMembership) (string, []interface{}) {
+	var updateStrings []string
+	var args []interface{}
+
+	if req.UserID != nil {
+		updateStrings = append(updateStrings, fmt.Sprintf("user_id=$%d", len(updateStrings)+1))
+		args = append(args, *req.UserID)
+	}
+	if req.Month != nil {
+		updateStrings = append(updateStrings, fmt.Sprintf("nb_months=$%d", len(updateStrings)+1))
+		args = append(args, *req.Month)
+	}
+	if req.MonthsLeft != nil {
+		updateStrings = append(updateStrings, fmt.Sprintf("months_left=$%d", len(updateStrings)+1))
+		args = append(args, *req.MonthsLeft)
+	}
+	if req.MonthsUsed != nil {
+		updateStrings = append(updateStrings, fmt.Sprintf("months_used=$%d", len(updateStrings)+1))
+		args = append(args, *req.MonthsUsed)
+	}
+
+	if len(args) != 0 {
+		updateStrings = append(updateStrings, fmt.Sprintf("updated_at=$%d", len(updateStrings)+1))
+		args = append(args, time.Now())
+	}
+
+	updateArgument := strings.Join(updateStrings, ",")
+
+	return updateArgument, args
+}
+
+func prepareGrantUpdate(req grantAndGrantMembership) (string, []interface{}) {
+	var updateStrings []string
+	var args []interface{}
+
+	if req.Amount != nil {
+		updateStrings = append(updateStrings, fmt.Sprintf("amount=$%d", len(updateStrings)+1))
+		args = append(args, *req.Amount)
+	}
+	if req.Currency != nil {
+		updateStrings = append(updateStrings, fmt.Sprintf("currency=$%d", len(updateStrings)+1))
+		args = append(args, *req.Currency)
+	}
+	if req.Type != nil {
+		updateStrings = append(updateStrings, fmt.Sprintf("type=$%d", len(updateStrings)+1))
+		args = append(args, *req.Type)
+	}
+	if req.Loaned != nil {
+		updateStrings = append(updateStrings, fmt.Sprintf("loaned=$%d", len(updateStrings)+1))
+		args = append(args, *req.Loaned)
+	}
+	if req.Granted != nil {
+		updateStrings = append(updateStrings, fmt.Sprintf("granted=$%d", len(updateStrings)+1))
+		args = append(args, *req.Granted)
+	}
+	if req.Repayed != nil {
+		updateStrings = append(updateStrings, fmt.Sprintf("repayed=$%d", len(updateStrings)+1))
+		args = append(args, *req.Repayed)
+	}
+
+	if len(args) != 0 {
+		updateStrings = append(updateStrings, fmt.Sprintf("updated_at=$%d", len(updateStrings)+1))
+		args = append(args, time.Now())
+	}
+
+	updateArgument := strings.Join(updateStrings, ",")
+
+	return updateArgument, args
 }
