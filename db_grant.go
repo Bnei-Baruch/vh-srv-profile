@@ -83,7 +83,7 @@ func (db *pgProfileDB) createGrantMembership(ctx context.Context, req grantAndGr
 	}
 }
 
-func (db *pgProfileDB) patchGrantMembership(ctx context.Context, req grantAndGrantMembership, grantId int) (int, error) {
+func (db *pgProfileDB) patchGrantMembership(ctx context.Context, req grantMembeship, grantId int) (int, error) {
 
 	var ID int
 
@@ -102,7 +102,7 @@ func (db *pgProfileDB) patchGrantMembership(ctx context.Context, req grantAndGra
 	}
 }
 
-func (db *pgProfileDB) patchGrant(ctx context.Context, grant grantAndGrantMembership, id int) error {
+func (db *pgProfileDB) patchGrant(ctx context.Context, grant grant, id int) error {
 
 	toUpdate, toUpdateArgs := prepareGrantUpdate(grant)
 
@@ -121,6 +121,14 @@ func (db *pgProfileDB) patchGrant(ctx context.Context, grant grantAndGrantMember
 	} else {
 		return fmt.Errorf("invalid values")
 	}
+}
+
+func (db *pgProfileDB) softDeleteGrantByID(ctx context.Context, id int) error {
+	_, err := db.Exec(ctx, `UPDATE "grant" SET deleted_at=$1 WHERE id=$2`, time.Now(), id)
+	if err != nil {
+		return fmt.Errorf("problem soft deleting grant: %w", err)
+	}
+	return nil
 }
 
 func prepareGrantCreateQuery(req grantAndGrantMembership) (string, string, []interface{}) {
@@ -202,7 +210,7 @@ func prepareGrantMembershipCreateQuery(req grantAndGrantMembership) (string, str
 	return concatedCreateString, concatedNumString, args
 }
 
-func prepareGrantMembershipUpdate(req grantAndGrantMembership) (string, []interface{}) {
+func prepareGrantMembershipUpdate(req grantMembeship) (string, []interface{}) {
 	var updateStrings []string
 	var args []interface{}
 
@@ -233,7 +241,7 @@ func prepareGrantMembershipUpdate(req grantAndGrantMembership) (string, []interf
 	return updateArgument, args
 }
 
-func prepareGrantUpdate(req grantAndGrantMembership) (string, []interface{}) {
+func prepareGrantUpdate(req grant) (string, []interface{}) {
 	var updateStrings []string
 	var args []interface{}
 

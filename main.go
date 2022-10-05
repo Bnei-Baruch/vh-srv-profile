@@ -58,19 +58,20 @@ func main() {
 	}
 
 	app := initApp(appHandlers{
-		create:               profile.create,
-		createRequest:        profile.createRequest,
-		get:                  profile.get,
-		update:               profile.update,
-		updateRequest:        profile.updateRequest,
-		delete:               profile.delete,
-		deleteRequest:        profile.deleteRequest,
-		hardDelete:           profile.hardDelete,
-		getProfiles:          profile.getProfiles,
-		getRequests:          profile.getRequest,
-		handleGrantFetchByID: profile.handleGrantFetchByID,
-		handleGrantCreate:    profile.handleGrantCreate,
-		handleGrantPatchByID: profile.handleGrantPatchByID,
+		create:                    profile.create,
+		createRequest:             profile.createRequest,
+		get:                       profile.get,
+		update:                    profile.update,
+		updateRequest:             profile.updateRequest,
+		delete:                    profile.delete,
+		deleteRequest:             profile.deleteRequest,
+		hardDelete:                profile.hardDelete,
+		getProfiles:               profile.getProfiles,
+		getRequests:               profile.getRequest,
+		handleGrantFetchByID:      profile.handleGrantFetchByID,
+		handleGrantCreate:         profile.handleGrantCreate,
+		handleGrantPatchByID:      profile.handleGrantPatchByID,
+		handleGrantSoftDeleteByID: profile.handleGrantSoftDeleteByID,
 	})
 
 	if err := app.Run(":" + config.appPort); err != nil {
@@ -79,19 +80,20 @@ func main() {
 }
 
 type appHandlers struct {
-	create               gin.HandlerFunc
-	createRequest        gin.HandlerFunc
-	get                  gin.HandlerFunc
-	update               gin.HandlerFunc
-	updateRequest        gin.HandlerFunc
-	delete               gin.HandlerFunc
-	deleteRequest        gin.HandlerFunc
-	hardDelete           gin.HandlerFunc
-	getProfiles          gin.HandlerFunc
-	getRequests          gin.HandlerFunc
-	handleGrantFetchByID gin.HandlerFunc
-	handleGrantCreate    gin.HandlerFunc
-	handleGrantPatchByID gin.HandlerFunc
+	create                    gin.HandlerFunc
+	createRequest             gin.HandlerFunc
+	get                       gin.HandlerFunc
+	update                    gin.HandlerFunc
+	updateRequest             gin.HandlerFunc
+	delete                    gin.HandlerFunc
+	deleteRequest             gin.HandlerFunc
+	hardDelete                gin.HandlerFunc
+	getProfiles               gin.HandlerFunc
+	getRequests               gin.HandlerFunc
+	handleGrantFetchByID      gin.HandlerFunc
+	handleGrantCreate         gin.HandlerFunc
+	handleGrantPatchByID      gin.HandlerFunc
+	handleGrantSoftDeleteByID gin.HandlerFunc
 }
 
 func initApp(handlers appHandlers) *gin.Engine {
@@ -118,6 +120,7 @@ func initApp(handlers appHandlers) *gin.Engine {
 		grant.GET("/:id", handlers.handleGrantFetchByID)
 		grant.POST("", handlers.handleGrantCreate)
 		grant.PATCH("/:id", handlers.handleGrantPatchByID)
+		grant.DELETE("/:id", handlers.handleGrantSoftDeleteByID)
 	}
 
 	return app

@@ -15,9 +15,10 @@ import (
 type grantInterface interface {
 	getGrantByID(ctx context.Context, id int) (grantRes, error)
 	createGrant(ctx context.Context, grant grantAndGrantMembership) (int, error)
-	patchGrant(ctx context.Context, grant grantAndGrantMembership, id int) error
+	patchGrant(ctx context.Context, grant grant, id int) error
+	softDeleteGrantByID(ctx context.Context, id int) error
 	createGrantMembership(ctx context.Context, grant grantAndGrantMembership) (int, error)
-	patchGrantMembership(ctx context.Context, grant grantAndGrantMembership, grantId int) (int, error)
+	patchGrantMembership(ctx context.Context, grant grantMembeship, grantId int) (int, error)
 }
 
 type grantMembeship struct {
@@ -136,7 +137,7 @@ func (p *profileManager) handleGrantPatchByID(c *gin.Context) {
 		return
 	}
 
-	var grant grantAndGrantMembership
+	var grant grant
 
 	if err := c.ShouldBindJSON(&grant); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -147,21 +148,39 @@ func (p *profileManager) handleGrantPatchByID(c *gin.Context) {
 
 	if patchErr != nil {
 		c.Status(http.StatusInternalServerError)
+		_ = c.Error(fmt.Errorf("error while updating grant: %w", patchErr))
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Updated!", "data": grant})
+}
+
+func (p *profileManager) handleGrantSoftDeleteByID(c *gin.Context) {
+
+	id := c.Param("id")
+
+	// convert id to int
+	grantID, err := strconv.Atoi(id)
+
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+
+	var grant grantAndGrantMembership
+
+	if err := c.ShouldBindJSON(&grant); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	patchErr := p.grant.softDeleteGrantByID(c.Request.Context(), grantID)
+
+	if patchErr != nil {
+		c.Status(http.StatusInternalServerError)
 		_ = c.Error(fmt.Errorf("error while creating grant: %w", patchErr))
 		return
 	}
 
-	grant.GrantID = &grantID
-
-	if grant.UserID != nil || grant.Month != nil || grant.MonthsUsed != nil || grant.MonthsLeft != nil {
-		_, grantMembErr := p.grant.patchGrantMembership(c.Request.Context(), grant, grantID)
-
-		if grantMembErr != nil {
-			c.Status(http.StatusInternalServerError)
-			_ = c.Error(fmt.Errorf("error while creating grant: %w", grantMembErr))
-			return
-		}
-	}
-
-	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Updated!", "data": ""})
+	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Soft deleted!", "data": ""})
 }
