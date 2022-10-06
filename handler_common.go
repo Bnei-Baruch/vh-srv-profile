@@ -168,7 +168,7 @@ func SyncDBStructInsertionAndMigrations() error {
 		}
 	}
 	// Syncing Table struct (UP Mig), Insertion ( Up Mig ) & UP Migrations
-	if err := m.Migrate(5); err != nil {
+	if err := m.Up(); err != nil {
 		m.Close()
 		if err == migrate.ErrNoChange {
 			fmt.Println("No changes in UP migration")
