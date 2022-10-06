@@ -163,9 +163,8 @@ func SyncDBStructInsertionAndMigrations() error {
 	m, err := migrate.New(
 		"file://./db/migrations", makeDBURL()+"?sslmode=disable")
 	if err != nil {
-		if err != migrate.ErrNoChange {
-			return nil
-		}
+		fmt.Println("Error while creating migrate instance :: ", err)
+		return err
 	}
 	// Syncing Table struct (UP Mig), Insertion ( Up Mig ) & UP Migrations
 	if err := m.Up(); err != nil {
