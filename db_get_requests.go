@@ -6,10 +6,10 @@ import (
 	"strings"
 )
 
-func (db *pgProfileDB) getMultipleRequest(ctx context.Context, intSkip int, intLimit int, kcid string, status string, name string) ([]requestResponse, error) {
+func (db *pgProfileDB) getMultipleRequest(ctx context.Context, intSkip int, intLimit int, kcid string, status string, name string, typeFilter string) ([]requestResponse, error) {
 	requests := []requestResponse{}
 
-	userDbWhereQuery, orderByQuery := buildAndGetWhereRequestQuery(kcid, status, name)
+	userDbWhereQuery, orderByQuery := buildAndGetWhereRequestQuery(kcid, status, name, typeFilter)
 
 	rows, err := db.Query(ctx, `
 		SELECT 
@@ -43,7 +43,7 @@ func (db *pgProfileDB) getMultipleRequest(ctx context.Context, intSkip int, intL
 	return requests, nil
 }
 
-func buildAndGetWhereRequestQuery(kcid string, status string, name string) (string, string) {
+func buildAndGetWhereRequestQuery(kcid string, status string, name string, typeFilter string) (string, string) {
 
 	var whereString strings.Builder
 	var orderBy strings.Builder
@@ -69,6 +69,14 @@ func buildAndGetWhereRequestQuery(kcid string, status string, name string) (stri
 			whereCondition.WriteString(fmt.Sprintf(" AND name='%s'", name))
 		} else {
 			whereCondition.WriteString(fmt.Sprintf(" name='%s'", name))
+		}
+	}
+
+	if typeFilter != "" {
+		if whereCondition.String() != "" {
+			whereCondition.WriteString(fmt.Sprintf(" AND type='%s'", typeFilter))
+		} else {
+			whereCondition.WriteString(fmt.Sprintf(" type='%s'", typeFilter))
 		}
 	}
 

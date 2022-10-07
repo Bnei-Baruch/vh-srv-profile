@@ -12,7 +12,7 @@ import (
 )
 
 type readMultipleRequestStorage interface {
-	getMultipleRequest(ctx context.Context, intSkip int, intLimit int, kcid string, status string, name string) ([]requestResponse, error)
+	getMultipleRequest(ctx context.Context, intSkip int, intLimit int, kcid string, status string, name string, typeFilter string) ([]requestResponse, error)
 }
 type requestResponse struct {
 	ID            *int       `json:"id"`
@@ -35,6 +35,7 @@ func (p *profileManager) getRequest(c *gin.Context) {
 	kcid := c.Query("kcid")
 	status := c.Query("status")
 	name := c.Query("name")
+	typeFilter := c.Query("type")
 	// fetch all the users based on parameters provided
 
 	if skip == "" {
@@ -58,7 +59,7 @@ func (p *profileManager) getRequest(c *gin.Context) {
 		return
 	}
 
-	res, err := p.fetchRequests.getMultipleRequest(c.Request.Context(), intSkip, intLimit, kcid, status, name)
+	res, err := p.fetchRequests.getMultipleRequest(c.Request.Context(), intSkip, intLimit, kcid, status, name, typeFilter)
 	if err != nil {
 		if errors.Is(err, errUserNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
