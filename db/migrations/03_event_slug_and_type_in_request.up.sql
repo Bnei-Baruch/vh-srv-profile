@@ -1,7 +1,0 @@
-BEGIN;
-
-ALTER TABLE request
-ADD IF NOT EXISTS event_slug TEXT,
-ADD IF NOT EXISTS type TEXT;
-
-COMMIT;

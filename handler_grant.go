@@ -23,11 +23,10 @@ type grantInterface interface {
 }
 
 type grantMembeship struct {
-	GrantID    *int       `json:"grant_id"`
-	UserID     *uuid.UUID `json:"user_id"`
-	Month      *int       `json:"nb_months"`
-	MonthsUsed *int       `json:"months_used"`
-	MonthsLeft *int       `json:"months_left"`
+	GrantID    *int `json:"grant_id"`
+	Month      *int `json:"nb_months"`
+	MonthsUsed *int `json:"months_used"`
+	MonthsLeft *int `json:"months_left"`
 }
 
 type grantMembeshipRes struct {
@@ -44,12 +43,14 @@ type grantAndGrantMembership struct {
 }
 
 type grant struct {
-	Amount   *int    `json:"amount" db:"amount" validate:"required"`
-	Currency *string `json:"currency" db:"currency" validate:"required"`
-	Type     *string `json:"type" db:"type" validate:"required"`
-	Loaned   *int    `json:"loaned" db:"loaned"`
-	Granted  *int    `json:"granted" db:"granted"`
-	Repayed  *int    `json:"repayed" db:"repayed"`
+	Amount      *int       `json:"amount" db:"amount" validate:"required"`
+	UserID      *uuid.UUID `json:"user_id" db:"user_id" validate:"required"`
+	Currency    *string    `json:"currency" db:"currency" validate:"required"`
+	Type        *string    `json:"type" db:"type" validate:"required"`
+	Loaned      *int       `json:"loaned" db:"loaned"`
+	Granted     *int       `json:"granted" db:"granted"`
+	Repayed     *int       `json:"repayed" db:"repayed"`
+	CancelledAt *time.Time `json:"cancelled_at" db:"cancelled_at"`
 }
 
 type grantRes struct {
