@@ -14,24 +14,28 @@ func (db *pgProfileDB) getGrantByID(ctx context.Context, id int) (grantRes, erro
 
 	if err := db.QueryRow(ctx, `
 	SELECT id,
+		user_id,
 		amount,
 		currency,
 		type,
 		loaned,
 		granted,
 		repayed,
+		cancelled_at,
 		created_at,
 		updated_at,
 		deleted_at 
 	FROM "grant" 
 	WHERE id = $1`, id).Scan(
 		&grant.ID,
+		&grant.UserID,
 		&grant.Amount,
 		&grant.Currency,
 		&grant.Type,
 		&grant.Loaned,
 		&grant.Granted,
 		&grant.Repayed,
+		&grant.CancelledAt,
 		&grant.CreatedAt,
 		&grant.UpdatedAt,
 		&grant.DeletedAt,
@@ -139,12 +143,14 @@ func (db *pgProfileDB) getMultipleGrant(ctx context.Context, intSkip int, intLim
 	rows, err := db.Query(ctx, `
 		SELECT 
 		id,
+		user_id,
 		amount,
 		currency,
 		type,
 		loaned,
 		granted,
 		repayed,
+		cancelled_at,
 		created_at,
 		updated_at,
 		deleted_at 
@@ -160,12 +166,14 @@ func (db *pgProfileDB) getMultipleGrant(ctx context.Context, intSkip int, intLim
 		var r grantRes
 		if err := rows.Scan(
 			&r.ID,
+			&r.UserID,
 			&r.Amount,
 			&r.Currency,
 			&r.Type,
 			&r.Loaned,
 			&r.Granted,
 			&r.Repayed,
+			&r.CancelledAt,
 			&r.CreatedAt,
 			&r.UpdatedAt,
 			&r.DeletedAt,
@@ -214,6 +222,11 @@ func prepareGrantCreateQuery(req grantAndGrantMembership) (string, string, []int
 		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
 		args = append(args, *req.Currency)
 	}
+	if req.UserID != nil {
+		createStrings = append(createStrings, "user_id")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.UserID)
+	}
 	if req.Type != nil {
 		createStrings = append(createStrings, "type")
 		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
@@ -251,11 +264,6 @@ func prepareGrantMembershipCreateQuery(req grantAndGrantMembership) (string, str
 		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
 		args = append(args, *req.GrantID)
 	}
-	if req.UserID != nil {
-		createStrings = append(createStrings, "user_id")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.UserID)
-	}
 	if req.Month != nil {
 		createStrings = append(createStrings, "nb_months")
 		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
@@ -282,10 +290,6 @@ func prepareGrantMembershipUpdate(req grantMembeship) (string, []interface{}) {
 	var updateStrings []string
 	var args []interface{}
 
-	if req.UserID != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("user_id=$%d", len(updateStrings)+1))
-		args = append(args, *req.UserID)
-	}
 	if req.Month != nil {
 		updateStrings = append(updateStrings, fmt.Sprintf("nb_months=$%d", len(updateStrings)+1))
 		args = append(args, *req.Month)
@@ -316,6 +320,10 @@ func prepareGrantUpdate(req grant) (string, []interface{}) {
 	if req.Amount != nil {
 		updateStrings = append(updateStrings, fmt.Sprintf("amount=$%d", len(updateStrings)+1))
 		args = append(args, *req.Amount)
+	}
+	if req.UserID != nil {
+		updateStrings = append(updateStrings, fmt.Sprintf("user_id=$%d", len(updateStrings)+1))
+		args = append(args, *req.UserID)
 	}
 	if req.Currency != nil {
 		updateStrings = append(updateStrings, fmt.Sprintf("currency=$%d", len(updateStrings)+1))
