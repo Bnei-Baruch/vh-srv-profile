@@ -1,0 +1,7 @@
+BEGIN;
+ 
+ALTER TABLE grant_membership
+ALTER COLUMN months_used DROP NOT NULL,
+ALTER COLUMN months_left DROP NOT NULL;
+
+COMMIT;

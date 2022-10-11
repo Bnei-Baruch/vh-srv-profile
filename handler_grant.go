@@ -25,8 +25,8 @@ type grantInterface interface {
 type grantMembeship struct {
 	GrantID    *int `json:"grant_id"`
 	Month      *int `json:"nb_months"`
-	MonthsUsed *int `json:"months_used"`
-	MonthsLeft *int `json:"months_left"`
+	MonthsUsed *int `json:"-"` // This is not used in the request body
+	MonthsLeft *int `json:"-"` // This is not used in the request body
 }
 
 type grantMembeshipRes struct {
