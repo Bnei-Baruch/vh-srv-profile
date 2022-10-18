@@ -55,24 +55,29 @@ func main() {
 		fetchProfiles:  profileDB,
 		fetchRequests:  profileDB,
 		grant:          profileDB,
+		membership:     profileDB,
 	}
 
 	app := initApp(appHandlers{
-		create:                    profile.create,
-		createRequest:             profile.createRequest,
-		get:                       profile.get,
-		update:                    profile.update,
-		updateRequest:             profile.updateRequest,
-		delete:                    profile.delete,
-		deleteRequest:             profile.deleteRequest,
-		hardDelete:                profile.hardDelete,
-		getProfiles:               profile.getProfiles,
-		getRequests:               profile.getRequest,
-		handleGrantFetchByID:      profile.handleGrantFetchByID,
-		handleGrantCreate:         profile.handleGrantCreate,
-		handleGrantPatchByID:      profile.handleGrantPatchByID,
-		handleGrantSoftDeleteByID: profile.handleGrantSoftDeleteByID,
-		handleGrantFetchAll:       profile.handleGrantFetchAll,
+		create:                         profile.create,
+		createRequest:                  profile.createRequest,
+		get:                            profile.get,
+		update:                         profile.update,
+		updateRequest:                  profile.updateRequest,
+		delete:                         profile.delete,
+		deleteRequest:                  profile.deleteRequest,
+		hardDelete:                     profile.hardDelete,
+		getProfiles:                    profile.getProfiles,
+		getRequests:                    profile.getRequest,
+		handleGrantFetchByID:           profile.handleGrantFetchByID,
+		handleGrantCreate:              profile.handleGrantCreate,
+		handleGrantPatchByID:           profile.handleGrantPatchByID,
+		handleGrantSoftDeleteByID:      profile.handleGrantSoftDeleteByID,
+		handleGrantFetchAll:            profile.handleGrantFetchAll,
+		handleMembershipFetchByID:      profile.handleMembershipFetchByID,
+		handleMembershipPatchByID:      profile.handleMembershipPatchByID,
+		handleMembershipSoftDeleteByID: profile.handleMembershipSoftDeleteByID,
+		handleMembershipFetchAll:       profile.handleMembershipFetchAll,
 	})
 
 	if err := app.Run(":" + config.appPort); err != nil {
@@ -81,21 +86,25 @@ func main() {
 }
 
 type appHandlers struct {
-	create                    gin.HandlerFunc
-	createRequest             gin.HandlerFunc
-	get                       gin.HandlerFunc
-	update                    gin.HandlerFunc
-	updateRequest             gin.HandlerFunc
-	delete                    gin.HandlerFunc
-	deleteRequest             gin.HandlerFunc
-	hardDelete                gin.HandlerFunc
-	getProfiles               gin.HandlerFunc
-	getRequests               gin.HandlerFunc
-	handleGrantFetchByID      gin.HandlerFunc
-	handleGrantCreate         gin.HandlerFunc
-	handleGrantPatchByID      gin.HandlerFunc
-	handleGrantSoftDeleteByID gin.HandlerFunc
-	handleGrantFetchAll       gin.HandlerFunc
+	create                         gin.HandlerFunc
+	createRequest                  gin.HandlerFunc
+	get                            gin.HandlerFunc
+	update                         gin.HandlerFunc
+	updateRequest                  gin.HandlerFunc
+	delete                         gin.HandlerFunc
+	deleteRequest                  gin.HandlerFunc
+	hardDelete                     gin.HandlerFunc
+	getProfiles                    gin.HandlerFunc
+	getRequests                    gin.HandlerFunc
+	handleGrantFetchByID           gin.HandlerFunc
+	handleGrantCreate              gin.HandlerFunc
+	handleGrantPatchByID           gin.HandlerFunc
+	handleGrantSoftDeleteByID      gin.HandlerFunc
+	handleGrantFetchAll            gin.HandlerFunc
+	handleMembershipFetchByID      gin.HandlerFunc
+	handleMembershipPatchByID      gin.HandlerFunc
+	handleMembershipFetchAll       gin.HandlerFunc
+	handleMembershipSoftDeleteByID gin.HandlerFunc
 }
 
 func initApp(handlers appHandlers) *gin.Engine {
@@ -125,6 +134,15 @@ func initApp(handlers appHandlers) *gin.Engine {
 		grant.DELETE("/:id", handlers.handleGrantSoftDeleteByID)
 	}
 	baseV1Path.GET("/grants", handlers.handleGrantFetchAll)
+
+	membership := baseV1Path.Group("/membership")
+	{
+		membership.GET("/:id", handlers.handleMembershipFetchByID)
+		// membership.POST("", handlers.handleMembershipCreate)
+		membership.PATCH("/:id", handlers.handleMembershipPatchByID)
+		membership.DELETE("/:id", handlers.handleMembershipSoftDeleteByID)
+	}
+	baseV1Path.GET("/memberships", handlers.handleMembershipFetchAll)
 
 	return app
 }
