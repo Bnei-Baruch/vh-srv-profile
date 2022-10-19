@@ -1,0 +1,35 @@
+{
+    "active": true,
+    "user_id": "XXXXX",
+    "type": "automatic",
+    "month": 6,
+    "year": 2022,
+    "expiry": "2022-05-20",
+    "id": 1212312,
+    "created_at": "2022-10-10 14:00:49.319729+01",
+    "updated_at": "2022-10-10 14:00:49.319729+01",
+    "deleted_at": null,
+    "notifications": [
+        {
+            "slug": "mb_expiration_notice"
+        },
+        {
+            "slug": "hh_request_received"
+        },
+        {
+            "slug": "hh_request_approved"
+        },
+        {
+            "slug": "hh_request_refused"
+        }
+    ],
+    "details": {
+        "payment": {
+            "date": "2022-10-10 14:00:49.319729+01",
+            "amount": 10,
+            "currency": "usd",
+            "payment_method": "Card 4545",
+            "status": "failed"
+        }
+    }
+}

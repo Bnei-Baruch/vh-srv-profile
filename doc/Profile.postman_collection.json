@@ -1,0 +1,517 @@
+{
+	"info": {
+		"_postman_id": "4f01f8cd-beeb-42f3-83b4-ceb822a768b4",
+		"name": "Profile",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "16675182"
+	},
+	"item": [
+		{
+			"name": "Request",
+			"item": [
+				{
+					"name": "All",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{local}}/v1/requests",
+							"host": [
+								"{{local}}"
+							],
+							"path": [
+								"v1",
+								"requests"
+							],
+							"query": [
+								{
+									"key": "kcid",
+									"value": "7a1e3007-ff04-4e3b-9322-edc3d2fe6082",
+									"disabled": true
+								},
+								{
+									"key": "status",
+									"value": "REQUESTED",
+									"disabled": true
+								},
+								{
+									"key": "name",
+									"value": "asd",
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Add",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"asd\",\n    \"keycloak_id\": \"7a1e3007-ff04-4e3b-9322-edc3d2fe6082\",\n    \"status\": \"REQUESTED\",\n    \"request_note\": \"First Note\",\n    \"rejection_note\": \"\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{7471}}/v1/request",
+							"host": [
+								"{{7471}}"
+							],
+							"path": [
+								"v1",
+								"request"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Patch",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"New\",\n    \"keycloak_id\": \"994fecf2-fe5b-4716-a706-7356abf620b1\",\n    \"status\": \"DENIED\",\n    \"event_slug\": \"2023\",\n    \"type\": \"hhticket\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{7471}}/v1/request/:id",
+							"host": [
+								"{{7471}}"
+							],
+							"path": [
+								"v1",
+								"request",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "4"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Del",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{local}}/v1/request/:kcid",
+							"host": [
+								"{{local}}"
+							],
+							"path": [
+								"v1",
+								"request",
+								":kcid"
+							],
+							"variable": [
+								{
+									"key": "kcid",
+									"value": "7a1e3007-ff04-4e3b-9322-edc3d2fe6082"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Profile",
+			"item": [
+				{
+					"name": "patch",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJlTnVZcklpN1hHYWhjZGhhbmtCSmp6VVFGdjh3OVlrRHZIeVpPQkRKSElzIn0.eyJleHAiOjE3MzczMTkxOTIsImlhdCI6MTY1MDkxOTQwMywiYXV0aF90aW1lIjoxNjUwOTE5MTkyLCJqdGkiOiI1MGZmZTZlYy1iYTUwLTRhYTMtYjNmYi1kNmU0MTg5N2Y5ZmEiLCJpc3MiOiJodHRwczovL2F1dGguMnNlcnYuZXUvYXV0aC9yZWFsbXMvbWFzdGVyIiwiYXVkIjoiYXJnb2NkIiwic3ViIjoiOTk0ZmVjZjItZmU1Yi00NzE2LWE3MDYtNzM1NmFiZjYyMGIxIiwidHlwIjoiQmVhcmVyIiwiYXpwIjoic2VjdXJpdHktYWRtaW4tY29uc29sZSIsIm5vbmNlIjoiNzkwNWIzMjMtYWZjYy00NDAwLThiZDctZmUxOTZkMTZiYzQ1Iiwic2Vzc2lvbl9zdGF0ZSI6ImFjYjIwZTYyLTQ1NDItNDBiZC05Njg3LWM0MGI2ZTIxYzYxNyIsImFjciI6IjAiLCJhbGxvd2VkLW9yaWdpbnMiOlsiaHR0cHM6Ly9hdXRoLjJzZXJ2LmV1Il0sInNjb3BlIjoib3BlbmlkIHByb2ZpbGUgZW1haWwiLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwibmFtZSI6IkFiaGluYXYgU2hhcm1hIiwicHJlZmVycmVkX3VzZXJuYW1lIjoiYWJoaW5hdnNobTk1QGdtYWlsLmNvbSIsImdpdmVuX25hbWUiOiJBYmhpbmF2IiwiZmFtaWx5X25hbWUiOiJTaGFybWEiLCJlbWFpbCI6ImFiaGluYXZzaG05NUBnbWFpbC5jb20ifQ.nyZastUCYDQTZcESub5KV2GiHm-faisptBbm_Z7428Y792vNoG7tW9B8SO0oRrZok9H1a137ykkZEdSXC_4wNfhGn3mpOGJ7L5IZx16fBJzqVgEQgypfKwU6ukfJ2bs8O2mlqII9_uAGJnHRiphbYEdAD9UnvzbJpml4y_1t4eFH3dq7MyMmL3wz1tsyPxn3rjO4A-q8aWABzrBIjHiAOad0dsot4MNgbAs7_v4HmYmXRFbyXufvvL4cL6D4-cNpmHCPtRniPkDWiV0YmeVKrGZ6RK50MNbX44WxrEP1pW2NEcEcCTHEiTsmOFqNA0Jrggn1rX6iXMqTlFXhCBlGlQ",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"first_name_vernacular\": \"Abhinav\",\n    \"last_name_vernacular\": \"Sharma\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{7471}}/v1/profile/:keycloak_id",
+							"host": [
+								"{{7471}}"
+							],
+							"path": [
+								"v1",
+								"profile",
+								":keycloak_id"
+							],
+							"variable": [
+								{
+									"key": "keycloak_id",
+									"value": "994fecf2-fe5b-4716-a706-7356abf620b1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJlTnVZcklpN1hHYWhjZGhhbmtCSmp6VVFGdjh3OVlrRHZIeVpPQkRKSElzIn0.eyJleHAiOjE3MzczMTkxOTIsImlhdCI6MTY1MDkxOTQwMywiYXV0aF90aW1lIjoxNjUwOTE5MTkyLCJqdGkiOiI1MGZmZTZlYy1iYTUwLTRhYTMtYjNmYi1kNmU0MTg5N2Y5ZmEiLCJpc3MiOiJodHRwczovL2F1dGguMnNlcnYuZXUvYXV0aC9yZWFsbXMvbWFzdGVyIiwiYXVkIjoiYXJnb2NkIiwic3ViIjoiOTk0ZmVjZjItZmU1Yi00NzE2LWE3MDYtNzM1NmFiZjYyMGIxIiwidHlwIjoiQmVhcmVyIiwiYXpwIjoic2VjdXJpdHktYWRtaW4tY29uc29sZSIsIm5vbmNlIjoiNzkwNWIzMjMtYWZjYy00NDAwLThiZDctZmUxOTZkMTZiYzQ1Iiwic2Vzc2lvbl9zdGF0ZSI6ImFjYjIwZTYyLTQ1NDItNDBiZC05Njg3LWM0MGI2ZTIxYzYxNyIsImFjciI6IjAiLCJhbGxvd2VkLW9yaWdpbnMiOlsiaHR0cHM6Ly9hdXRoLjJzZXJ2LmV1Il0sInNjb3BlIjoib3BlbmlkIHByb2ZpbGUgZW1haWwiLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwibmFtZSI6IkFiaGluYXYgU2hhcm1hIiwicHJlZmVycmVkX3VzZXJuYW1lIjoiYWJoaW5hdnNobTk1QGdtYWlsLmNvbSIsImdpdmVuX25hbWUiOiJBYmhpbmF2IiwiZmFtaWx5X25hbWUiOiJTaGFybWEiLCJlbWFpbCI6ImFiaGluYXZzaG05NUBnbWFpbC5jb20ifQ.nyZastUCYDQTZcESub5KV2GiHm-faisptBbm_Z7428Y792vNoG7tW9B8SO0oRrZok9H1a137ykkZEdSXC_4wNfhGn3mpOGJ7L5IZx16fBJzqVgEQgypfKwU6ukfJ2bs8O2mlqII9_uAGJnHRiphbYEdAD9UnvzbJpml4y_1t4eFH3dq7MyMmL3wz1tsyPxn3rjO4A-q8aWABzrBIjHiAOad0dsot4MNgbAs7_v4HmYmXRFbyXufvvL4cL6D4-cNpmHCPtRniPkDWiV0YmeVKrGZ6RK50MNbX44WxrEP1pW2NEcEcCTHEiTsmOFqNA0Jrggn1rX6iXMqTlFXhCBlGlQ",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"first_name_vernacular\": \"Abhinav\",\n    \"last_name_vernacular\": \"Sharma\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{7471}}/v1/profile/:keycloak_id",
+							"host": [
+								"{{7471}}"
+							],
+							"path": [
+								"v1",
+								"profile",
+								":keycloak_id"
+							],
+							"variable": [
+								{
+									"key": "keycloak_id",
+									"value": "994fecf2-fe5b-4716-a706-7356abf620b1"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Membership",
+			"item": [
+				{
+					"name": "Get Copy",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJlTnVZcklpN1hHYWhjZGhhbmtCSmp6VVFGdjh3OVlrRHZIeVpPQkRKSElzIn0.eyJleHAiOjE3MzczMTkxOTIsImlhdCI6MTY1MDkxOTQwMywiYXV0aF90aW1lIjoxNjUwOTE5MTkyLCJqdGkiOiI1MGZmZTZlYy1iYTUwLTRhYTMtYjNmYi1kNmU0MTg5N2Y5ZmEiLCJpc3MiOiJodHRwczovL2F1dGguMnNlcnYuZXUvYXV0aC9yZWFsbXMvbWFzdGVyIiwiYXVkIjoiYXJnb2NkIiwic3ViIjoiOTk0ZmVjZjItZmU1Yi00NzE2LWE3MDYtNzM1NmFiZjYyMGIxIiwidHlwIjoiQmVhcmVyIiwiYXpwIjoic2VjdXJpdHktYWRtaW4tY29uc29sZSIsIm5vbmNlIjoiNzkwNWIzMjMtYWZjYy00NDAwLThiZDctZmUxOTZkMTZiYzQ1Iiwic2Vzc2lvbl9zdGF0ZSI6ImFjYjIwZTYyLTQ1NDItNDBiZC05Njg3LWM0MGI2ZTIxYzYxNyIsImFjciI6IjAiLCJhbGxvd2VkLW9yaWdpbnMiOlsiaHR0cHM6Ly9hdXRoLjJzZXJ2LmV1Il0sInNjb3BlIjoib3BlbmlkIHByb2ZpbGUgZW1haWwiLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwibmFtZSI6IkFiaGluYXYgU2hhcm1hIiwicHJlZmVycmVkX3VzZXJuYW1lIjoiYWJoaW5hdnNobTk1QGdtYWlsLmNvbSIsImdpdmVuX25hbWUiOiJBYmhpbmF2IiwiZmFtaWx5X25hbWUiOiJTaGFybWEiLCJlbWFpbCI6ImFiaGluYXZzaG05NUBnbWFpbC5jb20ifQ.nyZastUCYDQTZcESub5KV2GiHm-faisptBbm_Z7428Y792vNoG7tW9B8SO0oRrZok9H1a137ykkZEdSXC_4wNfhGn3mpOGJ7L5IZx16fBJzqVgEQgypfKwU6ukfJ2bs8O2mlqII9_uAGJnHRiphbYEdAD9UnvzbJpml4y_1t4eFH3dq7MyMmL3wz1tsyPxn3rjO4A-q8aWABzrBIjHiAOad0dsot4MNgbAs7_v4HmYmXRFbyXufvvL4cL6D4-cNpmHCPtRniPkDWiV0YmeVKrGZ6RK50MNbX44WxrEP1pW2NEcEcCTHEiTsmOFqNA0Jrggn1rX6iXMqTlFXhCBlGlQ",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"first_name_vernacular\": \"Abhinav\",\n    \"last_name_vernacular\": \"Sharma\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{7471}}/v1/memberships",
+							"host": [
+								"{{7471}}"
+							],
+							"path": [
+								"v1",
+								"memberships"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": null,
+									"disabled": true
+								},
+								{
+									"key": "skip",
+									"value": null,
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Grant",
+			"item": [
+				{
+					"name": "New Membership Grant",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"user_id\": \"bebb411e-039a-499a-9f66-3c5158961b69\",\n    \"months\": 6,\n    \"months_used\": 0,\n    \"months_left\": 6,\n    \"amount\": 10,\n    \"currency\": \"usd\",\n    \"type\": \"membership\",\n    \"loaned\": 8,\n    \"granted\": 6\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{7471}}/v1/grant",
+							"host": [
+								"{{7471}}"
+							],
+							"path": [
+								"v1",
+								"grant"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get by ID",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJlTnVZcklpN1hHYWhjZGhhbmtCSmp6VVFGdjh3OVlrRHZIeVpPQkRKSElzIn0.eyJleHAiOjE3MzczMTkxOTIsImlhdCI6MTY1MDkxOTQwMywiYXV0aF90aW1lIjoxNjUwOTE5MTkyLCJqdGkiOiI1MGZmZTZlYy1iYTUwLTRhYTMtYjNmYi1kNmU0MTg5N2Y5ZmEiLCJpc3MiOiJodHRwczovL2F1dGguMnNlcnYuZXUvYXV0aC9yZWFsbXMvbWFzdGVyIiwiYXVkIjoiYXJnb2NkIiwic3ViIjoiOTk0ZmVjZjItZmU1Yi00NzE2LWE3MDYtNzM1NmFiZjYyMGIxIiwidHlwIjoiQmVhcmVyIiwiYXpwIjoic2VjdXJpdHktYWRtaW4tY29uc29sZSIsIm5vbmNlIjoiNzkwNWIzMjMtYWZjYy00NDAwLThiZDctZmUxOTZkMTZiYzQ1Iiwic2Vzc2lvbl9zdGF0ZSI6ImFjYjIwZTYyLTQ1NDItNDBiZC05Njg3LWM0MGI2ZTIxYzYxNyIsImFjciI6IjAiLCJhbGxvd2VkLW9yaWdpbnMiOlsiaHR0cHM6Ly9hdXRoLjJzZXJ2LmV1Il0sInNjb3BlIjoib3BlbmlkIHByb2ZpbGUgZW1haWwiLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwibmFtZSI6IkFiaGluYXYgU2hhcm1hIiwicHJlZmVycmVkX3VzZXJuYW1lIjoiYWJoaW5hdnNobTk1QGdtYWlsLmNvbSIsImdpdmVuX25hbWUiOiJBYmhpbmF2IiwiZmFtaWx5X25hbWUiOiJTaGFybWEiLCJlbWFpbCI6ImFiaGluYXZzaG05NUBnbWFpbC5jb20ifQ.nyZastUCYDQTZcESub5KV2GiHm-faisptBbm_Z7428Y792vNoG7tW9B8SO0oRrZok9H1a137ykkZEdSXC_4wNfhGn3mpOGJ7L5IZx16fBJzqVgEQgypfKwU6ukfJ2bs8O2mlqII9_uAGJnHRiphbYEdAD9UnvzbJpml4y_1t4eFH3dq7MyMmL3wz1tsyPxn3rjO4A-q8aWABzrBIjHiAOad0dsot4MNgbAs7_v4HmYmXRFbyXufvvL4cL6D4-cNpmHCPtRniPkDWiV0YmeVKrGZ6RK50MNbX44WxrEP1pW2NEcEcCTHEiTsmOFqNA0Jrggn1rX6iXMqTlFXhCBlGlQ",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{7471}}/v1/grant/:id",
+							"host": [
+								"{{7471}}"
+							],
+							"path": [
+								"v1",
+								"grant",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "2"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get All",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJlTnVZcklpN1hHYWhjZGhhbmtCSmp6VVFGdjh3OVlrRHZIeVpPQkRKSElzIn0.eyJleHAiOjE3MzczMTkxOTIsImlhdCI6MTY1MDkxOTQwMywiYXV0aF90aW1lIjoxNjUwOTE5MTkyLCJqdGkiOiI1MGZmZTZlYy1iYTUwLTRhYTMtYjNmYi1kNmU0MTg5N2Y5ZmEiLCJpc3MiOiJodHRwczovL2F1dGguMnNlcnYuZXUvYXV0aC9yZWFsbXMvbWFzdGVyIiwiYXVkIjoiYXJnb2NkIiwic3ViIjoiOTk0ZmVjZjItZmU1Yi00NzE2LWE3MDYtNzM1NmFiZjYyMGIxIiwidHlwIjoiQmVhcmVyIiwiYXpwIjoic2VjdXJpdHktYWRtaW4tY29uc29sZSIsIm5vbmNlIjoiNzkwNWIzMjMtYWZjYy00NDAwLThiZDctZmUxOTZkMTZiYzQ1Iiwic2Vzc2lvbl9zdGF0ZSI6ImFjYjIwZTYyLTQ1NDItNDBiZC05Njg3LWM0MGI2ZTIxYzYxNyIsImFjciI6IjAiLCJhbGxvd2VkLW9yaWdpbnMiOlsiaHR0cHM6Ly9hdXRoLjJzZXJ2LmV1Il0sInNjb3BlIjoib3BlbmlkIHByb2ZpbGUgZW1haWwiLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwibmFtZSI6IkFiaGluYXYgU2hhcm1hIiwicHJlZmVycmVkX3VzZXJuYW1lIjoiYWJoaW5hdnNobTk1QGdtYWlsLmNvbSIsImdpdmVuX25hbWUiOiJBYmhpbmF2IiwiZmFtaWx5X25hbWUiOiJTaGFybWEiLCJlbWFpbCI6ImFiaGluYXZzaG05NUBnbWFpbC5jb20ifQ.nyZastUCYDQTZcESub5KV2GiHm-faisptBbm_Z7428Y792vNoG7tW9B8SO0oRrZok9H1a137ykkZEdSXC_4wNfhGn3mpOGJ7L5IZx16fBJzqVgEQgypfKwU6ukfJ2bs8O2mlqII9_uAGJnHRiphbYEdAD9UnvzbJpml4y_1t4eFH3dq7MyMmL3wz1tsyPxn3rjO4A-q8aWABzrBIjHiAOad0dsot4MNgbAs7_v4HmYmXRFbyXufvvL4cL6D4-cNpmHCPtRniPkDWiV0YmeVKrGZ6RK50MNbX44WxrEP1pW2NEcEcCTHEiTsmOFqNA0Jrggn1rX6iXMqTlFXhCBlGlQ",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{7471}}/v1/grants",
+							"host": [
+								"{{7471}}"
+							],
+							"path": [
+								"v1",
+								"grants"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "1",
+									"disabled": true
+								},
+								{
+									"key": "skip",
+									"value": "",
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Patch by ID",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJlTnVZcklpN1hHYWhjZGhhbmtCSmp6VVFGdjh3OVlrRHZIeVpPQkRKSElzIn0.eyJleHAiOjE3MzczMTkxOTIsImlhdCI6MTY1MDkxOTQwMywiYXV0aF90aW1lIjoxNjUwOTE5MTkyLCJqdGkiOiI1MGZmZTZlYy1iYTUwLTRhYTMtYjNmYi1kNmU0MTg5N2Y5ZmEiLCJpc3MiOiJodHRwczovL2F1dGguMnNlcnYuZXUvYXV0aC9yZWFsbXMvbWFzdGVyIiwiYXVkIjoiYXJnb2NkIiwic3ViIjoiOTk0ZmVjZjItZmU1Yi00NzE2LWE3MDYtNzM1NmFiZjYyMGIxIiwidHlwIjoiQmVhcmVyIiwiYXpwIjoic2VjdXJpdHktYWRtaW4tY29uc29sZSIsIm5vbmNlIjoiNzkwNWIzMjMtYWZjYy00NDAwLThiZDctZmUxOTZkMTZiYzQ1Iiwic2Vzc2lvbl9zdGF0ZSI6ImFjYjIwZTYyLTQ1NDItNDBiZC05Njg3LWM0MGI2ZTIxYzYxNyIsImFjciI6IjAiLCJhbGxvd2VkLW9yaWdpbnMiOlsiaHR0cHM6Ly9hdXRoLjJzZXJ2LmV1Il0sInNjb3BlIjoib3BlbmlkIHByb2ZpbGUgZW1haWwiLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwibmFtZSI6IkFiaGluYXYgU2hhcm1hIiwicHJlZmVycmVkX3VzZXJuYW1lIjoiYWJoaW5hdnNobTk1QGdtYWlsLmNvbSIsImdpdmVuX25hbWUiOiJBYmhpbmF2IiwiZmFtaWx5X25hbWUiOiJTaGFybWEiLCJlbWFpbCI6ImFiaGluYXZzaG05NUBnbWFpbC5jb20ifQ.nyZastUCYDQTZcESub5KV2GiHm-faisptBbm_Z7428Y792vNoG7tW9B8SO0oRrZok9H1a137ykkZEdSXC_4wNfhGn3mpOGJ7L5IZx16fBJzqVgEQgypfKwU6ukfJ2bs8O2mlqII9_uAGJnHRiphbYEdAD9UnvzbJpml4y_1t4eFH3dq7MyMmL3wz1tsyPxn3rjO4A-q8aWABzrBIjHiAOad0dsot4MNgbAs7_v4HmYmXRFbyXufvvL4cL6D4-cNpmHCPtRniPkDWiV0YmeVKrGZ6RK50MNbX44WxrEP1pW2NEcEcCTHEiTsmOFqNA0Jrggn1rX6iXMqTlFXhCBlGlQ",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"user_id\": \"bebb411e-039a-499a-9f66-3c5158961b69\",\n    \"months\": 6,\n    \"months_used\": 0,\n    \"months_left\": 6,\n    \"amount\": 11,\n    \"currency\": \"usd\",\n    \"type\": \"membership\",\n    \"loaned\": 8,\n    \"granted\": 6\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{7471}}/v1/grant/:id",
+							"host": [
+								"{{7471}}"
+							],
+							"path": [
+								"v1",
+								"grant",
+								":id"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": null,
+									"disabled": true
+								},
+								{
+									"key": "skip",
+									"value": null,
+									"disabled": true
+								}
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "2"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Soft Delete by ID",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJlTnVZcklpN1hHYWhjZGhhbmtCSmp6VVFGdjh3OVlrRHZIeVpPQkRKSElzIn0.eyJleHAiOjE3MzczMTkxOTIsImlhdCI6MTY1MDkxOTQwMywiYXV0aF90aW1lIjoxNjUwOTE5MTkyLCJqdGkiOiI1MGZmZTZlYy1iYTUwLTRhYTMtYjNmYi1kNmU0MTg5N2Y5ZmEiLCJpc3MiOiJodHRwczovL2F1dGguMnNlcnYuZXUvYXV0aC9yZWFsbXMvbWFzdGVyIiwiYXVkIjoiYXJnb2NkIiwic3ViIjoiOTk0ZmVjZjItZmU1Yi00NzE2LWE3MDYtNzM1NmFiZjYyMGIxIiwidHlwIjoiQmVhcmVyIiwiYXpwIjoic2VjdXJpdHktYWRtaW4tY29uc29sZSIsIm5vbmNlIjoiNzkwNWIzMjMtYWZjYy00NDAwLThiZDctZmUxOTZkMTZiYzQ1Iiwic2Vzc2lvbl9zdGF0ZSI6ImFjYjIwZTYyLTQ1NDItNDBiZC05Njg3LWM0MGI2ZTIxYzYxNyIsImFjciI6IjAiLCJhbGxvd2VkLW9yaWdpbnMiOlsiaHR0cHM6Ly9hdXRoLjJzZXJ2LmV1Il0sInNjb3BlIjoib3BlbmlkIHByb2ZpbGUgZW1haWwiLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwibmFtZSI6IkFiaGluYXYgU2hhcm1hIiwicHJlZmVycmVkX3VzZXJuYW1lIjoiYWJoaW5hdnNobTk1QGdtYWlsLmNvbSIsImdpdmVuX25hbWUiOiJBYmhpbmF2IiwiZmFtaWx5X25hbWUiOiJTaGFybWEiLCJlbWFpbCI6ImFiaGluYXZzaG05NUBnbWFpbC5jb20ifQ.nyZastUCYDQTZcESub5KV2GiHm-faisptBbm_Z7428Y792vNoG7tW9B8SO0oRrZok9H1a137ykkZEdSXC_4wNfhGn3mpOGJ7L5IZx16fBJzqVgEQgypfKwU6ukfJ2bs8O2mlqII9_uAGJnHRiphbYEdAD9UnvzbJpml4y_1t4eFH3dq7MyMmL3wz1tsyPxn3rjO4A-q8aWABzrBIjHiAOad0dsot4MNgbAs7_v4HmYmXRFbyXufvvL4cL6D4-cNpmHCPtRniPkDWiV0YmeVKrGZ6RK50MNbX44WxrEP1pW2NEcEcCTHEiTsmOFqNA0Jrggn1rX6iXMqTlFXhCBlGlQ",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"user_id\": \"bebb411e-039a-499a-9f66-3c5158961b69\",\n    \"months\": 6,\n    \"months_used\": 0,\n    \"months_left\": 6,\n    \"amount\": 11,\n    \"currency\": \"usd\",\n    \"type\": \"membership\",\n    \"loaned\": 8,\n    \"granted\": 6\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{7471}}/v1/grant/:id",
+							"host": [
+								"{{7471}}"
+							],
+							"path": [
+								"v1",
+								"grant",
+								":id"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": null,
+									"disabled": true
+								},
+								{
+									"key": "skip",
+									"value": null,
+									"disabled": true
+								}
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "2"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
