@@ -12,8 +12,14 @@ func HTTPCallAndGetBody(fullUrl string, authHeader string, bodyBuffer *bytes.Buf
 	// Send req using http Client
 	client := &http.Client{}
 
-	// Create a new request using http
-	req, err := http.NewRequest(typeOfReq, fullUrl, bodyBuffer)
+	var req *http.Request
+	var err error
+
+	if bodyBuffer != nil {
+		req, err = http.NewRequest(typeOfReq, fullUrl, bodyBuffer)
+	} else {
+		req, err = http.NewRequest(typeOfReq, fullUrl, nil)
+	}
 
 	if err != nil {
 		fmt.Println("Error while creating new request ::", err)

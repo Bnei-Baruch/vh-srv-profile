@@ -17,7 +17,7 @@ type membershipInterface interface {
 	getMultipleMembership(ctx context.Context, intSkip int, intLimit int) ([]membershipRes, error)
 	patchMembershipByID(ctx context.Context, membership membership, id int) error
 	softDeleteMembershipByID(ctx context.Context, id int) error
-	cancelMembership(ctx context.Context, body membershipCancellationBody) (error, int, int, int)
+	cancelMembership(ctx context.Context, body membershipCancellationBody, authHeader string) (int, int, int, error)
 }
 
 type membership struct {
@@ -113,7 +113,7 @@ func (p *profileManager) handleMembershipCancellation(c *gin.Context) {
 		return
 	}
 
-	if membCancel.KeycloakID != nil {
+	if membCancel.KeycloakID != nil && *membCancel.KeycloakID != "" {
 		_, err := uuid.FromString(*membCancel.KeycloakID)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -122,7 +122,7 @@ func (p *profileManager) handleMembershipCancellation(c *gin.Context) {
 		}
 	}
 
-	if membCancel.UserID != nil {
+	if membCancel.UserID != nil && *membCancel.UserID != "" {
 		_, userIDErr := uuid.FromString(*membCancel.UserID)
 		if userIDErr != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": userIDErr.Error()})
@@ -131,7 +131,9 @@ func (p *profileManager) handleMembershipCancellation(c *gin.Context) {
 		}
 	}
 
-	cancelErr, orderCancelledNum, grantCancelledNum, specialTableDeletedNum := p.membership.cancelMembership(c.Request.Context(), membCancel)
+	authHeader := c.GetHeader("Authorization")
+
+	orderCancelledNum, grantCancelledNum, specialTableDeletedNum, cancelErr := p.membership.cancelMembership(c.Request.Context(), membCancel, authHeader)
 
 	if cancelErr != nil {
 		c.Status(http.StatusInternalServerError)
@@ -139,10 +141,10 @@ func (p *profileManager) handleMembershipCancellation(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Updated!", "data": gin.H{
-		"order_cancelled":       orderCancelledNum,
-		"grant_cancelled":       grantCancelledNum,
-		"special_table_deleted": specialTableDeletedNum,
+	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Cancelled!", "data": gin.H{
+		"order_cancelled": orderCancelledNum,
+		"grant_cancelled": grantCancelledNum,
+		"special_deleted": specialTableDeletedNum,
 	}})
 }
 
