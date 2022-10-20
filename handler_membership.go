@@ -17,6 +17,7 @@ type membershipInterface interface {
 	getMultipleMembership(ctx context.Context, intSkip int, intLimit int) ([]membershipRes, error)
 	patchMembershipByID(ctx context.Context, membership membership, id int) error
 	softDeleteMembershipByID(ctx context.Context, id int) error
+	cancelMembership(ctx context.Context, body membershipCancellationBody) (error, int, int, int)
 }
 
 type membership struct {
@@ -26,6 +27,12 @@ type membership struct {
 	Month  *int       `json:"month"`
 	Year   *int       `json:"year"`
 	Expiry *time.Time `json:"expiry"`
+}
+
+type membershipCancellationBody struct {
+	Email      *string `json:"email"`
+	KeycloakID *string `json:"keycloak_id"`
+	UserID     *string `json:"user_id"`
 }
 
 type membershipRes struct {
@@ -91,6 +98,52 @@ func (p *profileManager) handleMembershipPatchByID(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Updated!", "data": membership})
+}
+
+func (p *profileManager) handleMembershipCancellation(c *gin.Context) {
+	var membCancel membershipCancellationBody
+
+	if err := c.ShouldBindJSON(&membCancel); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if membCancel.Email == nil && membCancel.KeycloakID == nil && membCancel.UserID == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body ( at least one of email, keycloak_id or user_id is required )"})
+		return
+	}
+
+	if membCancel.KeycloakID != nil {
+		_, err := uuid.FromString(*membCancel.KeycloakID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			_ = c.Error(err)
+			return
+		}
+	}
+
+	if membCancel.UserID != nil {
+		_, userIDErr := uuid.FromString(*membCancel.UserID)
+		if userIDErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": userIDErr.Error()})
+			_ = c.Error(userIDErr)
+			return
+		}
+	}
+
+	cancelErr, orderCancelledNum, grantCancelledNum, specialTableDeletedNum := p.membership.cancelMembership(c.Request.Context(), membCancel)
+
+	if cancelErr != nil {
+		c.Status(http.StatusInternalServerError)
+		_ = c.Error(fmt.Errorf("error while updating membership: %w", cancelErr))
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Updated!", "data": gin.H{
+		"order_cancelled":       orderCancelledNum,
+		"grant_cancelled":       grantCancelledNum,
+		"special_table_deleted": specialTableDeletedNum,
+	}})
 }
 
 func (p *profileManager) handleMembershipSoftDeleteByID(c *gin.Context) {

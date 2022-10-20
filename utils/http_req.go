@@ -7,7 +7,7 @@ import (
 	"net/http"
 )
 
-func PostCallAndGetBody(fullUrl string, authHeader string, bodyBuffer *bytes.Buffer, typeOfReq string) []byte {
+func HTTPCallAndGetBody(fullUrl string, authHeader string, bodyBuffer *bytes.Buffer, typeOfReq string) []byte {
 
 	// Send req using http Client
 	client := &http.Client{}
