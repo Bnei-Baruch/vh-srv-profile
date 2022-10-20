@@ -78,6 +78,7 @@ func main() {
 		handleMembershipPatchByID:      profile.handleMembershipPatchByID,
 		handleMembershipSoftDeleteByID: profile.handleMembershipSoftDeleteByID,
 		handleMembershipFetchAll:       profile.handleMembershipFetchAll,
+		handleMembershipCancellation:   profile.handleMembershipCancellation,
 	})
 
 	if err := app.Run(":" + config.appPort); err != nil {
@@ -105,6 +106,7 @@ type appHandlers struct {
 	handleMembershipPatchByID      gin.HandlerFunc
 	handleMembershipFetchAll       gin.HandlerFunc
 	handleMembershipSoftDeleteByID gin.HandlerFunc
+	handleMembershipCancellation   gin.HandlerFunc
 }
 
 func initApp(handlers appHandlers) *gin.Engine {
@@ -141,6 +143,7 @@ func initApp(handlers appHandlers) *gin.Engine {
 		// membership.POST("", handlers.handleMembershipCreate)
 		membership.PATCH("/:id", handlers.handleMembershipPatchByID)
 		membership.DELETE("/:id", handlers.handleMembershipSoftDeleteByID)
+		membership.POST("/cancellation", handlers.handleMembershipCancellation)
 	}
 	baseV1Path.GET("/memberships", handlers.handleMembershipFetchAll)
 

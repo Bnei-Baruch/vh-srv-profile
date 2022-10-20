@@ -1,13 +1,34 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v4"
+	"gitlab.bbdev.team/vh/vh-srv-profile/utils"
 )
+
+type order struct {
+	ID          string `json:"ID"`
+	Status      string `json:"Status"`
+	ProductType string `json:"ProductType"`
+}
+
+type orderRes struct {
+	Message string  `json:"message"`
+	Success bool    `json:"success"`
+	Data    []order `json:"data"`
+}
+
+type orderDeleteRes struct {
+	Message string `json:"message"`
+	Success bool   `json:"success"`
+	Data    int    `json:"data"`
+}
 
 func (db *pgProfileDB) getMembershipByID(ctx context.Context, id int) (membershipRes, error) {
 	var membership membershipRes
@@ -65,6 +86,85 @@ func (db *pgProfileDB) patchMembershipByID(ctx context.Context, membership membe
 	} else {
 		return fmt.Errorf("invalid values")
 	}
+}
+
+func (db *pgProfileDB) cancelMembership(ctx context.Context, membBody membershipCancellationBody) (error, int, int, int) {
+
+	var email string
+	var user_id string
+
+	if membBody.UserID != nil {
+		if err := db.QueryRow(ctx, `SELECT email FROM users WHERE id=$1`, *membBody.UserID).Scan(&email); err != nil {
+			return fmt.Errorf("error while getting user email: %w", err), 0, 0, 0
+		}
+		user_id = *membBody.UserID
+	} else if membBody.KeycloakID != nil {
+		if err := db.QueryRow(ctx, `SELECT email, user_id FROM users WHERE keycloak_id=$1`, *membBody.KeycloakID).Scan(&email, &user_id); err != nil {
+			return fmt.Errorf("error while getting user email: %w", err), 0, 0, 0
+		}
+	} else {
+		if err := db.QueryRow(ctx, `SELECT user_id FROM users WHERE email=$1`, *membBody.Email).Scan(&user_id); err != nil {
+			return fmt.Errorf("error while getting user id: %w", err), 0, 0, 0
+		}
+		email = *membBody.Email
+	}
+
+	authHeader := ctx.Value("Authorization").(string)
+
+	userOrderDetails := "https://api.eurokab.info/pay/v2/orders?email=" + email + "&product-type=globalmembership"
+
+	orderDetails := utils.HTTPCallAndGetBody(userOrderDetails, authHeader, nil, "GET")
+
+	// un marshal order details
+	var orderDetailsRes orderRes
+	err := json.Unmarshal([]byte(orderDetails), &orderDetailsRes)
+	if err != nil {
+		return fmt.Errorf("error while unmarshalling order details: %w", err), 0, 0, 0
+	}
+
+	// loop over order details and cancel the order
+	for _, order := range orderDetailsRes.Data {
+		cancelOrder := "https://api.eurokab.info/pay/v2/order/" + order.ID
+		postBody, _ := json.Marshal(map[string]interface{}{
+			"Status": "cancelled",
+		})
+
+		buffPostBody := bytes.NewBuffer(postBody)
+
+		cancelOrderRes := utils.HTTPCallAndGetBody(cancelOrder, authHeader, buffPostBody, "PATCH")
+
+		// un marshal cancel order details
+		var cancelOrderResRes orderRes
+		err := json.Unmarshal([]byte(cancelOrderRes), &cancelOrderResRes)
+		if err != nil {
+			return fmt.Errorf("error while unmarshalling cancel order details: %w", err), 0, 0, 0
+		}
+	}
+
+	// update user grant cancelled_at to now
+	grantUpdateRes, grantUpdateErr := db.Exec(ctx, `UPDATE "grant" SET cancelled_at=$1 WHERE user_id=$2`, time.Now(), user_id)
+
+	if grantUpdateErr != nil {
+		return fmt.Errorf("error while updating grant: %w", grantUpdateErr), 0, 0, 0
+	}
+
+	numberOfRowsUpdated := grantUpdateRes.RowsAffected()
+
+	specialTableDelete := "https://api.eurokab.info/pay/v2/special/" + email
+
+	specialTableDelRes := utils.HTTPCallAndGetBody(specialTableDelete, authHeader, nil, "DELETE")
+
+	// un marshal special table delete details
+	var specialTableDelResRes orderDeleteRes
+
+	err = json.Unmarshal([]byte(specialTableDelRes), &specialTableDelResRes)
+
+	if err != nil {
+		return fmt.Errorf("error while unmarshalling special table delete details: %w", err), 0, 0, 0
+	}
+
+	return nil, len(orderDetailsRes.Data), int(numberOfRowsUpdated), specialTableDelResRes.Data
+
 }
 
 func (db *pgProfileDB) softDeleteMembershipByID(ctx context.Context, id int) error {
