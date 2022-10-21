@@ -13,7 +13,7 @@ import (
 )
 
 type order struct {
-	ID          string `json:"ID"`
+	ID          int    `json:"ID"`
 	Status      string `json:"Status"`
 	ProductType string `json:"ProductType"`
 }
@@ -88,43 +88,51 @@ func (db *pgProfileDB) patchMembershipByID(ctx context.Context, membership membe
 	}
 }
 
-func (db *pgProfileDB) cancelMembership(ctx context.Context, membBody membershipCancellationBody) (error, int, int, int) {
+func (db *pgProfileDB) cancelMembership(ctx context.Context, membBody membershipCancellationBody, authHeader string) (int, int, int, error) {
 
 	var email string
 	var user_id string
 
-	if membBody.UserID != nil {
-		if err := db.QueryRow(ctx, `SELECT email FROM users WHERE id=$1`, *membBody.UserID).Scan(&email); err != nil {
-			return fmt.Errorf("error while getting user email: %w", err), 0, 0, 0
+	if membBody.UserID != nil && *membBody.UserID != "" {
+		if err := db.QueryRow(ctx, `SELECT primary_email FROM users WHERE id=$1`, *membBody.UserID).Scan(&email); err != nil {
+			return 0, 0, 0, fmt.Errorf("error while getting user email: %w", err)
 		}
 		user_id = *membBody.UserID
-	} else if membBody.KeycloakID != nil {
-		if err := db.QueryRow(ctx, `SELECT email, user_id FROM users WHERE keycloak_id=$1`, *membBody.KeycloakID).Scan(&email, &user_id); err != nil {
-			return fmt.Errorf("error while getting user email: %w", err), 0, 0, 0
+	} else if membBody.KeycloakID != nil && *membBody.KeycloakID != "" {
+		if err := db.QueryRow(ctx, `SELECT primary_email, user_id FROM users WHERE keycloak_id=$1`, *membBody.KeycloakID).Scan(&email, &user_id); err != nil {
+			return 0, 0, 0, fmt.Errorf("error while getting user email: %w", err)
 		}
 	} else {
-		if err := db.QueryRow(ctx, `SELECT user_id FROM users WHERE email=$1`, *membBody.Email).Scan(&user_id); err != nil {
-			return fmt.Errorf("error while getting user id: %w", err), 0, 0, 0
+		if err := db.QueryRow(ctx, `SELECT user_id FROM users WHERE primary_email=$1`, *membBody.Email).Scan(&user_id); err != nil {
+			return 0, 0, 0, fmt.Errorf("error while getting user id: %w", err)
 		}
 		email = *membBody.Email
 	}
 
-	authHeader := ctx.Value("Authorization").(string)
+	tx, txErr := db.Begin(ctx)
 
-	userOrderDetails := "https://api.eurokab.info/pay/v2/orders?email=" + email + "&product-type=globalmembership"
+	if txErr != nil {
+		return 0, 0, 0, txErr
+	}
+
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	userOrderDetails := getServerUrl() + "/pay/v2/orders?email=" + email + "&product-type=globalmembership"
 
 	orderDetails := utils.HTTPCallAndGetBody(userOrderDetails, authHeader, nil, "GET")
 
 	// un marshal order details
 	var orderDetailsRes orderRes
-	err := json.Unmarshal([]byte(orderDetails), &orderDetailsRes)
+	err := json.Unmarshal(orderDetails, &orderDetailsRes)
 	if err != nil {
-		return fmt.Errorf("error while unmarshalling order details: %w", err), 0, 0, 0
+		return 0, 0, 0, fmt.Errorf("error while unmarshalling order details: %w", err)
 	}
 
 	// loop over order details and cancel the order
 	for _, order := range orderDetailsRes.Data {
-		cancelOrder := "https://api.eurokab.info/pay/v2/order/" + order.ID
+		// id int to string
+		orderID := fmt.Sprintf("%d", order.ID)
+		cancelOrder := getServerUrl() + "/pay/v2/order/" + orderID
 		postBody, _ := json.Marshal(map[string]interface{}{
 			"Status": "cancelled",
 		})
@@ -135,9 +143,9 @@ func (db *pgProfileDB) cancelMembership(ctx context.Context, membBody membership
 
 		// un marshal cancel order details
 		var cancelOrderResRes orderRes
-		err := json.Unmarshal([]byte(cancelOrderRes), &cancelOrderResRes)
+		err := json.Unmarshal(cancelOrderRes, &cancelOrderResRes)
 		if err != nil {
-			return fmt.Errorf("error while unmarshalling cancel order details: %w", err), 0, 0, 0
+			return 0, 0, 0, fmt.Errorf("error while unmarshalling cancel order details: %w", err)
 		}
 	}
 
@@ -145,25 +153,25 @@ func (db *pgProfileDB) cancelMembership(ctx context.Context, membBody membership
 	grantUpdateRes, grantUpdateErr := db.Exec(ctx, `UPDATE "grant" SET cancelled_at=$1 WHERE user_id=$2`, time.Now(), user_id)
 
 	if grantUpdateErr != nil {
-		return fmt.Errorf("error while updating grant: %w", grantUpdateErr), 0, 0, 0
+		return 0, 0, 0, fmt.Errorf("error while updating grant: %w", grantUpdateErr)
 	}
 
 	numberOfRowsUpdated := grantUpdateRes.RowsAffected()
 
-	specialTableDelete := "https://api.eurokab.info/pay/v2/special/" + email
+	specialTableDelete := getServerUrl() + "/pay/v2/special/" + email
 
 	specialTableDelRes := utils.HTTPCallAndGetBody(specialTableDelete, authHeader, nil, "DELETE")
 
 	// un marshal special table delete details
 	var specialTableDelResRes orderDeleteRes
 
-	err = json.Unmarshal([]byte(specialTableDelRes), &specialTableDelResRes)
+	err = json.Unmarshal(specialTableDelRes, &specialTableDelResRes)
 
 	if err != nil {
-		return fmt.Errorf("error while unmarshalling special table delete details: %w", err), 0, 0, 0
+		return 0, 0, 0, fmt.Errorf("error while unmarshalling special table delete details: %w", err)
 	}
 
-	return nil, len(orderDetailsRes.Data), int(numberOfRowsUpdated), specialTableDelResRes.Data
+	return len(orderDetailsRes.Data), int(numberOfRowsUpdated), specialTableDelResRes.Data, tx.Commit(ctx)
 
 }
 
