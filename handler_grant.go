@@ -13,7 +13,7 @@ import (
 )
 
 type grantInterface interface {
-	getGrantByID(ctx context.Context, id int) (grantRes, error)
+	getGrantByIDAndUserID(ctx context.Context, id int, userID string) (grantRes, error)
 	getMultipleGrant(ctx context.Context, intSkip int, intLimit int) ([]grantRes, error)
 	createGrant(ctx context.Context, grant grantAndGrantMembership) (int, error)
 	patchGrant(ctx context.Context, grant grant, id int) error
@@ -73,7 +73,7 @@ func (p *profileManager) handleGrantFetchByID(c *gin.Context) {
 		return
 	}
 
-	res, dbErr := p.grant.getGrantByID(c.Request.Context(), grantID)
+	res, dbErr := p.grant.getGrantByIDAndUserID(c.Request.Context(), grantID, "")
 
 	if dbErr != nil {
 		if errors.Is(dbErr, errNotFound) {

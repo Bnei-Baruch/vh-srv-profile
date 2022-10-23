@@ -14,10 +14,12 @@ import (
 
 type membershipInterface interface {
 	getMembershipByID(ctx context.Context, id int) (membershipRes, error)
+	getMembershipByUserID(ctx context.Context, userID string, authHeader string) (userMembershipRes, error)
 	getMultipleMembership(ctx context.Context, intSkip int, intLimit int) ([]membershipRes, error)
 	patchMembershipByID(ctx context.Context, membership membership, id int) error
 	softDeleteMembershipByID(ctx context.Context, id int) error
 	cancelMembership(ctx context.Context, body membershipCancellationBody, authHeader string) (int, int, int, error)
+	getAutomaticMembershipByMembershipID(ctx context.Context, membershipID int) (membershipAutomatic, error)
 }
 
 type membership struct {
@@ -29,10 +31,89 @@ type membership struct {
 	Expiry *time.Time `json:"expiry"`
 }
 
+type membershipAutomatic struct {
+	ID           *int       `json:"id"`
+	OrderID      *int       `json:"order_id"`
+	PaymentID    *int       `json:"payment_id"`
+	MembershipID *int       `json:"membership_id"`
+	CreatedAt    *time.Time `json:"created_at"`
+	UpdatedAt    *time.Time `json:"updated_at"`
+	DeletedAt    *time.Time `json:"deleted_at"`
+}
+
+type membershipSpecial struct {
+	ID           *int       `json:"id"`
+	MembershipID *int       `json:"membership_id"`
+	CreatedAt    *time.Time `json:"created_at"`
+	UpdatedAt    *time.Time `json:"updated_at"`
+	DeletedAt    *time.Time `json:"deleted_at"`
+}
+
+type membershipManual struct {
+	membershipAutomatic
+	Quantity *int `json:"quantity`
+}
+
+type membershipHelpHaver struct {
+	ID           *int       `json:"id"`
+	GrantID      *int       `json:"grant_id"`
+	MembershipID *int       `json:"membership_id"`
+	NbMonths     *int       `json:"nb_months,omitempty"`
+	CreatedAt    *time.Time `json:"created_at"`
+	UpdatedAt    *time.Time `json:"updated_at"`
+	DeletedAt    *time.Time `json:"deleted_at"`
+}
+
 type membershipCancellationBody struct {
 	Email      *string `json:"email"`
 	KeycloakID *string `json:"keycloak_id"`
 	UserID     *string `json:"user_id"`
+}
+
+type userNotification struct {
+	UserID         *string    `json:"user_id"`
+	NotificationID *int       `json:"notification_id"`
+	Active         *bool      `json:"active"`
+	SeenAt         *time.Time `json:"seen_at"`
+}
+
+type userNotificationRes struct {
+	ID *int `json:"id"`
+	userNotification
+	Slug      *string    `json:"slug"`
+	CreatedAt *time.Time `json:"created_at"`
+	UpdatedAt *time.Time `json:"updated_at"`
+	DeletedAt *time.Time `json:"deleted_at"`
+}
+
+type userMembershipNotification struct {
+	Slug *string `json:"slug"`
+}
+
+type userMembershipRes struct {
+	membershipRes
+	Notifications []userMembershipNotification `json:"notifications,omitempty"`
+	Details       struct {
+		Payment struct {
+			Date          *time.Time `json:"date,omitempty"`
+			Amount        *int       `json:"amount,omitempty"`
+			Currency      *string    `json:"currency,omitempty"`
+			PaymentMethod *string    `json:"payment_method,omitempty"`
+			Status        *string    `json:"status,omitempty"`
+		} `json:"payment,omitempty"`
+		Automatic struct {
+			OrderID   *int `json:"order_id,omitempty"`
+			PaymentID *int `json:"payment_id,omitempty"`
+		} `json:"automatic"`
+		Special struct {
+			ApprovedBy *string `json:"approved_by,omitempty"`
+			Type       *string `json:"type,omitempty"`
+		} `json:"special,omitempty"`
+		HelpHaver struct {
+			CreatedAt *time.Time `json:"created_at,omitempty"`
+			NbMonths  *int       `json:"nb_months,omitempty"`
+		} `json:"help_haver,omitempty"`
+	} `json:"details,omitempty"`
 }
 
 type membershipRes struct {
@@ -56,6 +137,32 @@ func (p *profileManager) handleMembershipFetchByID(c *gin.Context) {
 	}
 
 	res, dbErr := p.membership.getMembershipByID(c.Request.Context(), membershipID)
+
+	if dbErr != nil {
+		if errors.Is(dbErr, errNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": dbErr.Error()})
+			return
+		}
+		c.Status(http.StatusInternalServerError)
+		_ = c.Error(fmt.Errorf("error while getting users: %w", dbErr))
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Fetched!", "data": res})
+}
+
+func (p *profileManager) handleMembershipFetchByUserID(c *gin.Context) {
+
+	userID := c.Param("user_id")
+
+	authHeader := c.GetHeader("Authorization")
+
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user_id"})
+		return
+	}
+
+	res, dbErr := p.membership.getMembershipByUserID(c.Request.Context(), userID, authHeader)
 
 	if dbErr != nil {
 		if errors.Is(dbErr, errNotFound) {

@@ -9,8 +9,17 @@ import (
 	"github.com/jackc/pgx/v4"
 )
 
-func (db *pgProfileDB) getGrantByID(ctx context.Context, id int) (grantRes, error) {
+func (db *pgProfileDB) getGrantByIDAndUserID(ctx context.Context, id int, userID string) (grantRes, error) {
 	var grant grantRes
+	var whereQuery string
+
+	if id != 0 {
+		whereQuery = fmt.Sprintf(" WHERE id=%d", id)
+	} else if userID != "" {
+		whereQuery = fmt.Sprintf(" WHERE user_id='%s'", userID)
+	} else {
+		return grantRes{}, fmt.Errorf("invalid values")
+	}
 
 	if err := db.QueryRow(ctx, `
 	SELECT id,
@@ -25,8 +34,7 @@ func (db *pgProfileDB) getGrantByID(ctx context.Context, id int) (grantRes, erro
 		created_at,
 		updated_at,
 		deleted_at 
-	FROM "grant" 
-	WHERE id = $1`, id).Scan(
+	FROM "grant"`+whereQuery).Scan(
 		&grant.ID,
 		&grant.UserID,
 		&grant.Amount,
