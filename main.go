@@ -75,6 +75,7 @@ func main() {
 		handleGrantSoftDeleteByID:      profile.handleGrantSoftDeleteByID,
 		handleGrantFetchAll:            profile.handleGrantFetchAll,
 		handleMembershipFetchByID:      profile.handleMembershipFetchByID,
+		handleMembershipFetchByUserID:  profile.handleMembershipFetchByUserID,
 		handleMembershipPatchByID:      profile.handleMembershipPatchByID,
 		handleMembershipSoftDeleteByID: profile.handleMembershipSoftDeleteByID,
 		handleMembershipFetchAll:       profile.handleMembershipFetchAll,
@@ -103,6 +104,7 @@ type appHandlers struct {
 	handleGrantSoftDeleteByID      gin.HandlerFunc
 	handleGrantFetchAll            gin.HandlerFunc
 	handleMembershipFetchByID      gin.HandlerFunc
+	handleMembershipFetchByUserID  gin.HandlerFunc
 	handleMembershipPatchByID      gin.HandlerFunc
 	handleMembershipFetchAll       gin.HandlerFunc
 	handleMembershipSoftDeleteByID gin.HandlerFunc
@@ -139,7 +141,8 @@ func initApp(handlers appHandlers) *gin.Engine {
 
 	membership := baseV1Path.Group("/membership")
 	{
-		membership.GET("/:id", handlers.handleMembershipFetchByID)
+		membership.GET("/user/:user_id", handlers.handleMembershipFetchByUserID)
+		membership.GET("/id/:id", handlers.handleMembershipFetchByID)
 		// membership.POST("", handlers.handleMembershipCreate)
 		membership.PATCH("/:id", handlers.handleMembershipPatchByID)
 		membership.DELETE("/:id", handlers.handleMembershipSoftDeleteByID)
