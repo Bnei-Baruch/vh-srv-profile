@@ -59,27 +59,28 @@ func main() {
 	}
 
 	app := initApp(appHandlers{
-		create:                         profile.create,
-		createRequest:                  profile.createRequest,
-		get:                            profile.get,
-		update:                         profile.update,
-		updateRequest:                  profile.updateRequest,
-		delete:                         profile.delete,
-		deleteRequest:                  profile.deleteRequest,
-		hardDelete:                     profile.hardDelete,
-		getProfiles:                    profile.getProfiles,
-		getRequests:                    profile.getRequest,
-		handleGrantFetchByID:           profile.handleGrantFetchByID,
-		handleGrantCreate:              profile.handleGrantCreate,
-		handleGrantPatchByID:           profile.handleGrantPatchByID,
-		handleGrantSoftDeleteByID:      profile.handleGrantSoftDeleteByID,
-		handleGrantFetchAll:            profile.handleGrantFetchAll,
-		handleMembershipFetchByID:      profile.handleMembershipFetchByID,
-		handleMembershipFetchByUserID:  profile.handleMembershipFetchByUserID,
-		handleMembershipPatchByID:      profile.handleMembershipPatchByID,
-		handleMembershipSoftDeleteByID: profile.handleMembershipSoftDeleteByID,
-		handleMembershipFetchAll:       profile.handleMembershipFetchAll,
-		handleMembershipCancellation:   profile.handleMembershipCancellation,
+		create:                             profile.create,
+		createRequest:                      profile.createRequest,
+		get:                                profile.get,
+		update:                             profile.update,
+		updateRequest:                      profile.updateRequest,
+		delete:                             profile.delete,
+		deleteRequest:                      profile.deleteRequest,
+		hardDelete:                         profile.hardDelete,
+		getProfiles:                        profile.getProfiles,
+		getRequests:                        profile.getRequest,
+		handleGrantFetchByID:               profile.handleGrantFetchByID,
+		handleGrantCreate:                  profile.handleGrantCreate,
+		handleGrantPatchByID:               profile.handleGrantPatchByID,
+		handleGrantSoftDeleteByID:          profile.handleGrantSoftDeleteByID,
+		handleGrantFetchAll:                profile.handleGrantFetchAll,
+		handleMembershipFetchByID:          profile.handleMembershipFetchByID,
+		handleMembershipFetchByUserID:      profile.handleMembershipFetchByUserID,
+		handleMembershipPatchByID:          profile.handleMembershipPatchByID,
+		handleMembershipSoftDeleteByID:     profile.handleMembershipSoftDeleteByID,
+		handleMembershipFetchAll:           profile.handleMembershipFetchAll,
+		handleMembershipCancellation:       profile.handleMembershipCancellation,
+		handleMembershipEvaluationByUserID: profile.handleMembershipEvaluationByUserID,
 	})
 
 	if err := app.Run(":" + config.appPort); err != nil {
@@ -88,27 +89,28 @@ func main() {
 }
 
 type appHandlers struct {
-	create                         gin.HandlerFunc
-	createRequest                  gin.HandlerFunc
-	get                            gin.HandlerFunc
-	update                         gin.HandlerFunc
-	updateRequest                  gin.HandlerFunc
-	delete                         gin.HandlerFunc
-	deleteRequest                  gin.HandlerFunc
-	hardDelete                     gin.HandlerFunc
-	getProfiles                    gin.HandlerFunc
-	getRequests                    gin.HandlerFunc
-	handleGrantFetchByID           gin.HandlerFunc
-	handleGrantCreate              gin.HandlerFunc
-	handleGrantPatchByID           gin.HandlerFunc
-	handleGrantSoftDeleteByID      gin.HandlerFunc
-	handleGrantFetchAll            gin.HandlerFunc
-	handleMembershipFetchByID      gin.HandlerFunc
-	handleMembershipFetchByUserID  gin.HandlerFunc
-	handleMembershipPatchByID      gin.HandlerFunc
-	handleMembershipFetchAll       gin.HandlerFunc
-	handleMembershipSoftDeleteByID gin.HandlerFunc
-	handleMembershipCancellation   gin.HandlerFunc
+	create                             gin.HandlerFunc
+	createRequest                      gin.HandlerFunc
+	get                                gin.HandlerFunc
+	update                             gin.HandlerFunc
+	updateRequest                      gin.HandlerFunc
+	delete                             gin.HandlerFunc
+	deleteRequest                      gin.HandlerFunc
+	hardDelete                         gin.HandlerFunc
+	getProfiles                        gin.HandlerFunc
+	getRequests                        gin.HandlerFunc
+	handleGrantFetchByID               gin.HandlerFunc
+	handleGrantCreate                  gin.HandlerFunc
+	handleGrantPatchByID               gin.HandlerFunc
+	handleGrantSoftDeleteByID          gin.HandlerFunc
+	handleGrantFetchAll                gin.HandlerFunc
+	handleMembershipFetchByID          gin.HandlerFunc
+	handleMembershipFetchByUserID      gin.HandlerFunc
+	handleMembershipPatchByID          gin.HandlerFunc
+	handleMembershipFetchAll           gin.HandlerFunc
+	handleMembershipSoftDeleteByID     gin.HandlerFunc
+	handleMembershipCancellation       gin.HandlerFunc
+	handleMembershipEvaluationByUserID gin.HandlerFunc
 }
 
 func initApp(handlers appHandlers) *gin.Engine {
@@ -143,7 +145,7 @@ func initApp(handlers appHandlers) *gin.Engine {
 	{
 		membership.GET("/user/:user_id", handlers.handleMembershipFetchByUserID)
 		membership.GET("/id/:id", handlers.handleMembershipFetchByID)
-		// membership.POST("", handlers.handleMembershipCreate)
+		membership.POST("/evaluation", handlers.handleMembershipEvaluationByUserID)
 		membership.PATCH("/:id", handlers.handleMembershipPatchByID)
 		membership.DELETE("/:id", handlers.handleMembershipSoftDeleteByID)
 		membership.POST("/cancellation", handlers.handleMembershipCancellation)

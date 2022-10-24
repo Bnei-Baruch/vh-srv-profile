@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -18,9 +19,11 @@ type MessageAndSuccess struct {
 }
 
 type order struct {
-	ID          int    `json:"ID"`
-	Status      string `json:"Status"`
-	ProductType string `json:"ProductType"`
+	ID          int       `json:"ID"`
+	Status      string    `json:"Status"`
+	ProductType string    `json:"ProductType"`
+	PaymentDate time.Time `json:"PaymentDate"`
+	Type        string    `json:"type"`
 }
 
 type payment struct {
@@ -55,6 +58,111 @@ type orderRes struct {
 type orderDeleteRes struct {
 	MessageAndSuccess
 	Data int `json:"data"`
+}
+
+func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody emailKeycloakAndUserIDBody, authHeader string) error {
+
+	var email string
+	var user_id string
+
+	if evalBody.UserID != nil && *evalBody.UserID != "" {
+		if err := db.QueryRow(ctx, `SELECT primary_email FROM users WHERE user_id=$1`, *evalBody.UserID).Scan(&email); err != nil {
+			return fmt.Errorf("problem getting email from user_id: %w", err)
+		}
+		user_id = *evalBody.UserID
+	} else if evalBody.KeycloakID != nil && *evalBody.KeycloakID != "" {
+		if err := db.QueryRow(ctx, `SELECT primary_email, user_id FROM users WHERE keycloak_id=$1`, *evalBody.KeycloakID).Scan(&email, &user_id); err != nil {
+			return fmt.Errorf("problem getting email from keycloak_id: %w", err)
+		}
+	} else {
+		if err := db.QueryRow(ctx, `SELECT user_id FROM users WHERE primary_email=$1`, *evalBody.Email).Scan(&user_id); err != nil {
+			return fmt.Errorf("problem getting user_id from email: %w", err)
+		}
+		email = *evalBody.Email
+	}
+
+	var membershipInsertData membership
+	var grantMonthsLeft *int
+	var membershipDaysLeftInOrders *int
+	var currentMembership string
+	var latestGrantCreatedAt *time.Time
+	var latestOrderTime *time.Time
+	var grantID *int
+
+	if email == "" {
+		return fmt.Errorf("user email not found")
+	}
+
+	userOrderDetails := getServerUrl() + "/pay/v2/orders?email=" + email + "&product-type=globalmembership&limit=100&active-membership=true"
+
+	orderDetails := utils.HTTPCallAndGetBody(userOrderDetails, authHeader, nil, "GET")
+
+	// un marshal order details
+	var orderDetailsRes orderRes
+	err := json.Unmarshal(orderDetails, &orderDetailsRes)
+	if err != nil {
+		return fmt.Errorf("error while unmarshalling order details: %w", err)
+	}
+
+	// fetch user grant
+	// default value of bool is false in go
+	var falsePointer *bool
+	userGrant, userGrantErr := db.getMultipleGrant(ctx, 0, 100, falsePointer, user_id)
+
+	if userGrantErr != nil {
+		if !errors.Is(userGrantErr, errUserNotFound) {
+			return fmt.Errorf("error while getting user grant: %w", userGrantErr)
+		}
+	}
+
+	if len(userGrant) != 0 {
+		// access the first element of the array
+		latestGrant := userGrant[0]
+		grantID = latestGrant.ID
+
+		grantMemb, grantMembErr := db.getGrantMembershipByGrantID(ctx, *grantID)
+
+		if grantMembErr != nil {
+			return fmt.Errorf("error while getting grant membership: %w", grantMembErr)
+		}
+
+		grantMonthsLeft = grantMemb.MonthsLeft
+		latestGrantCreatedAt = grantMemb.CreatedAt
+	}
+
+	if len(orderDetailsRes.Data) != 0 {
+
+		// latest order
+		latestOrder := orderDetailsRes.Data[0]
+		latestOrderTime = &latestOrder.PaymentDate
+
+		if latestOrder.Type == "recurring" {
+			currentMembership = "automatic"
+		} else {
+			currentMembership = "manual"
+		}
+
+		// for _, order := range orderDetailsRes.Data {
+		// calculate expiry date
+		// }
+
+	}
+
+	if latestGrantCreatedAt != nil && latestOrderTime != nil {
+		if latestOrderTime.After(*latestGrantCreatedAt) {
+			// update user grant cancelled_at to now
+			_, grantUpdateErr := db.Exec(ctx, `UPDATE "grant" SET cancelled_at=$1 WHERE id=$2`, time.Now(), *grantID)
+
+			if grantUpdateErr != nil {
+				return fmt.Errorf("error while updating grant: %w", grantUpdateErr)
+			}
+		} else {
+			currentMembership = "helphaver"
+		}
+	}
+
+	return nil
+
 }
 
 func (db *pgProfileDB) getMembershipByID(ctx context.Context, id int) (membershipRes, error) {
@@ -379,7 +487,7 @@ func (db *pgProfileDB) patchMembershipByID(ctx context.Context, membership membe
 	}
 }
 
-func (db *pgProfileDB) cancelMembership(ctx context.Context, membBody membershipCancellationBody, authHeader string) (int, int, int, error) {
+func (db *pgProfileDB) cancelMembership(ctx context.Context, membBody emailKeycloakAndUserIDBody, authHeader string) (int, int, int, error) {
 
 	var email string
 	var user_id string
@@ -408,7 +516,8 @@ func (db *pgProfileDB) cancelMembership(ctx context.Context, membBody membership
 
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	userOrderDetails := getServerUrl() + "/pay/v2/orders?email=" + email + "&product-type=globalmembership"
+	// implemennt to only update orders where status is not equal to cancelled
+	userOrderDetails := getServerUrl() + "/pay/v2/orders?email=" + email + "&product-type=globalmembership&limit=100"
 
 	orderDetails := utils.HTTPCallAndGetBody(userOrderDetails, authHeader, nil, "GET")
 
@@ -441,7 +550,9 @@ func (db *pgProfileDB) cancelMembership(ctx context.Context, membBody membership
 	}
 
 	// update user grant cancelled_at to now
-	grantUpdateRes, grantUpdateErr := db.Exec(ctx, `UPDATE "grant" SET cancelled_at=$1 WHERE user_id=$2`, time.Now(), user_id)
+
+	//double check
+	grantUpdateRes, grantUpdateErr := db.Exec(ctx, `UPDATE "grant" SET cancelled_at=$1 WHERE user_id=$2 AND type='membership' AND cancelled_at IS NULL`, time.Now(), user_id)
 
 	if grantUpdateErr != nil {
 		return 0, 0, 0, fmt.Errorf("error while updating grant: %w", grantUpdateErr)

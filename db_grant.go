@@ -114,6 +114,39 @@ func (db *pgProfileDB) patchGrantMembership(ctx context.Context, req grantMembes
 	}
 }
 
+func (db *pgProfileDB) getGrantMembershipByGrantID(ctx context.Context, grantId int) (grantMembeshipRes, error) {
+
+	var grantMemb grantMembeshipRes
+
+	if err := db.QueryRow(ctx, `
+		SELECT 
+		id,
+		grant_id,
+		nb_months,
+		months_used,
+		months_left,
+		created_at,
+		updated_at,
+		deleted_at
+		FROM grant_membership WHERE grant_id=$1`, grantId).Scan(
+		&grantMemb.ID,
+		&grantMemb.GrantID,
+		&grantMemb.Month,
+		&grantMemb.MonthsUsed,
+		&grantMemb.MonthsLeft,
+		&grantMemb.CreatedAt,
+		&grantMemb.UpdatedAt,
+		&grantMemb.DeletedAt,
+	); err != nil {
+		if err == pgx.ErrNoRows {
+			return grantMembeshipRes{}, errNotFound
+		}
+		return grantMembeshipRes{}, fmt.Errorf("error while getting grant membership: %w", err)
+	}
+
+	return grantMemb, nil
+}
+
 func (db *pgProfileDB) patchGrant(ctx context.Context, grant grant, id int) error {
 
 	toUpdate, toUpdateArgs := prepareGrantUpdate(grant)
@@ -143,10 +176,10 @@ func (db *pgProfileDB) softDeleteGrantByID(ctx context.Context, id int) error {
 	return nil
 }
 
-func (db *pgProfileDB) getMultipleGrant(ctx context.Context, intSkip int, intLimit int) ([]grantRes, error) {
+func (db *pgProfileDB) getMultipleGrant(ctx context.Context, intSkip int, intLimit int, cancelled *bool, userID string) ([]grantRes, error) {
 	grants := []grantRes{}
 
-	userDbWhereQuery, orderByQuery := buildAndGetWhereGrantQuery()
+	userDbWhereQuery, orderByQuery := buildAndGetWhereGrantQuery(cancelled, userID)
 
 	rows, err := db.Query(ctx, `
 		SELECT 
@@ -195,7 +228,7 @@ func (db *pgProfileDB) getMultipleGrant(ctx context.Context, intSkip int, intLim
 	return grants, nil
 }
 
-func buildAndGetWhereGrantQuery() (string, string) {
+func buildAndGetWhereGrantQuery(cancelled *bool, userID string) (string, string) {
 
 	var whereString strings.Builder
 	var orderBy strings.Builder
@@ -206,6 +239,30 @@ func buildAndGetWhereGrantQuery() (string, string) {
 	// Add where conditions when required
 
 	orderBy.WriteString(fmt.Sprintf(" ORDER BY updated_at %s", "desc"))
+
+	if cancelled != nil {
+		if whereCondition.String() != "" {
+			if *cancelled {
+				whereCondition.WriteString(fmt.Sprintf(" AND cancelled_at IS NOT NULL"))
+			} else {
+				whereCondition.WriteString(fmt.Sprintf(" AND cancelled_at IS NULL"))
+			}
+		} else {
+			if *cancelled {
+				whereCondition.WriteString(fmt.Sprintf(" cancelled_at IS NOT NULL"))
+			} else {
+				whereCondition.WriteString(fmt.Sprintf(" cancelled_at IS NULL"))
+			}
+		}
+	}
+
+	if userID != "" {
+		if whereCondition.String() != "" {
+			whereCondition.WriteString(fmt.Sprintf(" AND user_id='%s'", userID))
+		} else {
+			whereCondition.WriteString(fmt.Sprintf(" user_id='%s'", userID))
+		}
+	}
 
 	if whereCondition.String() != "" {
 		whereString.WriteString(whereCondition.String())

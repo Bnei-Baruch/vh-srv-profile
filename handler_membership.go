@@ -18,8 +18,9 @@ type membershipInterface interface {
 	getMultipleMembership(ctx context.Context, intSkip int, intLimit int) ([]membershipRes, error)
 	patchMembershipByID(ctx context.Context, membership membership, id int) error
 	softDeleteMembershipByID(ctx context.Context, id int) error
-	cancelMembership(ctx context.Context, body membershipCancellationBody, authHeader string) (int, int, int, error)
+	cancelMembership(ctx context.Context, body emailKeycloakAndUserIDBody, authHeader string) (int, int, int, error)
 	getAutomaticMembershipByMembershipID(ctx context.Context, membershipID int) (membershipAutomatic, error)
+	evaluateMembershipByUserID(ctx context.Context, evalbody emailKeycloakAndUserIDBody, authHeader string) error
 }
 
 type membership struct {
@@ -64,7 +65,7 @@ type membershipHelpHaver struct {
 	DeletedAt    *time.Time `json:"deleted_at"`
 }
 
-type membershipCancellationBody struct {
+type emailKeycloakAndUserIDBody struct {
 	Email      *string `json:"email"`
 	KeycloakID *string `json:"keycloak_id"`
 	UserID     *string `json:"user_id"`
@@ -208,7 +209,7 @@ func (p *profileManager) handleMembershipPatchByID(c *gin.Context) {
 }
 
 func (p *profileManager) handleMembershipCancellation(c *gin.Context) {
-	var membCancel membershipCancellationBody
+	var membCancel emailKeycloakAndUserIDBody
 
 	if err := c.ShouldBindJSON(&membCancel); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -253,6 +254,41 @@ func (p *profileManager) handleMembershipCancellation(c *gin.Context) {
 		"grant_cancelled": grantCancelledNum,
 		"special_deleted": specialTableDeletedNum,
 	}})
+}
+
+func (p *profileManager) handleMembershipEvaluationByUserID(c *gin.Context) {
+	// userID := c.Param("user_id")
+
+	// check if userID is a valid uuid
+	// _, err := uuid.FromString(userID)
+	// if err != nil {
+	// 	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	// 	return
+	// }
+
+	var evalbody emailKeycloakAndUserIDBody
+
+	if err := c.ShouldBindJSON(&evalbody); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if evalbody.UserID == nil && evalbody.KeycloakID == nil && evalbody.Email == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body ( at least one of email, keycloak_id or user_id is required )"})
+		return
+	}
+
+	authHeader := c.GetHeader("Authorization")
+
+	evaluateErr := p.membership.evaluateMembershipByUserID(c.Request.Context(), evalbody, authHeader)
+
+	if evaluateErr != nil {
+		c.Status(http.StatusInternalServerError)
+		_ = c.Error(fmt.Errorf("error while evaluating membership: %w", evaluateErr))
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Evaluated!"})
 }
 
 func (p *profileManager) handleMembershipSoftDeleteByID(c *gin.Context) {
