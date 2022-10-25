@@ -14,7 +14,7 @@ import (
 
 type grantInterface interface {
 	getGrantByIDAndUserID(ctx context.Context, id int, userID string) (grantRes, error)
-	getMultipleGrant(ctx context.Context, intSkip int, intLimit int, boolCancelled *bool, userID string) ([]grantRes, error)
+	getMultipleGrant(ctx context.Context, intSkip int, intLimit int, boolCancelled *bool, userID string, grantType string, createdAt string) ([]grantRes, error)
 	createGrant(ctx context.Context, grant grantAndGrantMembership) (int, error)
 	patchGrant(ctx context.Context, grant grant, id int) error
 	softDeleteGrantByID(ctx context.Context, id int) error
@@ -193,6 +193,8 @@ func (p *profileManager) handleGrantFetchAll(c *gin.Context) {
 	limit := c.Query("limit")
 	cancelled := c.Query("cancelled")
 	userID := c.Query("user_id")
+	grantType := c.Query("type")
+	createdAt := c.Query("created_at")
 	var boolCancelled *bool
 	var boolCancelledErr error
 
@@ -226,7 +228,7 @@ func (p *profileManager) handleGrantFetchAll(c *gin.Context) {
 		return
 	}
 
-	res, err := p.grant.getMultipleGrant(c.Request.Context(), intSkip, intLimit, boolCancelled, userID)
+	res, err := p.grant.getMultipleGrant(c.Request.Context(), intSkip, intLimit, boolCancelled, userID, grantType, createdAt)
 	if err != nil {
 		if errors.Is(err, errUserNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
