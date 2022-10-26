@@ -15,7 +15,7 @@ import (
 type membershipInterface interface {
 	getMembershipByID(ctx context.Context, id int) (membershipRes, error)
 	getMembershipByUserID(ctx context.Context, userID string, authHeader string) (userMembershipRes, error)
-	getMultipleMembership(ctx context.Context, intSkip int, intLimit int) ([]membershipRes, error)
+	getMultipleMembership(ctx context.Context, intSkip int, intLimit int, month int, year int, userID string) ([]membershipRes, error)
 	patchMembershipByID(ctx context.Context, membership membership, id int) error
 	softDeleteMembershipByID(ctx context.Context, id int) error
 	cancelMembership(ctx context.Context, body emailKeycloakAndUserIDBody, authHeader string) (int, int, int, error)
@@ -331,6 +331,32 @@ func (p *profileManager) handleMembershipFetchAll(c *gin.Context) {
 
 	skip := c.Query("skip")
 	limit := c.Query("limit")
+	month := c.Query("month")
+	year := c.Query("year")
+	userID := c.Query("user_id")
+
+	var (
+		monthInt     int
+		yearInt      int
+		monthYearErr error
+	)
+
+	// month and year to int
+	if month != "" {
+		monthInt, monthYearErr = strconv.Atoi(month)
+		if monthYearErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid month"})
+			return
+		}
+	}
+
+	if year != "" {
+		yearInt, monthYearErr = strconv.Atoi(year)
+		if monthYearErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid year"})
+			return
+		}
+	}
 
 	if skip == "" {
 		skip = "0"
@@ -353,7 +379,7 @@ func (p *profileManager) handleMembershipFetchAll(c *gin.Context) {
 		return
 	}
 
-	res, err := p.membership.getMultipleMembership(c.Request.Context(), intSkip, intLimit)
+	res, err := p.membership.getMultipleMembership(c.Request.Context(), intSkip, intLimit, monthInt, yearInt, userID)
 	if err != nil {
 		if errors.Is(err, errUserNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})

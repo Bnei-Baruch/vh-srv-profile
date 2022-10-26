@@ -102,9 +102,11 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	var orderStartingDate time.Time
 	var previousStartingDate time.Time
 	var previousOrderQuantity int
+	currentMonth := int(time.Now().Month())
+	currentYear := time.Now().Year()
 
-	*membershipInsertData.Month = int(time.Now().Month())
-	*membershipInsertData.Year = time.Now().Year()
+	*membershipInsertData.Month = currentMonth
+	*membershipInsertData.Year = currentYear
 
 	if email == "" {
 		return fmt.Errorf("user email not found")
@@ -147,11 +149,6 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 
 		latestGrantCreatedAt = grantMemb.CreatedAt
 	}
-
-	// check with Yasha to know which order is active and being consumed by the user
-	// can happen that last order paid by user has starting date in future
-	// ( as we'll have to add payment_id and order_id in manual and automatic membership table )
-	// in above case do we have to update the currentMembership ?
 
 	if len(orderDetailsRes.Data) != 0 {
 
@@ -242,16 +239,16 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 		} else {
 			currentMembership = "helphaver"
 		}
-
 	}
 
 	if currentMembership == "automatic" || currentMembership == "manual" {
 		*membershipInsertData.Expiry = previousStartingDate.AddDate(0, 0, 30*previousOrderQuantity)
 	} else if currentMembership == "helphaver" {
+		// TODO: add integration of extra manual payment after grant is over
 		userMonthsUsed, userMonthsUsedErr := db.getNumberOfGrantMonthsUsedByGrantID(ctx, *grantID)
 
 		if userMonthsUsedErr != nil {
-			fmt.Printf("error while getting user months used: %v", userMonthsUsedErr)
+			fmt.Printf("error while getting user months used: %+v", userMonthsUsedErr)
 		} else {
 			userTotalMonthsLeft := *grantMonthsGranted - userMonthsUsed
 
@@ -268,9 +265,10 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 		var speRes specialRes
 		speResErr := json.Unmarshal(speMemDetails, &speRes)
 		if speResErr != nil {
-			fmt.Printf("error while unmarshalling special membership details: %v", speResErr)
+			fmt.Printf("error while unmarshalling special membership details: %+v", speResErr)
 		} else {
 			if speRes.Data.Email == email {
+				currentMembership = "special"
 				*membershipInsertData.Active = true
 				*membershipInsertData.Type = "special"
 				membershipInsertData.Expiry = nil
@@ -278,12 +276,54 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 		}
 	}
 
-	// TODO: insert membership
+	// check if user has an existing membership of the current month and year
 
-	membershipID, membErr := db.createMembership(ctx, membershipInsertData)
+	userMemb, userMembErr := db.getMultipleMembership(ctx, 0, 100, currentMonth, currentYear, user_id)
 
-	if membErr != nil {
-		return fmt.Errorf("error while creating membership: %w", membErr)
+	if userMembErr != nil {
+		fmt.Printf("error while getting user membership: %+v", userMembErr)
+	}
+
+	// check if the membership is Active and Inactive
+	if currentMembership != "special" {
+		// check if expiry date is 60 days in past
+		if membershipInsertData.Expiry != nil {
+			if membershipInsertData.Expiry.Before(time.Now().AddDate(0, 0, -60)) {
+				*membershipInsertData.Active = false
+			} else {
+				*membershipInsertData.Active = true
+			}
+		}
+	} else {
+		*membershipInsertData.Active = true
+	}
+
+	var (
+		membershipID  int
+		insertMembErr error
+	)
+
+	if len(userMemb) == 0 {
+		// insert membership
+		membershipID, insertMembErr = db.createMembership(ctx, membershipInsertData)
+
+		if insertMembErr != nil {
+			fmt.Printf("error while inserting membership: %+v", insertMembErr)
+		}
+
+		deleteAllMembershipSubTableErr := db.deleteAllMembershipSubTableByMembershipID(ctx, membershipID)
+
+		if deleteAllMembershipSubTableErr != nil {
+			fmt.Printf("error while deleting all membership sub table: %+v", deleteAllMembershipSubTableErr)
+		}
+	} else {
+		// update membership
+		updateMembErr := db.patchMembershipByID(ctx, membershipInsertData, *userMemb[0].ID)
+
+		if updateMembErr != nil {
+			fmt.Printf("error while updating membership: %+v", updateMembErr)
+		}
+
 	}
 
 	if currentMembership == "automatic" {
@@ -319,6 +359,15 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 		if helphaverErr != nil {
 			fmt.Printf("error while creating helphaver membership with membership id: %v", membershipID)
 			fmt.Printf("error: %v", helphaverErr)
+		}
+	} else if currentMembership == "special" {
+		_, specialErr := db.createSpecialMembership(ctx, membershipSpecial{
+			MembershipID: &membershipID,
+		})
+
+		if specialErr != nil {
+			fmt.Printf("error while creating special membership with membership id: %v", membershipID)
+			fmt.Printf("error: %v", specialErr)
 		}
 	}
 
@@ -992,10 +1041,27 @@ func (db *pgProfileDB) softDeleteMembershipByID(ctx context.Context, id int) err
 	return nil
 }
 
-func (db *pgProfileDB) getMultipleMembership(ctx context.Context, intSkip int, intLimit int) ([]membershipRes, error) {
+func (db *pgProfileDB) deleteAllMembershipSubTableByMembershipID(ctx context.Context, membershipID int) error {
+	_, err := db.Exec(ctx, `
+	BEGIN;
+
+	DELETE FROM membership_manual WHERE membership_id=$1;
+	DELETE FROM membership_special WHERE membership_id=$1;
+	DELETE FROM membership_automatic WHERE membership_id=$1;
+	DELETE FROM membership_helphaver WHERE membership_id=$1;
+	
+	COMMIT;
+	`, membershipID)
+	if err != nil {
+		return fmt.Errorf("problem soft deleting membership: %w", err)
+	}
+	return nil
+}
+
+func (db *pgProfileDB) getMultipleMembership(ctx context.Context, intSkip int, intLimit int, month int, year int, userID string) ([]membershipRes, error) {
 	memberships := []membershipRes{}
 
-	userDbWhereQuery, orderByQuery := buildAndGetWhereMembershipQuery()
+	userDbWhereQuery, orderByQuery := buildAndGetWhereMembershipQuery(month, year, userID)
 
 	rows, err := db.Query(ctx, `
 		SELECT 
@@ -1040,7 +1106,7 @@ func (db *pgProfileDB) getMultipleMembership(ctx context.Context, intSkip int, i
 	return memberships, nil
 }
 
-func buildAndGetWhereMembershipQuery() (string, string) {
+func buildAndGetWhereMembershipQuery(month int, year int, userID string) (string, string) {
 
 	var whereString strings.Builder
 	var orderBy strings.Builder
@@ -1048,7 +1114,29 @@ func buildAndGetWhereMembershipQuery() (string, string) {
 	whereString.WriteString(" WHERE")
 	whereCondition.WriteString("")
 
-	// Add where conditions when required
+	if month != 0 {
+		if whereCondition.String() != "" {
+			whereCondition.WriteString(fmt.Sprintf(" AND month='%d'", month))
+		} else {
+			whereCondition.WriteString(fmt.Sprintf(" month='%d'", month))
+		}
+	}
+
+	if year != 0 {
+		if whereCondition.String() != "" {
+			whereCondition.WriteString(fmt.Sprintf(" AND year='%d'", year))
+		} else {
+			whereCondition.WriteString(fmt.Sprintf(" year='%d'", year))
+		}
+	}
+
+	if userID != "" {
+		if whereCondition.String() != "" {
+			whereCondition.WriteString(fmt.Sprintf(" AND user_id='%s'", userID))
+		} else {
+			whereCondition.WriteString(fmt.Sprintf(" user_id='%s'", userID))
+		}
+	}
 
 	orderBy.WriteString(fmt.Sprintf(" ORDER BY updated_at %s", "desc"))
 
