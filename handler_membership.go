@@ -51,8 +51,14 @@ type membershipSpecial struct {
 }
 
 type membershipManual struct {
-	membershipAutomatic
-	Quantity *int `json:"quantity`
+	ID           *int       `json:"id"`
+	OrderID      *int       `json:"order_id"`
+	PaymentID    *int       `json:"payment_id"`
+	MembershipID *int       `json:"membership_id"`
+	CreatedAt    *time.Time `json:"created_at"`
+	UpdatedAt    *time.Time `json:"updated_at"`
+	DeletedAt    *time.Time `json:"deleted_at"`
+	Quantity     *int       `json:"quantity`
 }
 
 type membershipHelpHaver struct {

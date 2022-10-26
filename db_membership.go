@@ -29,6 +29,7 @@ type order struct {
 }
 
 type payment struct {
+	ID            int       `json:"ID"`
 	Amount        int       `json:"Amount"`
 	DebitCurrency string    `json:"DebitCurrency"`
 	CCNumber      string    `json:"CCNumber"`
@@ -50,6 +51,11 @@ type specialRes struct {
 type paymentRes struct {
 	MessageAndSuccess
 	Data payment `json:"data"`
+}
+
+type multiplePaymentRes struct {
+	MessageAndSuccess
+	Data []payment `json:"data"`
 }
 
 type orderRes struct {
@@ -87,7 +93,9 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	var currentMembership string
 	var latestGrantCreatedAt *time.Time
 	var latestOrderTime *time.Time
+	var latestOrderPaymentID *int
 	var grantID *int
+	var latestOrder order
 	// var grantMonthsUsed *int
 	var grantMonthsGranted *int
 
@@ -136,15 +144,19 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 		}
 
 		grantMonthsGranted = grantMemb.Month
-		grantMonthsUsed = grantMemb.MonthsUsed
 
 		latestGrantCreatedAt = grantMemb.CreatedAt
 	}
 
+	// check with Yasha to know which order is active and being consumed by the user
+	// can happen that last order paid by user has starting date in future
+	// ( as we'll have to add payment_id and order_id in manual and automatic membership table )
+	// in above case do we have to update the currentMembership ?
+
 	if len(orderDetailsRes.Data) != 0 {
 
 		// latest order
-		latestOrder := orderDetailsRes.Data[0]
+		latestOrder = orderDetailsRes.Data[0]
 		latestOrderTime = &latestOrder.PaymentDate // Check with Yasha if it should be created_at
 
 		if latestOrder.Type == "recurring" {
@@ -153,12 +165,31 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 			currentMembership = "manual"
 		}
 
+		// fetch latest order payment id
+
+		// Get payment details from order service
+		paymentDetails, _ := utils.HTTPCallAndGetBody(getServerUrl()+"/pay/v2/payments?order-id="+fmt.Sprint(latestOrder.ID), authHeader, nil, "GET")
+
+		// unmarshal payment details
+		var paymentDetailRes multiplePaymentRes
+		paymentResErr := json.Unmarshal(paymentDetails, &paymentDetailRes)
+		if paymentResErr != nil {
+			fmt.Printf("error while unmarshalling payment details: %v", paymentResErr)
+		}
+
+		if len(paymentDetailRes.Data) == 0 {
+			fmt.Printf("payment details not found for order id: %v", latestOrder.ID)
+			*latestOrderPaymentID = -1
+		} else {
+			latestOrderPaymentID = &paymentDetailRes.Data[0].ID
+		}
+
 		// Regular & Recurring paid order
 		for i := len(orderDetailsRes.Data) - 1; i >= 0; i-- {
 
 			// first order
 			if i == len(orderDetailsRes.Data)-1 {
-				orderStartingDate = orderDetailsRes.Data[i].PaymentDate // will we always have PaymentDate ?
+				orderStartingDate = orderDetailsRes.Data[i].PaymentDate
 				previousStartingDate = orderStartingDate
 				if orderDetailsRes.Data[i].Quantity != 0 {
 					previousOrderQuantity = orderDetailsRes.Data[i].Quantity
@@ -177,7 +208,6 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 				}
 			}
 			// update order via http call
-			// convert id to string
 			orderID := strconv.Itoa(orderDetailsRes.Data[i].ID)
 			cancelOrder := getServerUrl() + "/pay/v2/order/" + orderID
 
@@ -197,17 +227,22 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 
 	}
 
-	if latestGrantCreatedAt != nil && latestOrderTime != nil {
-		if latestOrderTime.After(*latestGrantCreatedAt) {
-			// update user grant cancelled_at to now
-			_, grantUpdateErr := db.Exec(ctx, `UPDATE "grant" SET cancelled_at=$1 WHERE id=$2`, time.Now(), *grantID)
+	if latestGrantCreatedAt != nil {
+		if latestOrderTime != nil {
+			if latestOrderTime.After(*latestGrantCreatedAt) {
+				// update user grant cancelled_at to now
+				_, grantUpdateErr := db.Exec(ctx, `UPDATE "grant" SET cancelled_at=$1 WHERE id=$2`, time.Now(), *grantID)
 
-			if grantUpdateErr != nil {
-				return fmt.Errorf("error while updating grant: %w", grantUpdateErr)
+				if grantUpdateErr != nil {
+					return fmt.Errorf("error while updating grant: %w", grantUpdateErr)
+				}
+			} else {
+				currentMembership = "helphaver"
 			}
 		} else {
 			currentMembership = "helphaver"
 		}
+
 	}
 
 	if currentMembership == "automatic" || currentMembership == "manual" {
@@ -224,7 +259,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 		}
 	}
 
-	if membershipInsertData.Expiry.Before(time.Now()) {
+	if membershipInsertData.Expiry == nil || membershipInsertData.Expiry.Before(time.Now()) { // check with Yasha
 		specialMembDetailUrl := getServerUrl() + "/pay/v2/special/" + email
 
 		speMemDetails, _ := utils.HTTPCallAndGetBody(specialMembDetailUrl, authHeader, nil, "GET")
@@ -244,6 +279,49 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	}
 
 	// TODO: insert membership
+
+	membershipID, membErr := db.createMembership(ctx, membershipInsertData)
+
+	if membErr != nil {
+		return fmt.Errorf("error while creating membership: %w", membErr)
+	}
+
+	if currentMembership == "automatic" {
+		_, automaticErr := db.createAutomaticMembership(ctx, membershipAutomatic{
+			MembershipID: &membershipID,
+			OrderID:      &latestOrder.ID,
+			PaymentID:    latestOrderPaymentID,
+		})
+
+		if automaticErr != nil {
+			fmt.Printf("error while creating automatic membership with membership id: %v", membershipID)
+			fmt.Printf("error: %v", automaticErr)
+		}
+	} else if currentMembership == "manual" {
+		_, manualErr := db.createManualMembership(ctx, membershipManual{
+			MembershipID: &membershipID,
+			OrderID:      &latestOrder.ID,
+			PaymentID:    latestOrderPaymentID,
+			Quantity:     &latestOrder.Quantity,
+		})
+
+		if manualErr != nil {
+			fmt.Printf("error while creating manual membership with membership id: %v", membershipID)
+			fmt.Printf("error: %v", manualErr)
+		}
+	} else if currentMembership == "helphaver" {
+		_, helphaverErr := db.createHelpHaverMembership(ctx, membershipHelpHaver{
+			MembershipID: &membershipID,
+			GrantID:      grantID,
+			NbMonths:     grantMonthsGranted, // check with Yasha what should be the value here
+		})
+
+		if helphaverErr != nil {
+			fmt.Printf("error while creating helphaver membership with membership id: %v", membershipID)
+			fmt.Printf("error: %v", helphaverErr)
+		}
+	}
+
 	// TODO: calculate when the membership is inactive
 	// TODO: implement notification
 	// TODO: extra json for detailed part
@@ -252,6 +330,246 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 
 	return nil
 
+}
+
+func (db *pgProfileDB) createMembership(ctx context.Context, req membership) (int, error) {
+
+	var ID int
+
+	createString, numString, createQueryArgs := prepareMembershipCreateQuery(req)
+
+	if len(createQueryArgs) != 0 {
+		if err := db.QueryRow(ctx, fmt.Sprintf(`INSERT INTO membership (%s) VALUES (%s) RETURNING id`, createString, numString),
+			createQueryArgs...).Scan(&ID); err != nil {
+			return 0, fmt.Errorf("problem creating grant: %w", err)
+		}
+
+		return ID, nil
+
+	} else {
+		return 0, fmt.Errorf("invalid values")
+	}
+}
+
+func (db *pgProfileDB) createManualMembership(ctx context.Context, req membershipManual) (int, error) {
+
+	var ID int
+
+	createString, numString, createQueryArgs := prepareManualMembershipCreateQuery(req)
+
+	if len(createQueryArgs) != 0 {
+		if err := db.QueryRow(ctx, fmt.Sprintf(`INSERT INTO membership_manual (%s) VALUES (%s) RETURNING id`, createString, numString),
+			createQueryArgs...).Scan(&ID); err != nil {
+			return 0, fmt.Errorf("problem creating grant: %w", err)
+		}
+
+		return ID, nil
+
+	} else {
+		return 0, fmt.Errorf("invalid values")
+	}
+}
+
+func (db *pgProfileDB) createAutomaticMembership(ctx context.Context, req membershipAutomatic) (int, error) {
+
+	var ID int
+
+	createString, numString, createQueryArgs := prepareAutomaticMembershipCreateQuery(req)
+
+	if len(createQueryArgs) != 0 {
+		if err := db.QueryRow(ctx, fmt.Sprintf(`INSERT INTO membership_automatic (%s) VALUES (%s) RETURNING id`, createString, numString),
+			createQueryArgs...).Scan(&ID); err != nil {
+			return 0, fmt.Errorf("problem creating grant: %w", err)
+		}
+
+		return ID, nil
+
+	} else {
+		return 0, fmt.Errorf("invalid values")
+	}
+}
+
+func (db *pgProfileDB) createSpecialMembership(ctx context.Context, req membershipSpecial) (int, error) {
+
+	var ID int
+
+	createString, numString, createQueryArgs := prepareSpecialMembershipCreateQuery(req)
+
+	if len(createQueryArgs) != 0 {
+		if err := db.QueryRow(ctx, fmt.Sprintf(`INSERT INTO membership_special (%s) VALUES (%s) RETURNING id`, createString, numString),
+			createQueryArgs...).Scan(&ID); err != nil {
+			return 0, fmt.Errorf("problem creating grant: %w", err)
+		}
+
+		return ID, nil
+
+	} else {
+		return 0, fmt.Errorf("invalid values")
+	}
+}
+
+func (db *pgProfileDB) createHelpHaverMembership(ctx context.Context, req membershipHelpHaver) (int, error) {
+
+	var ID int
+
+	createString, numString, createQueryArgs := prepareHelpHaverMembershipCreateQuery(req)
+
+	if len(createQueryArgs) != 0 {
+		if err := db.QueryRow(ctx, fmt.Sprintf(`INSERT INTO membership_helphaver (%s) VALUES (%s) RETURNING id`, createString, numString),
+			createQueryArgs...).Scan(&ID); err != nil {
+			return 0, fmt.Errorf("problem creating grant: %w", err)
+		}
+
+		return ID, nil
+
+	} else {
+		return 0, fmt.Errorf("invalid values")
+	}
+}
+
+func prepareSpecialMembershipCreateQuery(req membershipSpecial) (string, string, []interface{}) {
+	var createStrings []string
+	var numString []string
+	var args []interface{}
+
+	if req.MembershipID != nil {
+		createStrings = append(createStrings, "membership_id")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.MembershipID)
+	}
+
+	concatedCreateString := strings.Join(createStrings, ",")
+	concatedNumString := strings.Join(numString, ",")
+
+	return concatedCreateString, concatedNumString, args
+}
+
+func prepareHelpHaverMembershipCreateQuery(req membershipHelpHaver) (string, string, []interface{}) {
+	var createStrings []string
+	var numString []string
+	var args []interface{}
+
+	if req.MembershipID != nil {
+		createStrings = append(createStrings, "membership_id")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.MembershipID)
+	}
+	if req.GrantID != nil {
+		createStrings = append(createStrings, "grant_id")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.GrantID)
+	}
+	if req.NbMonths != nil {
+		createStrings = append(createStrings, "nb_months")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.NbMonths)
+	}
+
+	concatedCreateString := strings.Join(createStrings, ",")
+	concatedNumString := strings.Join(numString, ",")
+
+	return concatedCreateString, concatedNumString, args
+}
+
+func prepareAutomaticMembershipCreateQuery(req membershipAutomatic) (string, string, []interface{}) {
+	var createStrings []string
+	var numString []string
+	var args []interface{}
+
+	if req.OrderID != nil {
+		createStrings = append(createStrings, "order_id")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.OrderID)
+	}
+	if req.PaymentID != nil {
+		createStrings = append(createStrings, "payment_id")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.PaymentID)
+	}
+	if req.MembershipID != nil {
+		createStrings = append(createStrings, "membership_id")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.MembershipID)
+	}
+
+	concatedCreateString := strings.Join(createStrings, ",")
+	concatedNumString := strings.Join(numString, ",")
+
+	return concatedCreateString, concatedNumString, args
+}
+
+func prepareManualMembershipCreateQuery(req membershipManual) (string, string, []interface{}) {
+	var createStrings []string
+	var numString []string
+	var args []interface{}
+
+	if req.OrderID != nil {
+		createStrings = append(createStrings, "order_id")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.OrderID)
+	}
+	if req.PaymentID != nil {
+		createStrings = append(createStrings, "payment_id")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.PaymentID)
+	}
+	if req.MembershipID != nil {
+		createStrings = append(createStrings, "membership_id")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.MembershipID)
+	}
+	if req.Quantity != nil {
+		createStrings = append(createStrings, "quantity")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.Quantity)
+	}
+
+	concatedCreateString := strings.Join(createStrings, ",")
+	concatedNumString := strings.Join(numString, ",")
+
+	return concatedCreateString, concatedNumString, args
+}
+
+func prepareMembershipCreateQuery(req membership) (string, string, []interface{}) {
+	var createStrings []string
+	var numString []string
+	var args []interface{}
+
+	if req.Active != nil {
+		createStrings = append(createStrings, "active")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.Active)
+	}
+	if req.Type != nil {
+		createStrings = append(createStrings, "type")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.Type)
+	}
+	if req.Expiry != nil {
+		createStrings = append(createStrings, "expiry")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.Expiry)
+	}
+	if req.UserID != nil {
+		createStrings = append(createStrings, "user_id")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.UserID)
+	}
+	if req.Month != nil {
+		createStrings = append(createStrings, "month")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.Month)
+	}
+	if req.Year != nil {
+		createStrings = append(createStrings, "year")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.Year)
+	}
+
+	concatedCreateString := strings.Join(createStrings, ",")
+	concatedNumString := strings.Join(numString, ",")
+
+	return concatedCreateString, concatedNumString, args
 }
 
 func (db *pgProfileDB) getMembershipByID(ctx context.Context, id int) (membershipRes, error) {

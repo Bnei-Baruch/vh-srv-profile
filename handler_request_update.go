@@ -99,6 +99,6 @@ func eventParticipationStatusUpdateTrigger(req *gin.Context, kcId string, slug s
 
 	buffPostBody := bytes.NewBuffer(postBody)
 
-	_ = utils.HTTPCallAndGetBody(eventUpdateFullUrl, authHeader, buffPostBody, "PATCH")
+	_, _ = utils.HTTPCallAndGetBody(eventUpdateFullUrl, authHeader, buffPostBody, "PATCH")
 
 }
