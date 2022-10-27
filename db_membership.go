@@ -96,8 +96,10 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	var latestOrderPaymentID *int
 	var grantID *int
 	var latestOrder order
-	// var grantMonthsUsed *int
 	var grantMonthsGranted *int
+	var allOrderCancelled bool
+	var latestGrantCancelled bool
+	var userInSpecialTable bool
 
 	var orderStartingDate time.Time
 	var previousStartingDate time.Time
@@ -112,7 +114,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 		return fmt.Errorf("user email not found")
 	}
 
-	userOrderDetails := getServerUrl() + "/pay/v2/orders?email=" + email + "&product-type=globalmembership&limit=100&active-membership=true&o-payment-date=desc"
+	userOrderDetails := getServerUrl() + "/pay/v2/orders?email=" + email + "&product-type=globalmembership&limit=100&evaluate-membership=true&o-payment-date=desc"
 
 	orderDetails, _ := utils.HTTPCallAndGetBody(userOrderDetails, authHeader, nil, "GET")
 
@@ -124,9 +126,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	}
 
 	// fetch user grant
-	// default value of bool is false
-	var cancelledValue *bool
-	userGrant, userGrantErr := db.getMultipleGrant(ctx, 0, 100, cancelledValue, user_id, "helphaver", "desc")
+	userGrant, userGrantErr := db.getMultipleGrant(ctx, 0, 100, nil, user_id, "helphaver", "desc")
 
 	if userGrantErr != nil {
 		if !errors.Is(userGrantErr, errUserNotFound) {
@@ -138,6 +138,11 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 		// access the first element of the array
 		latestGrant := userGrant[0]
 		grantID = latestGrant.ID
+
+		// check if the latest grant is cancelled to check if the user membership is cancellled
+		if latestGrant.CancelledAt != nil {
+			latestGrantCancelled = true
+		}
 
 		grantMemb, grantMembErr := db.getGrantMembershipByGrantID(ctx, *grantID)
 
@@ -152,76 +157,91 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 
 	if len(orderDetailsRes.Data) != 0 {
 
-		// latest order
-		latestOrder = orderDetailsRes.Data[0]
-		latestOrderTime = &latestOrder.PaymentDate // Check with Yasha if it should be created_at
+		// count number of cancelled order in orderDetailsRes.Data
+		var cancelledOrderCount int
+		for _, order := range orderDetailsRes.Data {
+			if order.Status == "cancelled" {
+				cancelledOrderCount++
+			}
+		}
 
-		if latestOrder.Type == "recurring" {
-			currentMembership = "automatic"
+		// if all orders are cancelled, then current membership is cancelled
+		if cancelledOrderCount != 0 && cancelledOrderCount == len(orderDetailsRes.Data) {
+			allOrderCancelled = true
 		} else {
-			currentMembership = "manual"
-		}
+			// latest order
+			latestOrder = orderDetailsRes.Data[0]
+			latestOrderTime = &latestOrder.PaymentDate // Check with Yasha if it should be created_at
 
-		// fetch latest order payment id
-
-		// Get payment details from order service
-		paymentDetails, _ := utils.HTTPCallAndGetBody(getServerUrl()+"/pay/v2/payments?order-id="+fmt.Sprint(latestOrder.ID), authHeader, nil, "GET")
-
-		// unmarshal payment details
-		var paymentDetailRes multiplePaymentRes
-		paymentResErr := json.Unmarshal(paymentDetails, &paymentDetailRes)
-		if paymentResErr != nil {
-			fmt.Printf("error while unmarshalling payment details: %v", paymentResErr)
-		}
-
-		if len(paymentDetailRes.Data) == 0 {
-			fmt.Printf("payment details not found for order id: %v", latestOrder.ID)
-			*latestOrderPaymentID = -1
-		} else {
-			latestOrderPaymentID = &paymentDetailRes.Data[0].ID
-		}
-
-		// Regular & Recurring paid order
-		for i := len(orderDetailsRes.Data) - 1; i >= 0; i-- {
-
-			// first order
-			if i == len(orderDetailsRes.Data)-1 {
-				orderStartingDate = orderDetailsRes.Data[i].PaymentDate
-				previousStartingDate = orderStartingDate
-				if orderDetailsRes.Data[i].Quantity != 0 {
-					previousOrderQuantity = orderDetailsRes.Data[i].Quantity
-				} else {
-					previousOrderQuantity = 1
-				}
+			if latestOrder.Type == "recurring" {
+				currentMembership = "automatic"
 			} else {
-				if orderDetailsRes.Data[i].PaymentDate.Before(previousStartingDate.AddDate(0, 0, 30*previousOrderQuantity)) {
-					orderStartingDate = previousStartingDate.AddDate(0, 0, 30*previousOrderQuantity)
-					previousStartingDate = orderStartingDate
-					previousOrderQuantity = orderDetailsRes.Data[i].Quantity
-				} else {
+				currentMembership = "manual"
+			}
+
+			// fetch latest order payment id
+
+			// Get payment details from order service
+			paymentDetails, _ := utils.HTTPCallAndGetBody(getServerUrl()+"/pay/v2/payments?order-id="+fmt.Sprint(latestOrder.ID), authHeader, nil, "GET")
+
+			// unmarshal payment details
+			var paymentDetailRes multiplePaymentRes
+			paymentResErr := json.Unmarshal(paymentDetails, &paymentDetailRes)
+			if paymentResErr != nil {
+				fmt.Printf("error while unmarshalling payment details: %v", paymentResErr)
+			}
+
+			if len(paymentDetailRes.Data) == 0 {
+				fmt.Printf("payment details not found for order id: %v", latestOrder.ID)
+				// set latestOrderPaymentID as -1
+				latestOrderPaymentID = new(int)
+				*latestOrderPaymentID = -1
+			} else {
+				latestOrderPaymentID = &paymentDetailRes.Data[0].ID
+			}
+
+			// Regular & Recurring paid order
+			for i := len(orderDetailsRes.Data) - 1; i >= 0; i-- {
+
+				// first order
+				if i == len(orderDetailsRes.Data)-1 {
 					orderStartingDate = orderDetailsRes.Data[i].PaymentDate
 					previousStartingDate = orderStartingDate
-					previousOrderQuantity = orderDetailsRes.Data[i].Quantity
+					if orderDetailsRes.Data[i].Quantity != 0 {
+						previousOrderQuantity = orderDetailsRes.Data[i].Quantity
+					} else {
+						previousOrderQuantity = 1
+					}
+				} else {
+					if orderDetailsRes.Data[i].PaymentDate.Before(previousStartingDate.AddDate(0, 0, 30*previousOrderQuantity)) {
+						orderStartingDate = previousStartingDate.AddDate(0, 0, 30*previousOrderQuantity)
+						previousStartingDate = orderStartingDate
+						previousOrderQuantity = orderDetailsRes.Data[i].Quantity
+					} else {
+						orderStartingDate = orderDetailsRes.Data[i].PaymentDate
+						previousStartingDate = orderStartingDate
+						previousOrderQuantity = orderDetailsRes.Data[i].Quantity
+					}
+				}
+				// update order via http call
+				orderID := strconv.Itoa(orderDetailsRes.Data[i].ID)
+				cancelOrder := getServerUrl() + "/pay/v2/order/" + orderID
+
+				postBody, _ := json.Marshal(map[string]interface{}{
+					"StartingDate": orderStartingDate,
+				})
+
+				buffPostBody := bytes.NewBuffer(postBody)
+
+				_, resStatusCode := utils.HTTPCallAndGetBody(cancelOrder, authHeader, buffPostBody, "PATCH")
+
+				if resStatusCode != 200 {
+					fmt.Printf("error while updating order starting date: %v", resStatusCode)
+					fmt.Printf("order id: %v", orderDetailsRes.Data[i].ID)
 				}
 			}
-			// update order via http call
-			orderID := strconv.Itoa(orderDetailsRes.Data[i].ID)
-			cancelOrder := getServerUrl() + "/pay/v2/order/" + orderID
 
-			postBody, _ := json.Marshal(map[string]interface{}{
-				"StartingDate": orderStartingDate,
-			})
-
-			buffPostBody := bytes.NewBuffer(postBody)
-
-			_, resStatusCode := utils.HTTPCallAndGetBody(cancelOrder, authHeader, buffPostBody, "PATCH")
-
-			if resStatusCode != 200 {
-				fmt.Printf("error while updating order starting date: %v", resStatusCode)
-				fmt.Printf("order id: %v", orderDetailsRes.Data[i].ID)
-			}
 		}
-
 	}
 
 	if latestGrantCreatedAt != nil {
@@ -259,25 +279,43 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	if membershipInsertData.Expiry == nil || membershipInsertData.Expiry.Before(time.Now()) { // check with Yasha
 		specialMembDetailUrl := getServerUrl() + "/pay/v2/special/" + email
 
-		speMemDetails, _ := utils.HTTPCallAndGetBody(specialMembDetailUrl, authHeader, nil, "GET")
+		speMemDetails, statusCode := utils.HTTPCallAndGetBody(specialMembDetailUrl, authHeader, nil, "GET")
 
-		// unmarshal payment details
-		var speRes specialRes
-		speResErr := json.Unmarshal(speMemDetails, &speRes)
-		if speResErr != nil {
-			fmt.Printf("error while unmarshalling special membership details: %+v", speResErr)
-		} else {
-			if speRes.Data.Email == email {
-				currentMembership = "special"
-				*membershipInsertData.Active = true
-				*membershipInsertData.Type = "special"
-				membershipInsertData.Expiry = nil
+		if statusCode == 200 {
+			// unmarshal payment details
+			var speRes specialRes
+			speResErr := json.Unmarshal(speMemDetails, &speRes)
+			if speResErr != nil {
+				fmt.Printf("error while unmarshalling special membership details: %+v", speResErr)
+			} else {
+				if speRes.Data.Email == email {
+					userInSpecialTable = true
+					currentMembership = "special"
+					*membershipInsertData.Active = true
+					*membershipInsertData.Type = "special"
+					membershipInsertData.Expiry = nil
+				}
 			}
+		} else if statusCode == 404 {
+			userInSpecialTable = false
+		} else {
+			fmt.Printf("error while getting special membership details: %+v", statusCode)
 		}
+
 	}
 
-	// check if user has an existing membership of the current month and year
+	// check currentMembership is cancelled
+	if allOrderCancelled || latestGrantCancelled { // check with Yasha if we have to use OR or AND operation
+		currentMembership = "cancelled"
+	}
 
+	if len(userGrant) == 0 && !userInSpecialTable && len(orderDetailsRes.Data) == 0 {
+		currentMembership = "new"
+	}
+
+	membershipInsertData.Type = &currentMembership
+
+	// check if user has an existing membership of the current month and year
 	userMemb, userMembErr := db.getMultipleMembership(ctx, 0, 100, currentMonth, currentYear, user_id)
 
 	if userMembErr != nil {
@@ -311,6 +349,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 			fmt.Printf("error while inserting membership: %+v", insertMembErr)
 		}
 
+		// remove all the prvious sub memberships entries as they'll be added again ( latest will be added )
 		deleteAllMembershipSubTableErr := db.deleteAllMembershipSubTableByMembershipID(ctx, membershipID)
 
 		if deleteAllMembershipSubTableErr != nil {
@@ -372,7 +411,14 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	}
 
 	// TODO: calculate when the membership is inactive
+	// TODO: add integration for NEW & CANCELLED type of membership
+	// for cancelled we'll need to make sure to fetch all the orders of the users should be cancelled
+	// and no paid, success or nosuccess order exist for the user
+
+	// for new we need to make sure that sure should not have any paid, cancelled, success or nosuccess order
+	// need to also check user should not be in special membership & should not have any active grant
 	// TODO: implement notification
+	// check ticket for notification implementation
 	// TODO: extra json for detailed part
 
 	// if membershipInsertData.Type == "manual" && membershipInsertData.Expiry.Before(time.Now().AddDate(0, 0, 60)) {
