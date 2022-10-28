@@ -6,10 +6,10 @@ import (
 	"strings"
 )
 
-func (db *pgProfileDB) getMultipleRequest(ctx context.Context, intSkip int, intLimit int, kcid string, status string, name string, typeFilter string) ([]requestResponse, error) {
+func (db *pgProfileDB) getMultipleRequest(ctx context.Context, intSkip int, intLimit int, kcid string, status string, name string, typeFilter string, orderByCreatedAt string) ([]requestResponse, error) {
 	requests := []requestResponse{}
 
-	userDbWhereQuery, orderByQuery := buildAndGetWhereRequestQuery(kcid, status, name, typeFilter)
+	userDbWhereQuery, orderByQuery := buildAndGetWhereRequestQuery(kcid, status, name, typeFilter, orderByCreatedAt)
 
 	rows, err := db.Query(ctx, `
 		SELECT 
@@ -43,7 +43,7 @@ func (db *pgProfileDB) getMultipleRequest(ctx context.Context, intSkip int, intL
 	return requests, nil
 }
 
-func buildAndGetWhereRequestQuery(kcid string, status string, name string, typeFilter string) (string, string) {
+func buildAndGetWhereRequestQuery(kcid string, status string, name string, typeFilter string, orderByCreatedAt string) (string, string) {
 
 	var whereString strings.Builder
 	var orderBy strings.Builder
@@ -80,7 +80,14 @@ func buildAndGetWhereRequestQuery(kcid string, status string, name string, typeF
 		}
 	}
 
-	orderBy.WriteString(fmt.Sprintf(" ORDER BY updated_at %s", "desc"))
+	if orderByCreatedAt != "" {
+		if strings.ToLower(orderByCreatedAt) != "desc" && strings.ToLower(orderByCreatedAt) != "asc" {
+			orderByCreatedAt = "asc"
+		}
+		orderBy.WriteString(fmt.Sprintf(" ORDER BY created_at %s", orderByCreatedAt))
+	} else {
+		orderBy.WriteString(fmt.Sprintf(" ORDER BY updated_at %s", "desc"))
+	}
 
 	if whereCondition.String() != "" {
 		whereString.WriteString(whereCondition.String())

@@ -35,6 +35,7 @@ type payment struct {
 	CCNumber      string    `json:"CCNumber"`
 	PaymentStatus string    `json:"PaymentStatus"`
 	CreatedAt     time.Time `json:"created_at"`
+	Status        string    `json:"Status"`
 }
 
 type special struct {
@@ -71,19 +72,21 @@ type orderDeleteRes struct {
 func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody emailKeycloakAndUserIDBody, authHeader string) error {
 
 	var email string
-	var user_id string
+	var userID string
+	var userKeycloakID string
 
 	if evalBody.UserID != nil && *evalBody.UserID != "" {
-		if err := db.QueryRow(ctx, `SELECT primary_email FROM users WHERE user_id=$1`, *evalBody.UserID).Scan(&email); err != nil {
+		if err := db.QueryRow(ctx, `SELECT primary_email, keycloak_id FROM users WHERE user_id=$1`, *evalBody.UserID).Scan(&email, &userKeycloakID); err != nil {
 			return fmt.Errorf("problem getting email from user_id: %w", err)
 		}
-		user_id = *evalBody.UserID
+		userID = *evalBody.UserID
 	} else if evalBody.KeycloakID != nil && *evalBody.KeycloakID != "" {
-		if err := db.QueryRow(ctx, `SELECT primary_email, user_id FROM users WHERE keycloak_id=$1`, *evalBody.KeycloakID).Scan(&email, &user_id); err != nil {
+		if err := db.QueryRow(ctx, `SELECT primary_email, user_id FROM users WHERE keycloak_id=$1`, *evalBody.KeycloakID).Scan(&email, &userID); err != nil {
 			return fmt.Errorf("problem getting email from keycloak_id: %w", err)
 		}
+		userKeycloakID = *evalBody.KeycloakID
 	} else {
-		if err := db.QueryRow(ctx, `SELECT user_id FROM users WHERE primary_email=$1`, *evalBody.Email).Scan(&user_id); err != nil {
+		if err := db.QueryRow(ctx, `SELECT user_id, keycloak_id FROM users WHERE primary_email=$1`, *evalBody.Email).Scan(&userID, &userKeycloakID); err != nil {
 			return fmt.Errorf("problem getting user_id from email: %w", err)
 		}
 		email = *evalBody.Email
@@ -92,14 +95,17 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	var membershipInsertData membership
 	var currentMembership string
 	var latestGrantCreatedAt *time.Time
+	var latestGrantUpdatedAt *time.Time
 	var latestOrderTime *time.Time
 	var latestOrderPaymentID *int
+	var latestOrderPaymentStatus string
 	var grantID *int
 	var latestOrder order
 	var grantMonthsGranted *int
 	var allOrderCancelled bool
 	var latestGrantCancelled bool
 	var userInSpecialTable bool
+	var latestRequest requestResponse
 
 	var orderStartingDate time.Time
 	var previousStartingDate time.Time
@@ -114,6 +120,19 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 		return fmt.Errorf("user email not found")
 	}
 
+	// check if user has any active request
+
+	userRequests, userRequestsErr := db.getMultipleRequest(ctx, 0, 100, userKeycloakID, "", "", "helphaver", "desc") // check what should be the name filter from yasha ?
+
+	if userRequestsErr != nil {
+		return fmt.Errorf("problem getting user requests: %w", userRequestsErr)
+	}
+
+	if len(userRequests) != 0 {
+		// latest request
+		latestRequest = userRequests[0]
+	}
+
 	userOrderDetails := getServerUrl() + "/pay/v2/orders?email=" + email + "&product-type=globalmembership&limit=100&evaluate-membership=true&o-payment-date=desc"
 
 	orderDetails, _ := utils.HTTPCallAndGetBody(userOrderDetails, authHeader, nil, "GET")
@@ -126,7 +145,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	}
 
 	// fetch user grant
-	userGrant, userGrantErr := db.getMultipleGrant(ctx, 0, 100, nil, user_id, "helphaver", "desc")
+	userGrant, userGrantErr := db.getMultipleGrant(ctx, 0, 100, nil, userID, "helphaver", "desc")
 
 	if userGrantErr != nil {
 		if !errors.Is(userGrantErr, errUserNotFound) {
@@ -153,6 +172,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 		grantMonthsGranted = grantMemb.Month
 
 		latestGrantCreatedAt = grantMemb.CreatedAt
+		latestGrantUpdatedAt = grantMemb.UpdatedAt
 	}
 
 	if len(orderDetailsRes.Data) != 0 {
@@ -198,6 +218,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 				*latestOrderPaymentID = -1
 			} else {
 				latestOrderPaymentID = &paymentDetailRes.Data[0].ID
+				latestOrderPaymentStatus = paymentDetailRes.Data[0].Status
 			}
 
 			// Regular & Recurring paid order
@@ -309,6 +330,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 		currentMembership = "cancelled"
 	}
 
+	// check with Yash if we have to also consider grant request before marking the membership as new
 	if len(userGrant) == 0 && !userInSpecialTable && len(orderDetailsRes.Data) == 0 {
 		currentMembership = "new"
 	}
@@ -316,7 +338,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	membershipInsertData.Type = &currentMembership
 
 	// check if user has an existing membership of the current month and year
-	userMemb, userMembErr := db.getMultipleMembership(ctx, 0, 100, currentMonth, currentYear, user_id)
+	userMemb, userMembErr := db.getMultipleMembership(ctx, 0, 100, currentMonth, currentYear, userID)
 
 	if userMembErr != nil {
 		fmt.Printf("error while getting user membership: %+v", userMembErr)
@@ -410,6 +432,67 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 		}
 	}
 
+	// add user notification
+	var notificationSlug string
+	if currentMembership == "automatic" || currentMembership == "manual" ||
+		currentMembership == "cancelled" || currentMembership == "new" {
+
+		if currentMembership == "automatic" && latestOrderPaymentStatus == "nosuccess" {
+			notificationSlug = "mb_problem_previous_payment"
+		}
+
+		if currentMembership == "manual" && time.Now().After(*membershipInsertData.Expiry) {
+			notificationSlug = "mb_expiration_notice"
+		}
+
+		if currentMembership == "cancelled" {
+			notificationSlug = "mb_cancelled"
+		}
+
+		if currentMembership == "new" {
+			notificationSlug = "mb_new"
+		}
+	}
+
+	if len(userRequests) != 0 && latestRequest.ID != nil {
+		if *latestRequest.Status == "REQUESTED" {
+			notificationSlug = "hh_request_received"
+		}
+
+		if latestGrantCreatedAt != nil {
+			// status approved and latestGrantCreatedAt is less than a week old
+			if *latestRequest.Status == "APPROVED" && latestGrantCreatedAt.After(time.Now().AddDate(0, 0, -7)) {
+				notificationSlug = "hh_request_approved"
+			}
+
+			if *latestRequest.Status == "DENIED" && latestGrantUpdatedAt.After(time.Now().AddDate(0, 0, -7)) {
+				notificationSlug = "hh_request_refused"
+			}
+		}
+
+	}
+
+	// add user notification if slug is not empty
+	if notificationSlug != "" {
+		parentNotificationData, parentNotificationErr := db.getNotificationBySlug(ctx, notificationSlug)
+
+		if parentNotificationErr != nil {
+			fmt.Printf("error while getting parent notification: %+v", parentNotificationErr)
+		} else {
+			boolTrue := true
+			userNotificationErr := db.createUserNotification(ctx, userNotification{
+				UserID:         &userID,
+				NotificationID: parentNotificationData.ID,
+				Active:         &boolTrue,
+				SeenAt:         nil,
+			})
+
+			if userNotificationErr != nil {
+				fmt.Printf("error while creating notification: %+v", userNotificationErr)
+			}
+		}
+	}
+
 	// TODO: calculate when the membership is inactive
 	// TODO: add integration for NEW & CANCELLED type of membership
 	// for cancelled we'll need to make sure to fetch all the orders of the users should be cancelled
@@ -420,6 +503,8 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	// TODO: implement notification
 	// check ticket for notification implementation
 	// TODO: extra json for detailed part
+
+	// TODO: check with Yasha when to set the notification status to inactive
 
 	// if membershipInsertData.Type == "manual" && membershipInsertData.Expiry.Before(time.Now().AddDate(0, 0, 60)) {
 

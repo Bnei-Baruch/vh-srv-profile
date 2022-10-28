@@ -12,7 +12,7 @@ import (
 )
 
 type readMultipleRequestStorage interface {
-	getMultipleRequest(ctx context.Context, intSkip int, intLimit int, kcid string, status string, name string, typeFilter string) ([]requestResponse, error)
+	getMultipleRequest(ctx context.Context, intSkip int, intLimit int, kcid string, status string, name string, typeFilter string, orderByCreatedAt string) ([]requestResponse, error)
 }
 type requestResponse struct {
 	ID            *int       `json:"id"`
@@ -36,6 +36,12 @@ func (p *profileManager) getRequest(c *gin.Context) {
 	status := c.Query("status")
 	name := c.Query("name")
 	typeFilter := c.Query("type")
+	orderByCreatedAt := c.Query("o_created_at")
+
+	if orderByCreatedAt != "" && orderByCreatedAt != "asc" && orderByCreatedAt != "desc" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid value for o_created_at"})
+		return
+	}
 	// fetch all the users based on parameters provided
 
 	if skip == "" {
@@ -59,7 +65,7 @@ func (p *profileManager) getRequest(c *gin.Context) {
 		return
 	}
 
-	res, err := p.fetchRequests.getMultipleRequest(c.Request.Context(), intSkip, intLimit, kcid, status, name, typeFilter)
+	res, err := p.fetchRequests.getMultipleRequest(c.Request.Context(), intSkip, intLimit, kcid, status, name, typeFilter, orderByCreatedAt)
 	if err != nil {
 		if errors.Is(err, errUserNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
