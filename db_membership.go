@@ -69,7 +69,10 @@ type orderDeleteRes struct {
 	Data int `json:"data"`
 }
 
-func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody emailKeycloakAndUserIDBody, authHeader string) error {
+// TODO: test all the scenarios
+// TODO: comment every step of the process
+// TODO: check the execution sequence
+func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody emailKeycloakAndUserIDBody, authHeader string) (userMembershipRes, error) {
 
 	var email string
 	var userID string
@@ -77,17 +80,17 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 
 	if evalBody.UserID != nil && *evalBody.UserID != "" {
 		if err := db.QueryRow(ctx, `SELECT primary_email, keycloak_id FROM users WHERE user_id=$1`, *evalBody.UserID).Scan(&email, &userKeycloakID); err != nil {
-			return fmt.Errorf("problem getting email from user_id: %w", err)
+			return userMembershipRes{}, fmt.Errorf("problem getting email from user_id: %w", err)
 		}
 		userID = *evalBody.UserID
 	} else if evalBody.KeycloakID != nil && *evalBody.KeycloakID != "" {
 		if err := db.QueryRow(ctx, `SELECT primary_email, user_id FROM users WHERE keycloak_id=$1`, *evalBody.KeycloakID).Scan(&email, &userID); err != nil {
-			return fmt.Errorf("problem getting email from keycloak_id: %w", err)
+			return userMembershipRes{}, fmt.Errorf("problem getting email from keycloak_id: %w", err)
 		}
 		userKeycloakID = *evalBody.KeycloakID
 	} else {
 		if err := db.QueryRow(ctx, `SELECT user_id, keycloak_id FROM users WHERE primary_email=$1`, *evalBody.Email).Scan(&userID, &userKeycloakID); err != nil {
-			return fmt.Errorf("problem getting user_id from email: %w", err)
+			return userMembershipRes{}, fmt.Errorf("problem getting user_id from email: %w", err)
 		}
 		email = *evalBody.Email
 	}
@@ -116,7 +119,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	*membershipInsertData.Year = currentYear
 
 	if email == "" {
-		return fmt.Errorf("user email not found")
+		return userMembershipRes{}, fmt.Errorf("no email found")
 	}
 
 	// check if user has any active request
@@ -124,7 +127,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	userRequests, userRequestsErr := db.getMultipleRequest(ctx, 0, 100, userKeycloakID, "", "", "hhmembership", "desc")
 
 	if userRequestsErr != nil {
-		return fmt.Errorf("problem getting user requests: %w", userRequestsErr)
+		return userMembershipRes{}, fmt.Errorf("problem getting user requests: %w", userRequestsErr)
 	}
 
 	if len(userRequests) != 0 {
@@ -140,7 +143,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	var orderDetailsRes orderRes
 	err := json.Unmarshal(orderDetails, &orderDetailsRes)
 	if err != nil {
-		return fmt.Errorf("error while unmarshalling order details: %w", err)
+		return userMembershipRes{}, fmt.Errorf("problem unmarshalling order details: %w", err)
 	}
 
 	// fetch user grant
@@ -148,7 +151,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 
 	if userGrantErr != nil {
 		if !errors.Is(userGrantErr, errUserNotFound) {
-			return fmt.Errorf("error while getting user grant: %w", userGrantErr)
+			return userMembershipRes{}, fmt.Errorf("problem getting user grant: %w", userGrantErr)
 		}
 	}
 
@@ -165,7 +168,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 		grantMemb, grantMembErr := db.getGrantMembershipByGrantID(ctx, *grantID)
 
 		if grantMembErr != nil {
-			return fmt.Errorf("error while getting grant membership: %w", grantMembErr)
+			return userMembershipRes{}, fmt.Errorf("problem getting grant membership: %w", grantMembErr)
 		}
 
 		grantMonthsGranted = grantMemb.Month
@@ -270,7 +273,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 				_, grantUpdateErr := db.Exec(ctx, `UPDATE "grant" SET cancelled_at=$1 WHERE id=$2`, time.Now(), *grantID)
 
 				if grantUpdateErr != nil {
-					return fmt.Errorf("error while updating grant: %w", grantUpdateErr)
+					return userMembershipRes{}, fmt.Errorf("problem updating grant: %w", grantUpdateErr)
 				}
 			} else {
 				currentMembership = "helphaver"
@@ -501,21 +504,13 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 		}
 	}
 
-	// TODO: calculate when the membership is inactive
-	// TODO: add integration for NEW & CANCELLED type of membership
-	// for cancelled we'll need to make sure to fetch all the orders of the users should be cancelled
-	// and no paid, success or nosuccess order exist for the user
+	userMembershipResponse, userMembershipResponseErr := db.getMembershipByUserID(ctx, userID, authHeader)
 
-	// for new we need to make sure that sure should not have any paid, cancelled, success or nosuccess order
-	// need to also check user should not be in special membership & should not have any active grant
-	// TODO: implement notification
-	// check ticket for notification implementation
-	// TODO: extra json for detailed part
+	if userMembershipResponseErr != nil {
+		fmt.Printf("error while getting membership by user id: %+v", userMembershipResponseErr)
+	}
 
-	// if membershipInsertData.Type == "manual" && membershipInsertData.Expiry.Before(time.Now().AddDate(0, 0, 60)) {
-
-	return nil
-
+	return userMembershipResponse, nil
 }
 
 func (db *pgProfileDB) createMembership(ctx context.Context, req membership) (int, error) {

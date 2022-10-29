@@ -20,7 +20,7 @@ type membershipInterface interface {
 	softDeleteMembershipByID(ctx context.Context, id int) error
 	cancelMembership(ctx context.Context, body emailKeycloakAndUserIDBody, authHeader string) (int, int, int, error)
 	getAutomaticMembershipByMembershipID(ctx context.Context, membershipID int) (membershipAutomatic, error)
-	evaluateMembershipByUserID(ctx context.Context, evalbody emailKeycloakAndUserIDBody, authHeader string) error
+	evaluateMembershipByUserID(ctx context.Context, evalbody emailKeycloakAndUserIDBody, authHeader string) (userMembershipRes, error)
 }
 
 type membership struct {
@@ -295,7 +295,7 @@ func (p *profileManager) handleMembershipEvaluationByUserID(c *gin.Context) {
 
 	authHeader := c.GetHeader("Authorization")
 
-	evaluateErr := p.membership.evaluateMembershipByUserID(c.Request.Context(), evalbody, authHeader)
+	userMembershipRes, evaluateErr := p.membership.evaluateMembershipByUserID(c.Request.Context(), evalbody, authHeader)
 
 	if evaluateErr != nil {
 		c.Status(http.StatusInternalServerError)
@@ -303,7 +303,7 @@ func (p *profileManager) handleMembershipEvaluationByUserID(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Evaluated!"})
+	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Evaluated!", "data": userMembershipRes})
 }
 
 func (p *profileManager) handleMembershipSoftDeleteByID(c *gin.Context) {
