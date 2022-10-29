@@ -95,7 +95,6 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	var membershipInsertData membership
 	var currentMembership string
 	var latestGrantCreatedAt *time.Time
-	var latestGrantUpdatedAt *time.Time
 	var latestOrderTime *time.Time
 	var latestOrderPaymentID *int
 	var latestOrderPaymentStatus string
@@ -122,7 +121,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 
 	// check if user has any active request
 
-	userRequests, userRequestsErr := db.getMultipleRequest(ctx, 0, 100, userKeycloakID, "", "", "helphaver", "desc") // check what should be the name filter from yasha ?
+	userRequests, userRequestsErr := db.getMultipleRequest(ctx, 0, 100, userKeycloakID, "", "", "hhmembership", "desc")
 
 	if userRequestsErr != nil {
 		return fmt.Errorf("problem getting user requests: %w", userRequestsErr)
@@ -172,7 +171,6 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 		grantMonthsGranted = grantMemb.Month
 
 		latestGrantCreatedAt = grantMemb.CreatedAt
-		latestGrantUpdatedAt = grantMemb.UpdatedAt
 	}
 
 	if len(orderDetailsRes.Data) != 0 {
@@ -191,7 +189,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 		} else {
 			// latest order
 			latestOrder = orderDetailsRes.Data[0]
-			latestOrderTime = &latestOrder.PaymentDate // Check with Yasha if it should be created_at
+			latestOrderTime = &latestOrder.PaymentDate
 
 			if latestOrder.Type == "recurring" {
 				currentMembership = "automatic"
@@ -297,7 +295,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 		}
 	}
 
-	if membershipInsertData.Expiry == nil || membershipInsertData.Expiry.Before(time.Now()) { // check with Yasha
+	if membershipInsertData.Expiry == nil || membershipInsertData.Expiry.Before(time.Now()) {
 		specialMembDetailUrl := getServerUrl() + "/pay/v2/special/" + email
 
 		speMemDetails, statusCode := utils.HTTPCallAndGetBody(specialMembDetailUrl, authHeader, nil, "GET")
@@ -326,11 +324,10 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	}
 
 	// check currentMembership is cancelled
-	if allOrderCancelled || latestGrantCancelled { // check with Yasha if we have to use OR or AND operation
+	if allOrderCancelled || latestGrantCancelled {
 		currentMembership = "cancelled"
 	}
 
-	// check with Yash if we have to also consider grant request before marking the membership as new
 	if len(userGrant) == 0 && !userInSpecialTable && len(orderDetailsRes.Data) == 0 {
 		currentMembership = "new"
 	}
@@ -414,7 +411,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 		_, helphaverErr := db.createHelpHaverMembership(ctx, membershipHelpHaver{
 			MembershipID: &membershipID,
 			GrantID:      grantID,
-			NbMonths:     grantMonthsGranted, // check with Yasha what should be the value here
+			NbMonths:     grantMonthsGranted,
 		})
 
 		if helphaverErr != nil {
@@ -433,62 +430,73 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	}
 
 	// add user notification
-	var notificationSlug string
+	var notificationSlugs []string
 	if currentMembership == "automatic" || currentMembership == "manual" ||
 		currentMembership == "cancelled" || currentMembership == "new" {
 
 		if currentMembership == "automatic" && latestOrderPaymentStatus == "nosuccess" {
-			notificationSlug = "mb_problem_previous_payment"
+			notificationSlugs = append(notificationSlugs, "mb_problem_previous_payment")
 		}
 
 		if currentMembership == "manual" && time.Now().After(*membershipInsertData.Expiry) {
-			notificationSlug = "mb_expiration_notice"
+			notificationSlugs = append(notificationSlugs, "mb_expiration_notice")
+
 		}
 
 		if currentMembership == "cancelled" {
-			notificationSlug = "mb_cancelled"
+			notificationSlugs = append(notificationSlugs, "mb_cancelled")
 		}
 
 		if currentMembership == "new" {
-			notificationSlug = "mb_new"
+			notificationSlugs = append(notificationSlugs, "mb_new")
 		}
 	}
 
 	if len(userRequests) != 0 && latestRequest.ID != nil {
 		if *latestRequest.Status == "REQUESTED" {
-			notificationSlug = "hh_request_received"
+			notificationSlugs = append(notificationSlugs, "hh_request_received")
 		}
 
 		if latestGrantCreatedAt != nil {
 			// status approved and latestGrantCreatedAt is less than a week old
 			if *latestRequest.Status == "APPROVED" && latestGrantCreatedAt.After(time.Now().AddDate(0, 0, -7)) {
-				notificationSlug = "hh_request_approved"
+				notificationSlugs = append(notificationSlugs, "hh_request_approved")
 			}
 
-			if *latestRequest.Status == "DENIED" && latestGrantUpdatedAt.After(time.Now().AddDate(0, 0, -7)) {
-				notificationSlug = "hh_request_refused"
+			// status rejected and latestRequest.UpdatedAt is less than a week old
+			if *latestRequest.Status == "DENIED" && latestRequest.UpdatedAt.After(time.Now().AddDate(0, 0, -7)) {
+				notificationSlugs = append(notificationSlugs, "hh_request_refused")
 			}
 		}
 
 	}
 
 	// add user notification if slug is not empty
-	if notificationSlug != "" {
-		parentNotificationData, parentNotificationErr := db.getNotificationBySlug(ctx, notificationSlug)
+	if len(notificationSlugs) != 0 {
+		updateAllUserNotificationToInactiveErr := db.updateAllUserNotificationToInactive(ctx, userID)
 
-		if parentNotificationErr != nil {
-			fmt.Printf("error while getting parent notification: %+v", parentNotificationErr)
-		} else {
-			boolTrue := true
-			userNotificationErr := db.createUserNotification(ctx, userNotification{
-				UserID:         &userID,
-				NotificationID: parentNotificationData.ID,
-				Active:         &boolTrue,
-				SeenAt:         nil,
-			})
+		if updateAllUserNotificationToInactiveErr != nil {
+			fmt.Printf("error while updating all user notification to inactive: %+v", updateAllUserNotificationToInactiveErr)
+		}
 
-			if userNotificationErr != nil {
-				fmt.Printf("error while creating notification: %+v", userNotificationErr)
+		// loop through all the slugs and add notification
+		for _, slug := range notificationSlugs {
+			parentNotificationData, parentNotificationErr := db.getNotificationBySlug(ctx, slug)
+
+			if parentNotificationErr != nil {
+				fmt.Printf("error while getting parent notification: %+v", parentNotificationErr)
+			} else {
+				boolTrue := true
+				userNotificationErr := db.createUserNotification(ctx, userNotification{
+					UserID:         &userID,
+					NotificationID: parentNotificationData.ID,
+					Active:         &boolTrue,
+					SeenAt:         nil,
+				})
+
+				if userNotificationErr != nil {
+					fmt.Printf("error while creating notification: %+v", userNotificationErr)
+				}
 			}
 		}
 	}
@@ -503,8 +511,6 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	// TODO: implement notification
 	// check ticket for notification implementation
 	// TODO: extra json for detailed part
-
-	// TODO: check with Yasha when to set the notification status to inactive
 
 	// if membershipInsertData.Type == "manual" && membershipInsertData.Expiry.Before(time.Now().AddDate(0, 0, 60)) {
 

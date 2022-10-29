@@ -68,6 +68,19 @@ func (db *pgProfileDB) createUserNotification(ctx context.Context, req userNotif
 	}
 }
 
+func (db *pgProfileDB) updateAllUserNotificationToInactive(ctx context.Context, userID string) error {
+	_, err := db.Exec(ctx, `
+		UPDATE user_notification
+		SET active = false
+		WHERE user_id = $1
+		`, userID)
+	if err != nil {
+		return fmt.Errorf("problem updating user notification: %w", err)
+	}
+
+	return nil
+}
+
 // fetch user notifiction id by slug
 func (db *pgProfileDB) getNotificationBySlug(ctx context.Context, slug string) (notificationRes, error) {
 
