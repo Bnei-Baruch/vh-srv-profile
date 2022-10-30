@@ -14,7 +14,7 @@ import (
 
 type grantInterface interface {
 	getGrantByIDAndUserID(ctx context.Context, id int, userID string) (grantRes, error)
-	getMultipleGrant(ctx context.Context, intSkip int, intLimit int) ([]grantRes, error)
+	getMultipleGrant(ctx context.Context, intSkip int, intLimit int, boolCancelled *bool, userID string, grantType string, createdAt string) ([]grantRes, error)
 	createGrant(ctx context.Context, grant grantAndGrantMembership) (int, error)
 	patchGrant(ctx context.Context, grant grant, id int) error
 	softDeleteGrantByID(ctx context.Context, id int) error
@@ -34,7 +34,7 @@ type grantMembeshipRes struct {
 	ID        *int       `json:"id"`
 	CreatedAt *time.Time `json:"created_at"`
 	UpdatedAt *time.Time `json:"updated_at"`
-	DeleteAt  *time.Time `json:"delete_at"`
+	DeletedAt *time.Time `json:"delete_at"`
 }
 
 type grantAndGrantMembership struct {
@@ -191,6 +191,21 @@ func (p *profileManager) handleGrantFetchAll(c *gin.Context) {
 
 	skip := c.Query("skip")
 	limit := c.Query("limit")
+	cancelled := c.Query("cancelled")
+	userID := c.Query("user_id")
+	grantType := c.Query("type")
+	createdAt := c.Query("created_at")
+	var boolCancelled *bool
+	var boolCancelledErr error
+
+	// check if cancelled is boolean
+	if cancelled != "" {
+		*boolCancelled, boolCancelledErr = strconv.ParseBool(cancelled)
+		if boolCancelledErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid cancelled"})
+			return
+		}
+	}
 
 	if skip == "" {
 		skip = "0"
@@ -213,7 +228,7 @@ func (p *profileManager) handleGrantFetchAll(c *gin.Context) {
 		return
 	}
 
-	res, err := p.grant.getMultipleGrant(c.Request.Context(), intSkip, intLimit)
+	res, err := p.grant.getMultipleGrant(c.Request.Context(), intSkip, intLimit, boolCancelled, userID, grantType, createdAt)
 	if err != nil {
 		if errors.Is(err, errUserNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})

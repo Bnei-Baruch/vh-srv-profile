@@ -15,11 +15,12 @@ import (
 type membershipInterface interface {
 	getMembershipByID(ctx context.Context, id int) (membershipRes, error)
 	getMembershipByUserID(ctx context.Context, userID string, authHeader string) (userMembershipRes, error)
-	getMultipleMembership(ctx context.Context, intSkip int, intLimit int) ([]membershipRes, error)
+	getMultipleMembership(ctx context.Context, intSkip int, intLimit int, month int, year int, userID string) ([]membershipRes, error)
 	patchMembershipByID(ctx context.Context, membership membership, id int) error
 	softDeleteMembershipByID(ctx context.Context, id int) error
-	cancelMembership(ctx context.Context, body membershipCancellationBody, authHeader string) (int, int, int, error)
+	cancelMembership(ctx context.Context, body emailKeycloakAndUserIDBody, authHeader string) (int, int, int, error)
 	getAutomaticMembershipByMembershipID(ctx context.Context, membershipID int) (membershipAutomatic, error)
+	evaluateMembershipByUserID(ctx context.Context, evalbody emailKeycloakAndUserIDBody, authHeader string) (userMembershipRes, error)
 }
 
 type membership struct {
@@ -50,8 +51,14 @@ type membershipSpecial struct {
 }
 
 type membershipManual struct {
-	membershipAutomatic
-	Quantity *int `json:"quantity`
+	ID           *int       `json:"id"`
+	OrderID      *int       `json:"order_id"`
+	PaymentID    *int       `json:"payment_id"`
+	MembershipID *int       `json:"membership_id"`
+	CreatedAt    *time.Time `json:"created_at"`
+	UpdatedAt    *time.Time `json:"updated_at"`
+	DeletedAt    *time.Time `json:"deleted_at"`
+	Quantity     *int       `json:"quantity`
 }
 
 type membershipHelpHaver struct {
@@ -64,7 +71,7 @@ type membershipHelpHaver struct {
 	DeletedAt    *time.Time `json:"deleted_at"`
 }
 
-type membershipCancellationBody struct {
+type emailKeycloakAndUserIDBody struct {
 	Email      *string `json:"email"`
 	KeycloakID *string `json:"keycloak_id"`
 	UserID     *string `json:"user_id"`
@@ -81,6 +88,15 @@ type userNotificationRes struct {
 	ID *int `json:"id"`
 	userNotification
 	Slug      *string    `json:"slug"`
+	CreatedAt *time.Time `json:"created_at"`
+	UpdatedAt *time.Time `json:"updated_at"`
+	DeletedAt *time.Time `json:"deleted_at"`
+}
+
+type notificationRes struct {
+	ID        *int       `json:"id"`
+	Slug      *string    `json:"slug"`
+	Content   *string    `json:"content"`
 	CreatedAt *time.Time `json:"created_at"`
 	UpdatedAt *time.Time `json:"updated_at"`
 	DeletedAt *time.Time `json:"deleted_at"`
@@ -208,7 +224,7 @@ func (p *profileManager) handleMembershipPatchByID(c *gin.Context) {
 }
 
 func (p *profileManager) handleMembershipCancellation(c *gin.Context) {
-	var membCancel membershipCancellationBody
+	var membCancel emailKeycloakAndUserIDBody
 
 	if err := c.ShouldBindJSON(&membCancel); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -255,6 +271,41 @@ func (p *profileManager) handleMembershipCancellation(c *gin.Context) {
 	}})
 }
 
+func (p *profileManager) handleMembershipEvaluationByUserID(c *gin.Context) {
+	// userID := c.Param("user_id")
+
+	// check if userID is a valid uuid
+	// _, err := uuid.FromString(userID)
+	// if err != nil {
+	// 	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	// 	return
+	// }
+
+	var evalbody emailKeycloakAndUserIDBody
+
+	if err := c.ShouldBindJSON(&evalbody); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if evalbody.UserID == nil && evalbody.KeycloakID == nil && evalbody.Email == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body ( at least one of email, keycloak_id or user_id is required )"})
+		return
+	}
+
+	authHeader := c.GetHeader("Authorization")
+
+	userMembershipRes, evaluateErr := p.membership.evaluateMembershipByUserID(c.Request.Context(), evalbody, authHeader)
+
+	if evaluateErr != nil {
+		c.Status(http.StatusInternalServerError)
+		_ = c.Error(fmt.Errorf("error while evaluating membership: %w", evaluateErr))
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Evaluated!", "data": userMembershipRes})
+}
+
 func (p *profileManager) handleMembershipSoftDeleteByID(c *gin.Context) {
 
 	id := c.Param("id")
@@ -289,6 +340,32 @@ func (p *profileManager) handleMembershipFetchAll(c *gin.Context) {
 
 	skip := c.Query("skip")
 	limit := c.Query("limit")
+	month := c.Query("month")
+	year := c.Query("year")
+	userID := c.Query("user_id")
+
+	var (
+		monthInt     int
+		yearInt      int
+		monthYearErr error
+	)
+
+	// month and year to int
+	if month != "" {
+		monthInt, monthYearErr = strconv.Atoi(month)
+		if monthYearErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid month"})
+			return
+		}
+	}
+
+	if year != "" {
+		yearInt, monthYearErr = strconv.Atoi(year)
+		if monthYearErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid year"})
+			return
+		}
+	}
 
 	if skip == "" {
 		skip = "0"
@@ -311,7 +388,7 @@ func (p *profileManager) handleMembershipFetchAll(c *gin.Context) {
 		return
 	}
 
-	res, err := p.membership.getMultipleMembership(c.Request.Context(), intSkip, intLimit)
+	res, err := p.membership.getMultipleMembership(c.Request.Context(), intSkip, intLimit, monthInt, yearInt, userID)
 	if err != nil {
 		if errors.Is(err, errUserNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})

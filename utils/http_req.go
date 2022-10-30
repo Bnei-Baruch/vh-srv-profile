@@ -7,7 +7,7 @@ import (
 	"net/http"
 )
 
-func HTTPCallAndGetBody(fullUrl string, authHeader string, bodyBuffer *bytes.Buffer, typeOfReq string) []byte {
+func HTTPCallAndGetBody(fullUrl string, authHeader string, bodyBuffer *bytes.Buffer, typeOfReq string) ([]byte, int) {
 
 	// Send req using http Client
 	client := &http.Client{}
@@ -39,7 +39,7 @@ func HTTPCallAndGetBody(fullUrl string, authHeader string, bodyBuffer *bytes.Buf
 	// To avoid memory leak if the connection is left open
 	defer resp.Body.Close()
 
-	fmt.Println("response Status:", resp.Status)
+	fmt.Println("response Status:", resp.StatusCode)
 
 	// Read all the data until EOF as byte
 	body, err := io.ReadAll(resp.Body)
@@ -48,5 +48,5 @@ func HTTPCallAndGetBody(fullUrl string, authHeader string, bodyBuffer *bytes.Buf
 		fmt.Println("Error while parsing the body ::", err)
 	}
 
-	return body
+	return body, resp.StatusCode
 }

@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,17 +20,22 @@ type MessageAndSuccess struct {
 }
 
 type order struct {
-	ID          int    `json:"ID"`
-	Status      string `json:"Status"`
-	ProductType string `json:"ProductType"`
+	ID          int       `json:"ID"`
+	Status      string    `json:"Status"`
+	ProductType string    `json:"ProductType"`
+	PaymentDate time.Time `json:"PaymentDate"`
+	Type        string    `json:"type"`
+	Quantity    int       `json:"Quantity"`
 }
 
 type payment struct {
+	ID            int       `json:"ID"`
 	Amount        int       `json:"Amount"`
 	DebitCurrency string    `json:"DebitCurrency"`
 	CCNumber      string    `json:"CCNumber"`
 	PaymentStatus string    `json:"PaymentStatus"`
 	CreatedAt     time.Time `json:"created_at"`
+	Status        string    `json:"Status"`
 }
 
 type special struct {
@@ -47,6 +54,11 @@ type paymentRes struct {
 	Data payment `json:"data"`
 }
 
+type multiplePaymentRes struct {
+	MessageAndSuccess
+	Data []payment `json:"data"`
+}
+
 type orderRes struct {
 	MessageAndSuccess
 	Data []order `json:"data"`
@@ -55,6 +67,694 @@ type orderRes struct {
 type orderDeleteRes struct {
 	MessageAndSuccess
 	Data int `json:"data"`
+}
+
+// TODO: test all the scenarios
+// TODO: comment every step of the process
+// TODO: check the execution sequence
+func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody emailKeycloakAndUserIDBody, authHeader string) (userMembershipRes, error) {
+
+	var email string
+	var userID string
+	var userKeycloakID string
+
+	// fetch email, userID and userKeycloakID from the database if not available in the request body
+	if evalBody.UserID != nil && *evalBody.UserID != "" {
+		if err := db.QueryRow(ctx, `SELECT primary_email, keycloak_id FROM users WHERE user_id=$1`, *evalBody.UserID).Scan(&email, &userKeycloakID); err != nil {
+			return userMembershipRes{}, fmt.Errorf("problem getting email from user_id: %w", err)
+		}
+		userID = *evalBody.UserID
+	} else if evalBody.KeycloakID != nil && *evalBody.KeycloakID != "" {
+		if err := db.QueryRow(ctx, `SELECT primary_email, user_id FROM users WHERE keycloak_id=$1`, *evalBody.KeycloakID).Scan(&email, &userID); err != nil {
+			return userMembershipRes{}, fmt.Errorf("problem getting email from keycloak_id: %w", err)
+		}
+		userKeycloakID = *evalBody.KeycloakID
+	} else {
+		if err := db.QueryRow(ctx, `SELECT user_id, keycloak_id FROM users WHERE primary_email=$1`, *evalBody.Email).Scan(&userID, &userKeycloakID); err != nil {
+			return userMembershipRes{}, fmt.Errorf("problem getting user_id from email: %w", err)
+		}
+		email = *evalBody.Email
+	}
+
+	var membershipInsertData membership
+	var currentMembership string
+	var latestGrantCreatedAt *time.Time
+	var latestOrderTime *time.Time
+	var latestOrderPaymentID *int
+	var latestOrderPaymentStatus string
+	var grantID *int
+	var latestOrder order
+	var grantMonthsGranted *int
+	var allOrderCancelled bool
+	var latestGrantCancelled bool
+	var userInSpecialTable bool
+	var latestRequest requestResponse
+
+	var orderStartingDate time.Time
+	var previousStartingDate time.Time
+	var previousOrderQuantity int
+	currentMonth := int(time.Now().Month())
+	currentYear := time.Now().Year()
+
+	*membershipInsertData.Month = currentMonth
+	*membershipInsertData.Year = currentYear
+
+	// if not email exit
+	if email == "" {
+		return userMembershipRes{}, fmt.Errorf("no email found")
+	}
+
+	// check if user has any active request
+	userRequests, userRequestsErr := db.getMultipleRequest(ctx, 0, 100, userKeycloakID, "", "", "hhmembership", "desc")
+
+	if userRequestsErr != nil {
+		return userMembershipRes{}, fmt.Errorf("problem getting user requests: %w", userRequestsErr)
+	}
+
+	if len(userRequests) != 0 {
+		// latest request of the user
+		latestRequest = userRequests[0]
+	}
+
+	// fetch all the order of the user ( limit 100 as of now )
+	userOrderDetails := getServerUrl() + "/pay/v2/orders?email=" + email + "&product-type=globalmembership&limit=100&evaluate-membership=true&o-payment-date=desc"
+
+	orderDetails, _ := utils.HTTPCallAndGetBody(userOrderDetails, authHeader, nil, "GET")
+
+	// unmarshal order details
+	var orderDetailsRes orderRes
+	err := json.Unmarshal(orderDetails, &orderDetailsRes)
+	if err != nil {
+		return userMembershipRes{}, fmt.Errorf("problem unmarshalling order details: %w", err)
+	}
+
+	// fetch user grant if any
+	userGrant, userGrantErr := db.getMultipleGrant(ctx, 0, 100, nil, userID, "helphaver", "desc")
+
+	if userGrantErr != nil {
+		if !errors.Is(userGrantErr, errUserNotFound) {
+			return userMembershipRes{}, fmt.Errorf("problem getting user grant: %w", userGrantErr)
+		}
+	}
+
+	if len(userGrant) != 0 {
+		// access the latest grant of the user
+		latestGrant := userGrant[0]
+		grantID = latestGrant.ID
+
+		// check if the latest grant is cancelled to check if the user membership is cancellled
+		if latestGrant.CancelledAt != nil {
+			latestGrantCancelled = true
+		}
+
+		// fetch grant membership based on grant ID
+		grantMemb, grantMembErr := db.getGrantMembershipByGrantID(ctx, *grantID)
+
+		if grantMembErr != nil {
+			return userMembershipRes{}, fmt.Errorf("problem getting grant membership: %w", grantMembErr)
+		}
+
+		// set number of months granted to the user
+		grantMonthsGranted = grantMemb.Month
+
+		latestGrantCreatedAt = grantMemb.CreatedAt
+	}
+
+	if len(orderDetailsRes.Data) != 0 {
+
+		// count number of cancelled order in orderDetailsRes.Data
+		var cancelledOrderCount int
+		for _, order := range orderDetailsRes.Data {
+			if order.Status == "cancelled" {
+				cancelledOrderCount++
+			}
+		}
+
+		// if all orders are cancelled, then current membership is cancelled
+		if cancelledOrderCount != 0 && cancelledOrderCount == len(orderDetailsRes.Data) {
+			allOrderCancelled = true
+		} else {
+			// latest order
+			latestOrder = orderDetailsRes.Data[0]
+			latestOrderTime = &latestOrder.PaymentDate
+
+			if latestOrder.Type == "recurring" {
+				currentMembership = "automatic"
+			} else {
+				currentMembership = "manual"
+			}
+
+			// fetch latest order payment id
+
+			// Get payment details from order service
+			paymentDetails, _ := utils.HTTPCallAndGetBody(getServerUrl()+"/pay/v2/payments?order-id="+fmt.Sprint(latestOrder.ID), authHeader, nil, "GET")
+
+			// unmarshal payment details
+			var paymentDetailRes multiplePaymentRes
+			paymentResErr := json.Unmarshal(paymentDetails, &paymentDetailRes)
+			if paymentResErr != nil {
+				fmt.Printf("error while unmarshalling payment details: %v", paymentResErr)
+			}
+
+			if len(paymentDetailRes.Data) == 0 {
+				fmt.Printf("payment details not found for order id: %v", latestOrder.ID)
+				// set latestOrderPaymentID as -1
+				latestOrderPaymentID = new(int)
+				*latestOrderPaymentID = -1
+			} else {
+				latestOrderPaymentID = &paymentDetailRes.Data[0].ID
+				latestOrderPaymentStatus = paymentDetailRes.Data[0].Status
+			}
+
+			// Regular & Recurring paid order
+			for i := len(orderDetailsRes.Data) - 1; i >= 0; i-- {
+
+				// first order
+				if i == len(orderDetailsRes.Data)-1 {
+					orderStartingDate = orderDetailsRes.Data[i].PaymentDate
+					previousStartingDate = orderStartingDate
+					if orderDetailsRes.Data[i].Quantity != 0 {
+						previousOrderQuantity = orderDetailsRes.Data[i].Quantity
+					} else {
+						previousOrderQuantity = 1
+					}
+				} else {
+					if orderDetailsRes.Data[i].PaymentDate.Before(previousStartingDate.AddDate(0, 0, 30*previousOrderQuantity)) {
+						orderStartingDate = previousStartingDate.AddDate(0, 0, 30*previousOrderQuantity)
+						previousStartingDate = orderStartingDate
+						previousOrderQuantity = orderDetailsRes.Data[i].Quantity
+					} else {
+						orderStartingDate = orderDetailsRes.Data[i].PaymentDate
+						previousStartingDate = orderStartingDate
+						previousOrderQuantity = orderDetailsRes.Data[i].Quantity
+					}
+				}
+				// update order via http call
+				orderID := strconv.Itoa(orderDetailsRes.Data[i].ID)
+				cancelOrder := getServerUrl() + "/pay/v2/order/" + orderID
+
+				postBody, _ := json.Marshal(map[string]interface{}{
+					"StartingDate": orderStartingDate,
+				})
+
+				buffPostBody := bytes.NewBuffer(postBody)
+
+				_, resStatusCode := utils.HTTPCallAndGetBody(cancelOrder, authHeader, buffPostBody, "PATCH")
+
+				if resStatusCode != 200 {
+					fmt.Printf("error while updating order starting date: %v", resStatusCode)
+					fmt.Printf("order id: %v", orderDetailsRes.Data[i].ID)
+				}
+			}
+
+		}
+	}
+
+	if latestGrantCreatedAt != nil {
+		if latestOrderTime != nil {
+			if latestOrderTime.After(*latestGrantCreatedAt) {
+				// update user grant cancelled_at to now
+				_, grantUpdateErr := db.Exec(ctx, `UPDATE "grant" SET cancelled_at=$1 WHERE id=$2`, time.Now(), *grantID)
+
+				if grantUpdateErr != nil {
+					return userMembershipRes{}, fmt.Errorf("problem updating grant: %w", grantUpdateErr)
+				}
+			} else {
+				currentMembership = "helphaver"
+			}
+		} else {
+			currentMembership = "helphaver"
+		}
+	}
+
+	if currentMembership == "automatic" || currentMembership == "manual" {
+		*membershipInsertData.Expiry = previousStartingDate.AddDate(0, 0, 30*previousOrderQuantity)
+	} else if currentMembership == "helphaver" {
+		// TODO: add integration of extra manual payment after grant is over
+		userMonthsUsed, userMonthsUsedErr := db.getNumberOfGrantMonthsUsedByGrantID(ctx, *grantID)
+
+		if userMonthsUsedErr != nil {
+			fmt.Printf("error while getting user months used: %+v", userMonthsUsedErr)
+		} else {
+			userTotalMonthsLeft := *grantMonthsGranted - userMonthsUsed
+
+			*membershipInsertData.Expiry = time.Now().AddDate(0, 0, 30*userTotalMonthsLeft)
+		}
+	}
+
+	if membershipInsertData.Expiry == nil || membershipInsertData.Expiry.Before(time.Now()) {
+		specialMembDetailUrl := getServerUrl() + "/pay/v2/special/" + email
+
+		speMemDetails, statusCode := utils.HTTPCallAndGetBody(specialMembDetailUrl, authHeader, nil, "GET")
+
+		if statusCode == 200 {
+			// unmarshal payment details
+			var speRes specialRes
+			speResErr := json.Unmarshal(speMemDetails, &speRes)
+			if speResErr != nil {
+				fmt.Printf("error while unmarshalling special membership details: %+v", speResErr)
+			} else {
+				if speRes.Data.Email == email {
+					userInSpecialTable = true
+					currentMembership = "special"
+					*membershipInsertData.Active = true
+					*membershipInsertData.Type = "special"
+					membershipInsertData.Expiry = nil
+				}
+			}
+		} else if statusCode == 404 {
+			userInSpecialTable = false
+		} else {
+			fmt.Printf("error while getting special membership details: %+v", statusCode)
+		}
+
+	}
+
+	// check currentMembership is cancelled
+	if allOrderCancelled || latestGrantCancelled {
+		currentMembership = "cancelled"
+	}
+
+	if len(userGrant) == 0 && !userInSpecialTable && len(orderDetailsRes.Data) == 0 {
+		currentMembership = "new"
+	}
+
+	membershipInsertData.Type = &currentMembership
+
+	// check if user has an existing membership of the current month and year
+	userMemb, userMembErr := db.getMultipleMembership(ctx, 0, 100, currentMonth, currentYear, userID)
+
+	if userMembErr != nil {
+		fmt.Printf("error while getting user membership: %+v", userMembErr)
+	}
+
+	// check if the membership is Active and Inactive
+	if currentMembership != "special" {
+		// check if expiry date is 60 days in past
+		if membershipInsertData.Expiry != nil {
+			if membershipInsertData.Expiry.Before(time.Now().AddDate(0, 0, -60)) {
+				*membershipInsertData.Active = false
+			} else {
+				*membershipInsertData.Active = true
+			}
+		}
+	} else {
+		*membershipInsertData.Active = true
+	}
+
+	var (
+		membershipID  int
+		insertMembErr error
+	)
+
+	if len(userMemb) == 0 {
+		// insert membership
+		membershipID, insertMembErr = db.createMembership(ctx, membershipInsertData)
+
+		if insertMembErr != nil {
+			fmt.Printf("error while inserting membership: %+v", insertMembErr)
+		}
+
+		// remove all the prvious sub memberships entries as they'll be added again ( latest will be added )
+		deleteAllMembershipSubTableErr := db.deleteAllMembershipSubTableByMembershipID(ctx, membershipID)
+
+		if deleteAllMembershipSubTableErr != nil {
+			fmt.Printf("error while deleting all membership sub table: %+v", deleteAllMembershipSubTableErr)
+		}
+	} else {
+		// update membership
+		updateMembErr := db.patchMembershipByID(ctx, membershipInsertData, *userMemb[0].ID)
+
+		if updateMembErr != nil {
+			fmt.Printf("error while updating membership: %+v", updateMembErr)
+		}
+
+	}
+
+	if currentMembership == "automatic" {
+		_, automaticErr := db.createAutomaticMembership(ctx, membershipAutomatic{
+			MembershipID: &membershipID,
+			OrderID:      &latestOrder.ID,
+			PaymentID:    latestOrderPaymentID,
+		})
+
+		if automaticErr != nil {
+			fmt.Printf("error while creating automatic membership with membership id: %v", membershipID)
+			fmt.Printf("error: %v", automaticErr)
+		}
+	} else if currentMembership == "manual" {
+		_, manualErr := db.createManualMembership(ctx, membershipManual{
+			MembershipID: &membershipID,
+			OrderID:      &latestOrder.ID,
+			PaymentID:    latestOrderPaymentID,
+			Quantity:     &latestOrder.Quantity,
+		})
+
+		if manualErr != nil {
+			fmt.Printf("error while creating manual membership with membership id: %v", membershipID)
+			fmt.Printf("error: %v", manualErr)
+		}
+	} else if currentMembership == "helphaver" {
+		_, helphaverErr := db.createHelpHaverMembership(ctx, membershipHelpHaver{
+			MembershipID: &membershipID,
+			GrantID:      grantID,
+			NbMonths:     grantMonthsGranted,
+		})
+
+		if helphaverErr != nil {
+			fmt.Printf("error while creating helphaver membership with membership id: %v", membershipID)
+			fmt.Printf("error: %v", helphaverErr)
+		}
+	} else if currentMembership == "special" {
+		_, specialErr := db.createSpecialMembership(ctx, membershipSpecial{
+			MembershipID: &membershipID,
+		})
+
+		if specialErr != nil {
+			fmt.Printf("error while creating special membership with membership id: %v", membershipID)
+			fmt.Printf("error: %v", specialErr)
+		}
+	}
+
+	// add user notification
+	var notificationSlugs []string
+	if currentMembership == "automatic" || currentMembership == "manual" ||
+		currentMembership == "cancelled" || currentMembership == "new" {
+
+		if currentMembership == "automatic" && latestOrderPaymentStatus == "nosuccess" {
+			notificationSlugs = append(notificationSlugs, "mb_problem_previous_payment")
+		}
+
+		if currentMembership == "manual" && time.Now().After(*membershipInsertData.Expiry) {
+			notificationSlugs = append(notificationSlugs, "mb_expiration_notice")
+
+		}
+
+		if currentMembership == "cancelled" {
+			notificationSlugs = append(notificationSlugs, "mb_cancelled")
+		}
+
+		if currentMembership == "new" {
+			notificationSlugs = append(notificationSlugs, "mb_new")
+		}
+	}
+
+	if len(userRequests) != 0 && latestRequest.ID != nil {
+		if *latestRequest.Status == "REQUESTED" {
+			notificationSlugs = append(notificationSlugs, "hh_request_received")
+		}
+
+		if latestGrantCreatedAt != nil {
+			// status approved and latestGrantCreatedAt is less than a week old
+			if *latestRequest.Status == "APPROVED" && latestGrantCreatedAt.After(time.Now().AddDate(0, 0, -7)) {
+				notificationSlugs = append(notificationSlugs, "hh_request_approved")
+			}
+
+			// status rejected and latestRequest.UpdatedAt is less than a week old
+			if *latestRequest.Status == "DENIED" && latestRequest.UpdatedAt.After(time.Now().AddDate(0, 0, -7)) {
+				notificationSlugs = append(notificationSlugs, "hh_request_refused")
+			}
+		}
+
+	}
+
+	// add user notification if slug is not empty
+	if len(notificationSlugs) != 0 {
+		updateAllUserNotificationToInactiveErr := db.updateAllUserNotificationToInactive(ctx, userID)
+
+		if updateAllUserNotificationToInactiveErr != nil {
+			fmt.Printf("error while updating all user notification to inactive: %+v", updateAllUserNotificationToInactiveErr)
+		}
+
+		// loop through all the slugs and add notification
+		for _, slug := range notificationSlugs {
+			parentNotificationData, parentNotificationErr := db.getNotificationBySlug(ctx, slug)
+
+			if parentNotificationErr != nil {
+				fmt.Printf("error while getting parent notification: %+v", parentNotificationErr)
+			} else {
+				boolTrue := true
+				userNotificationErr := db.createUserNotification(ctx, userNotification{
+					UserID:         &userID,
+					NotificationID: parentNotificationData.ID,
+					Active:         &boolTrue,
+					SeenAt:         nil,
+				})
+
+				if userNotificationErr != nil {
+					fmt.Printf("error while creating notification: %+v", userNotificationErr)
+				}
+			}
+		}
+	}
+
+	userMembershipResponse, userMembershipResponseErr := db.getMembershipByUserID(ctx, userID, authHeader)
+
+	if userMembershipResponseErr != nil {
+		fmt.Printf("error while getting membership by user id: %+v", userMembershipResponseErr)
+	}
+
+	return userMembershipResponse, nil
+}
+
+func (db *pgProfileDB) createMembership(ctx context.Context, req membership) (int, error) {
+
+	var ID int
+
+	createString, numString, createQueryArgs := prepareMembershipCreateQuery(req)
+
+	if len(createQueryArgs) != 0 {
+		if err := db.QueryRow(ctx, fmt.Sprintf(`INSERT INTO membership (%s) VALUES (%s) RETURNING id`, createString, numString),
+			createQueryArgs...).Scan(&ID); err != nil {
+			return 0, fmt.Errorf("problem creating grant: %w", err)
+		}
+
+		return ID, nil
+
+	} else {
+		return 0, fmt.Errorf("invalid values")
+	}
+}
+
+func (db *pgProfileDB) createManualMembership(ctx context.Context, req membershipManual) (int, error) {
+
+	var ID int
+
+	createString, numString, createQueryArgs := prepareManualMembershipCreateQuery(req)
+
+	if len(createQueryArgs) != 0 {
+		if err := db.QueryRow(ctx, fmt.Sprintf(`INSERT INTO membership_manual (%s) VALUES (%s) RETURNING id`, createString, numString),
+			createQueryArgs...).Scan(&ID); err != nil {
+			return 0, fmt.Errorf("problem creating grant: %w", err)
+		}
+
+		return ID, nil
+
+	} else {
+		return 0, fmt.Errorf("invalid values")
+	}
+}
+
+func (db *pgProfileDB) createAutomaticMembership(ctx context.Context, req membershipAutomatic) (int, error) {
+
+	var ID int
+
+	createString, numString, createQueryArgs := prepareAutomaticMembershipCreateQuery(req)
+
+	if len(createQueryArgs) != 0 {
+		if err := db.QueryRow(ctx, fmt.Sprintf(`INSERT INTO membership_automatic (%s) VALUES (%s) RETURNING id`, createString, numString),
+			createQueryArgs...).Scan(&ID); err != nil {
+			return 0, fmt.Errorf("problem creating grant: %w", err)
+		}
+
+		return ID, nil
+
+	} else {
+		return 0, fmt.Errorf("invalid values")
+	}
+}
+
+func (db *pgProfileDB) createSpecialMembership(ctx context.Context, req membershipSpecial) (int, error) {
+
+	var ID int
+
+	createString, numString, createQueryArgs := prepareSpecialMembershipCreateQuery(req)
+
+	if len(createQueryArgs) != 0 {
+		if err := db.QueryRow(ctx, fmt.Sprintf(`INSERT INTO membership_special (%s) VALUES (%s) RETURNING id`, createString, numString),
+			createQueryArgs...).Scan(&ID); err != nil {
+			return 0, fmt.Errorf("problem creating grant: %w", err)
+		}
+
+		return ID, nil
+
+	} else {
+		return 0, fmt.Errorf("invalid values")
+	}
+}
+
+func (db *pgProfileDB) createHelpHaverMembership(ctx context.Context, req membershipHelpHaver) (int, error) {
+
+	var ID int
+
+	createString, numString, createQueryArgs := prepareHelpHaverMembershipCreateQuery(req)
+
+	if len(createQueryArgs) != 0 {
+		if err := db.QueryRow(ctx, fmt.Sprintf(`INSERT INTO membership_helphaver (%s) VALUES (%s) RETURNING id`, createString, numString),
+			createQueryArgs...).Scan(&ID); err != nil {
+			return 0, fmt.Errorf("problem creating grant: %w", err)
+		}
+
+		return ID, nil
+
+	} else {
+		return 0, fmt.Errorf("invalid values")
+	}
+}
+
+func prepareSpecialMembershipCreateQuery(req membershipSpecial) (string, string, []interface{}) {
+	var createStrings []string
+	var numString []string
+	var args []interface{}
+
+	if req.MembershipID != nil {
+		createStrings = append(createStrings, "membership_id")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.MembershipID)
+	}
+
+	concatedCreateString := strings.Join(createStrings, ",")
+	concatedNumString := strings.Join(numString, ",")
+
+	return concatedCreateString, concatedNumString, args
+}
+
+func prepareHelpHaverMembershipCreateQuery(req membershipHelpHaver) (string, string, []interface{}) {
+	var createStrings []string
+	var numString []string
+	var args []interface{}
+
+	if req.MembershipID != nil {
+		createStrings = append(createStrings, "membership_id")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.MembershipID)
+	}
+	if req.GrantID != nil {
+		createStrings = append(createStrings, "grant_id")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.GrantID)
+	}
+	if req.NbMonths != nil {
+		createStrings = append(createStrings, "nb_months")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.NbMonths)
+	}
+
+	concatedCreateString := strings.Join(createStrings, ",")
+	concatedNumString := strings.Join(numString, ",")
+
+	return concatedCreateString, concatedNumString, args
+}
+
+func prepareAutomaticMembershipCreateQuery(req membershipAutomatic) (string, string, []interface{}) {
+	var createStrings []string
+	var numString []string
+	var args []interface{}
+
+	if req.OrderID != nil {
+		createStrings = append(createStrings, "order_id")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.OrderID)
+	}
+	if req.PaymentID != nil {
+		createStrings = append(createStrings, "payment_id")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.PaymentID)
+	}
+	if req.MembershipID != nil {
+		createStrings = append(createStrings, "membership_id")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.MembershipID)
+	}
+
+	concatedCreateString := strings.Join(createStrings, ",")
+	concatedNumString := strings.Join(numString, ",")
+
+	return concatedCreateString, concatedNumString, args
+}
+
+func prepareManualMembershipCreateQuery(req membershipManual) (string, string, []interface{}) {
+	var createStrings []string
+	var numString []string
+	var args []interface{}
+
+	if req.OrderID != nil {
+		createStrings = append(createStrings, "order_id")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.OrderID)
+	}
+	if req.PaymentID != nil {
+		createStrings = append(createStrings, "payment_id")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.PaymentID)
+	}
+	if req.MembershipID != nil {
+		createStrings = append(createStrings, "membership_id")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.MembershipID)
+	}
+	if req.Quantity != nil {
+		createStrings = append(createStrings, "quantity")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.Quantity)
+	}
+
+	concatedCreateString := strings.Join(createStrings, ",")
+	concatedNumString := strings.Join(numString, ",")
+
+	return concatedCreateString, concatedNumString, args
+}
+
+func prepareMembershipCreateQuery(req membership) (string, string, []interface{}) {
+	var createStrings []string
+	var numString []string
+	var args []interface{}
+
+	if req.Active != nil {
+		createStrings = append(createStrings, "active")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.Active)
+	}
+	if req.Type != nil {
+		createStrings = append(createStrings, "type")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.Type)
+	}
+	if req.Expiry != nil {
+		createStrings = append(createStrings, "expiry")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.Expiry)
+	}
+	if req.UserID != nil {
+		createStrings = append(createStrings, "user_id")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.UserID)
+	}
+	if req.Month != nil {
+		createStrings = append(createStrings, "month")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.Month)
+	}
+	if req.Year != nil {
+		createStrings = append(createStrings, "year")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.Year)
+	}
+
+	concatedCreateString := strings.Join(createStrings, ",")
+	concatedNumString := strings.Join(numString, ",")
+
+	return concatedCreateString, concatedNumString, args
 }
 
 func (db *pgProfileDB) getMembershipByID(ctx context.Context, id int) (membershipRes, error) {
@@ -144,7 +844,7 @@ func (db *pgProfileDB) getMembershipByUserID(ctx context.Context, userID string,
 		// Get payment details from order service
 		userPaymentDetails := getServerUrl() + "/pay/v2/payment/" + fmt.Sprint(autoMembership.PaymentID)
 
-		orderDetails := utils.HTTPCallAndGetBody(userPaymentDetails, authHeader, nil, "GET")
+		orderDetails, _ := utils.HTTPCallAndGetBody(userPaymentDetails, authHeader, nil, "GET")
 
 		// unmarshal payment details
 		var paymentDetailRes paymentRes
@@ -175,7 +875,7 @@ func (db *pgProfileDB) getMembershipByUserID(ctx context.Context, userID string,
 
 		manualUserPaymentDetails := getServerUrl() + "/pay/v2/payment/" + fmt.Sprint(manualMembership.PaymentID)
 
-		paymentDetails := utils.HTTPCallAndGetBody(manualUserPaymentDetails, authHeader, nil, "GET")
+		paymentDetails, _ := utils.HTTPCallAndGetBody(manualUserPaymentDetails, authHeader, nil, "GET")
 
 		// unmarshal payment details
 		var paymentDetailRes paymentRes
@@ -201,7 +901,7 @@ func (db *pgProfileDB) getMembershipByUserID(ctx context.Context, userID string,
 
 		specialMembDetailUrl := getServerUrl() + "/pay/v2/special/" + userEmail
 
-		speMemDetails := utils.HTTPCallAndGetBody(specialMembDetailUrl, authHeader, nil, "GET")
+		speMemDetails, _ := utils.HTTPCallAndGetBody(specialMembDetailUrl, authHeader, nil, "GET")
 
 		// unmarshal payment details
 		var speRes specialRes
@@ -379,7 +1079,7 @@ func (db *pgProfileDB) patchMembershipByID(ctx context.Context, membership membe
 	}
 }
 
-func (db *pgProfileDB) cancelMembership(ctx context.Context, membBody membershipCancellationBody, authHeader string) (int, int, int, error) {
+func (db *pgProfileDB) cancelMembership(ctx context.Context, membBody emailKeycloakAndUserIDBody, authHeader string) (int, int, int, error) {
 
 	var email string
 	var user_id string
@@ -408,9 +1108,10 @@ func (db *pgProfileDB) cancelMembership(ctx context.Context, membBody membership
 
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	userOrderDetails := getServerUrl() + "/pay/v2/orders?email=" + email + "&product-type=globalmembership"
+	// implemennt to only update orders where status is not equal to cancelled
+	userOrderDetails := getServerUrl() + "/pay/v2/orders?email=" + email + "&product-type=globalmembership&limit=100"
 
-	orderDetails := utils.HTTPCallAndGetBody(userOrderDetails, authHeader, nil, "GET")
+	orderDetails, _ := utils.HTTPCallAndGetBody(userOrderDetails, authHeader, nil, "GET")
 
 	// un marshal order details
 	var orderDetailsRes orderRes
@@ -430,7 +1131,7 @@ func (db *pgProfileDB) cancelMembership(ctx context.Context, membBody membership
 
 		buffPostBody := bytes.NewBuffer(postBody)
 
-		cancelOrderRes := utils.HTTPCallAndGetBody(cancelOrder, authHeader, buffPostBody, "PATCH")
+		cancelOrderRes, _ := utils.HTTPCallAndGetBody(cancelOrder, authHeader, buffPostBody, "PATCH")
 
 		// un marshal cancel order details
 		var cancelOrderResRes orderRes
@@ -441,7 +1142,9 @@ func (db *pgProfileDB) cancelMembership(ctx context.Context, membBody membership
 	}
 
 	// update user grant cancelled_at to now
-	grantUpdateRes, grantUpdateErr := db.Exec(ctx, `UPDATE "grant" SET cancelled_at=$1 WHERE user_id=$2`, time.Now(), user_id)
+
+	//double check
+	grantUpdateRes, grantUpdateErr := db.Exec(ctx, `UPDATE "grant" SET cancelled_at=$1 WHERE user_id=$2 AND type='membership' AND cancelled_at IS NULL`, time.Now(), user_id)
 
 	if grantUpdateErr != nil {
 		return 0, 0, 0, fmt.Errorf("error while updating grant: %w", grantUpdateErr)
@@ -451,7 +1154,7 @@ func (db *pgProfileDB) cancelMembership(ctx context.Context, membBody membership
 
 	specialTableDelete := getServerUrl() + "/pay/v2/special/" + email
 
-	specialTableDelRes := utils.HTTPCallAndGetBody(specialTableDelete, authHeader, nil, "DELETE")
+	specialTableDelRes, _ := utils.HTTPCallAndGetBody(specialTableDelete, authHeader, nil, "DELETE")
 
 	// un marshal special table delete details
 	var specialTableDelResRes orderDeleteRes
@@ -474,10 +1177,27 @@ func (db *pgProfileDB) softDeleteMembershipByID(ctx context.Context, id int) err
 	return nil
 }
 
-func (db *pgProfileDB) getMultipleMembership(ctx context.Context, intSkip int, intLimit int) ([]membershipRes, error) {
+func (db *pgProfileDB) deleteAllMembershipSubTableByMembershipID(ctx context.Context, membershipID int) error {
+	_, err := db.Exec(ctx, `
+	BEGIN;
+
+	DELETE FROM membership_manual WHERE membership_id=$1;
+	DELETE FROM membership_special WHERE membership_id=$1;
+	DELETE FROM membership_automatic WHERE membership_id=$1;
+	DELETE FROM membership_helphaver WHERE membership_id=$1;
+	
+	COMMIT;
+	`, membershipID)
+	if err != nil {
+		return fmt.Errorf("problem soft deleting membership: %w", err)
+	}
+	return nil
+}
+
+func (db *pgProfileDB) getMultipleMembership(ctx context.Context, intSkip int, intLimit int, month int, year int, userID string) ([]membershipRes, error) {
 	memberships := []membershipRes{}
 
-	userDbWhereQuery, orderByQuery := buildAndGetWhereMembershipQuery()
+	userDbWhereQuery, orderByQuery := buildAndGetWhereMembershipQuery(month, year, userID)
 
 	rows, err := db.Query(ctx, `
 		SELECT 
@@ -522,7 +1242,7 @@ func (db *pgProfileDB) getMultipleMembership(ctx context.Context, intSkip int, i
 	return memberships, nil
 }
 
-func buildAndGetWhereMembershipQuery() (string, string) {
+func buildAndGetWhereMembershipQuery(month int, year int, userID string) (string, string) {
 
 	var whereString strings.Builder
 	var orderBy strings.Builder
@@ -530,7 +1250,29 @@ func buildAndGetWhereMembershipQuery() (string, string) {
 	whereString.WriteString(" WHERE")
 	whereCondition.WriteString("")
 
-	// Add where conditions when required
+	if month != 0 {
+		if whereCondition.String() != "" {
+			whereCondition.WriteString(fmt.Sprintf(" AND month='%d'", month))
+		} else {
+			whereCondition.WriteString(fmt.Sprintf(" month='%d'", month))
+		}
+	}
+
+	if year != 0 {
+		if whereCondition.String() != "" {
+			whereCondition.WriteString(fmt.Sprintf(" AND year='%d'", year))
+		} else {
+			whereCondition.WriteString(fmt.Sprintf(" year='%d'", year))
+		}
+	}
+
+	if userID != "" {
+		if whereCondition.String() != "" {
+			whereCondition.WriteString(fmt.Sprintf(" AND user_id='%s'", userID))
+		} else {
+			whereCondition.WriteString(fmt.Sprintf(" user_id='%s'", userID))
+		}
+	}
 
 	orderBy.WriteString(fmt.Sprintf(" ORDER BY updated_at %s", "desc"))
 
