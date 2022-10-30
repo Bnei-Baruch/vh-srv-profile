@@ -78,6 +78,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	var userID string
 	var userKeycloakID string
 
+	// fetch email, userID and userKeycloakID from the database if not available in the request body
 	if evalBody.UserID != nil && *evalBody.UserID != "" {
 		if err := db.QueryRow(ctx, `SELECT primary_email, keycloak_id FROM users WHERE user_id=$1`, *evalBody.UserID).Scan(&email, &userKeycloakID); err != nil {
 			return userMembershipRes{}, fmt.Errorf("problem getting email from user_id: %w", err)
@@ -118,12 +119,12 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	*membershipInsertData.Month = currentMonth
 	*membershipInsertData.Year = currentYear
 
+	// if not email exit
 	if email == "" {
 		return userMembershipRes{}, fmt.Errorf("no email found")
 	}
 
 	// check if user has any active request
-
 	userRequests, userRequestsErr := db.getMultipleRequest(ctx, 0, 100, userKeycloakID, "", "", "hhmembership", "desc")
 
 	if userRequestsErr != nil {
@@ -131,22 +132,23 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	}
 
 	if len(userRequests) != 0 {
-		// latest request
+		// latest request of the user
 		latestRequest = userRequests[0]
 	}
 
+	// fetch all the order of the user ( limit 100 as of now )
 	userOrderDetails := getServerUrl() + "/pay/v2/orders?email=" + email + "&product-type=globalmembership&limit=100&evaluate-membership=true&o-payment-date=desc"
 
 	orderDetails, _ := utils.HTTPCallAndGetBody(userOrderDetails, authHeader, nil, "GET")
 
-	// un marshal order details
+	// unmarshal order details
 	var orderDetailsRes orderRes
 	err := json.Unmarshal(orderDetails, &orderDetailsRes)
 	if err != nil {
 		return userMembershipRes{}, fmt.Errorf("problem unmarshalling order details: %w", err)
 	}
 
-	// fetch user grant
+	// fetch user grant if any
 	userGrant, userGrantErr := db.getMultipleGrant(ctx, 0, 100, nil, userID, "helphaver", "desc")
 
 	if userGrantErr != nil {
@@ -156,7 +158,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	}
 
 	if len(userGrant) != 0 {
-		// access the first element of the array
+		// access the latest grant of the user
 		latestGrant := userGrant[0]
 		grantID = latestGrant.ID
 
@@ -165,12 +167,14 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 			latestGrantCancelled = true
 		}
 
+		// fetch grant membership based on grant ID
 		grantMemb, grantMembErr := db.getGrantMembershipByGrantID(ctx, *grantID)
 
 		if grantMembErr != nil {
 			return userMembershipRes{}, fmt.Errorf("problem getting grant membership: %w", grantMembErr)
 		}
 
+		// set number of months granted to the user
 		grantMonthsGranted = grantMemb.Month
 
 		latestGrantCreatedAt = grantMemb.CreatedAt
