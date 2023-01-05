@@ -20,12 +20,13 @@ type MessageAndSuccess struct {
 }
 
 type order struct {
-	ID          int       `json:"ID"`
-	Status      string    `json:"Status"`
-	ProductType string    `json:"ProductType"`
-	PaymentDate time.Time `json:"PaymentDate"`
-	Type        string    `json:"type"`
-	Quantity    int       `json:"Quantity"`
+	ID           int       `json:"ID"`
+	Status       string    `json:"Status"`
+	ProductType  string    `json:"ProductType"`
+	PaymentDate  time.Time `json:"PaymentDate"`
+	Type         string    `json:"type"`
+	Quantity     int       `json:"Quantity"`
+	StartingDate time.Time `json:"StartingDate"`
 }
 
 type payment struct {
@@ -99,7 +100,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	var membershipInsertData membership
 	var currentMembership string
 	var latestGrantCreatedAt *time.Time
-	var latestOrderTime *time.Time
+	var latestOrderPaymentDate *time.Time
 	var latestOrderPaymentID *int
 	var latestOrderPaymentStatus string
 	var grantID *int
@@ -109,6 +110,9 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	var latestGrantCancelled bool
 	var userInSpecialTable bool
 	var latestRequest requestResponse
+
+	const LIMIT = 200
+	// limit to string
 
 	var orderStartingDate time.Time
 	var previousStartingDate time.Time
@@ -125,7 +129,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	}
 
 	// check if user has any active request
-	userRequests, userRequestsErr := db.getMultipleRequest(ctx, 0, 100, userKeycloakID, "", "", "hhmembership", "desc")
+	userRequests, userRequestsErr := db.getMultipleRequest(ctx, 0, LIMIT, userKeycloakID, "", "", "hhmembership", "desc")
 
 	if userRequestsErr != nil {
 		return userMembershipRes{}, fmt.Errorf("problem getting user requests: %w", userRequestsErr)
@@ -136,8 +140,8 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 		latestRequest = userRequests[0]
 	}
 
-	// fetch all the order of the user ( limit 100 as of now )
-	userOrderDetails := getServerUrl() + "/pay/v2/orders?email=" + email + "&product-type=globalmembership&limit=100&evaluate-membership=true&o-payment-date=desc"
+	// fetch all the order of the user ( limit 200 as of now )
+	userOrderDetails := getServerUrl() + "/pay/v2/orders?email=" + email + "&product-type=globalmembership&limit=" + strconv.Itoa(LIMIT) + "&evaluate-membership=true&o-payment-date=desc"
 
 	orderDetails, _ := utils.HTTPCallAndGetBody(userOrderDetails, authHeader, nil, "GET")
 
@@ -145,15 +149,15 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	var orderDetailsRes orderRes
 	err := json.Unmarshal(orderDetails, &orderDetailsRes)
 	if err != nil {
-		return userMembershipRes{}, fmt.Errorf("problem unmarshalling order details: %w", err)
+		fmt.Println("problem unmarshalling order details: %w", err)
 	}
 
 	// fetch user grant if any
-	userGrant, userGrantErr := db.getMultipleGrant(ctx, 0, 100, nil, userID, "helphaver", "desc")
+	userGrant, userGrantErr := db.getMultipleGrant(ctx, 0, LIMIT, nil, userID, "helphaver", "desc")
 
 	if userGrantErr != nil {
 		if !errors.Is(userGrantErr, errUserNotFound) {
-			return userMembershipRes{}, fmt.Errorf("problem getting user grant: %w", userGrantErr)
+			fmt.Println("problem getting user grant: %w", userGrantErr)
 		}
 	}
 
@@ -177,9 +181,11 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 		// set number of months granted to the user
 		grantMonthsGranted = grantMemb.Month
 
-		latestGrantCreatedAt = grantMemb.CreatedAt
+		// created at value of the parent grant table
+		latestGrantCreatedAt = latestGrant.CreatedAt
 	}
 
+	// Evaluation starts here
 	if len(orderDetailsRes.Data) != 0 {
 
 		// count number of cancelled order in orderDetailsRes.Data
@@ -196,7 +202,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 		} else {
 			// latest order
 			latestOrder = orderDetailsRes.Data[0]
-			latestOrderTime = &latestOrder.PaymentDate
+			latestOrderPaymentDate = &latestOrder.PaymentDate
 
 			if latestOrder.Type == "recurring" {
 				currentMembership = "automatic"
@@ -205,9 +211,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 			}
 
 			// fetch latest order payment id
-
-			// Get payment details from order service
-			paymentDetails, _ := utils.HTTPCallAndGetBody(getServerUrl()+"/pay/v2/payments?order-id="+fmt.Sprint(latestOrder.ID), authHeader, nil, "GET")
+			paymentDetails, _ := utils.HTTPCallAndGetBody(getServerUrl()+"/pay/v2/payments?o-created-at=desc&order-id="+fmt.Sprint(latestOrder.ID), authHeader, nil, "GET")
 
 			// unmarshal payment details
 			var paymentDetailRes multiplePaymentRes
@@ -221,36 +225,56 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 				// set latestOrderPaymentID as -1
 				latestOrderPaymentID = new(int)
 				*latestOrderPaymentID = -1
+				// TODO: analyse and set the latestOrderPaymentStatus as well
 			} else {
 				latestOrderPaymentID = &paymentDetailRes.Data[0].ID
 				latestOrderPaymentStatus = paymentDetailRes.Data[0].Status
 			}
 
+			// filter orderDetailsRes.Data to exclude cancelled orders
+			var allPaidOrders []order
+			for _, order := range orderDetailsRes.Data {
+				if order.Status != "cancelled" {
+					allPaidOrders = append(allPaidOrders, order)
+				}
+			}
+
 			// Regular & Recurring paid order
-			for i := len(orderDetailsRes.Data) - 1; i >= 0; i-- {
+			for i := len(allPaidOrders) - 1; i >= 0; i-- {
 
 				// first order
-				if i == len(orderDetailsRes.Data)-1 {
-					orderStartingDate = orderDetailsRes.Data[i].PaymentDate
+				if i == len(allPaidOrders)-1 {
+					if allPaidOrders[i].StartingDate.IsZero() {
+						orderStartingDate = allPaidOrders[i].PaymentDate
+					} else {
+						orderStartingDate = allPaidOrders[i].StartingDate
+					}
 					previousStartingDate = orderStartingDate
-					if orderDetailsRes.Data[i].Quantity != 0 {
-						previousOrderQuantity = orderDetailsRes.Data[i].Quantity
+					if allPaidOrders[i].Quantity != 0 {
+						previousOrderQuantity = allPaidOrders[i].Quantity
 					} else {
 						previousOrderQuantity = 1
 					}
 				} else {
-					if orderDetailsRes.Data[i].PaymentDate.Before(previousStartingDate.AddDate(0, 0, 30*previousOrderQuantity)) {
+					// TODO: analyse and implement for scenarios where starting of the order is already available
+					if allPaidOrders[i].PaymentDate.Before(previousStartingDate.AddDate(0, 0, 30*previousOrderQuantity)) {
 						orderStartingDate = previousStartingDate.AddDate(0, 0, 30*previousOrderQuantity)
 						previousStartingDate = orderStartingDate
-						previousOrderQuantity = orderDetailsRes.Data[i].Quantity
+						previousOrderQuantity = allPaidOrders[i].Quantity
 					} else {
-						orderStartingDate = orderDetailsRes.Data[i].PaymentDate
+						orderStartingDate = allPaidOrders[i].PaymentDate
 						previousStartingDate = orderStartingDate
-						previousOrderQuantity = orderDetailsRes.Data[i].Quantity
+						previousOrderQuantity = allPaidOrders[i].Quantity
+					}
+
+					if allPaidOrders[i].StartingDate.IsZero() {
+						orderStartingDate = allPaidOrders[i].PaymentDate
+					} else {
+						orderStartingDate = allPaidOrders[i].StartingDate
 					}
 				}
 				// update order via http call
-				orderID := strconv.Itoa(orderDetailsRes.Data[i].ID)
+				orderID := strconv.Itoa(allPaidOrders[i].ID)
 				cancelOrder := getServerUrl() + "/pay/v2/order/" + orderID
 
 				postBody, _ := json.Marshal(map[string]interface{}{
@@ -263,16 +287,15 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 
 				if resStatusCode != 200 {
 					fmt.Printf("error while updating order starting date: %v", resStatusCode)
-					fmt.Printf("order id: %v", orderDetailsRes.Data[i].ID)
+					fmt.Printf("order id: %v", allPaidOrders[i].ID)
 				}
 			}
-
 		}
 	}
 
 	if latestGrantCreatedAt != nil {
-		if latestOrderTime != nil {
-			if latestOrderTime.After(*latestGrantCreatedAt) {
+		if latestOrderPaymentDate != nil {
+			if latestOrderPaymentDate.After(*latestGrantCreatedAt) {
 				// update user grant cancelled_at to now
 				_, grantUpdateErr := db.Exec(ctx, `UPDATE "grant" SET cancelled_at=$1 WHERE id=$2`, time.Now(), *grantID)
 
