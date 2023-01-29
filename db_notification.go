@@ -11,7 +11,7 @@ func (db *pgProfileDB) getActiveUserNotificationByUserID(ctx context.Context, us
 
 	rows, err := db.Query(ctx, `
 		SELECT 
-			id,
+			user_notification.id,
 			user_id,
 			notification_id,
 			active,

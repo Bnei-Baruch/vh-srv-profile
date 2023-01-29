@@ -272,14 +272,6 @@ func (p *profileManager) handleMembershipCancellation(c *gin.Context) {
 }
 
 func (p *profileManager) handleMembershipEvaluationByUserID(c *gin.Context) {
-	// userID := c.Param("user_id")
-
-	// check if userID is a valid uuid
-	// _, err := uuid.FromString(userID)
-	// if err != nil {
-	// 	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-	// 	return
-	// }
 
 	var evalbody emailKeycloakAndUserIDBody
 
