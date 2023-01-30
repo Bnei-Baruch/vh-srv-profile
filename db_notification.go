@@ -17,9 +17,9 @@ func (db *pgProfileDB) getActiveUserNotificationByUserID(ctx context.Context, us
 			active,
 			seen_at,
 			notification.slug,
-			created_at,
-			updated_at,
-			deleted_at
+			user_notification.created_at,
+			user_notification.updated_at,
+			user_notification.deleted_at
 		FROM user_notification
 		INNER JOIN notification ON notification.id = user_notification.notification_id
 		WHERE user_id = $1 AND active = true

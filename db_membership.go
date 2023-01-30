@@ -122,8 +122,8 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	var previousOrderQuantity int
 	currentMonth := int(time.Now().Month())
 	currentYear := time.Now().Year()
-	timeNow := time.Now()
-
+	// default value of active is false
+	membershipInsertData.Active = BoolAddr(false)
 	membershipInsertData.Month = &currentMonth
 	membershipInsertData.Year = &currentYear
 
@@ -372,11 +372,6 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 
 	if len(userGrant) == 0 && !userInSpecialTable && len(orderDetailsRes.Data) == 0 {
 		currentMembership = "new"
-		// set membershipInsertData.Active to pointer false
-		membershipInsertData.Active = BoolAddr(false)
-		// expiry now
-		membershipInsertData.Expiry = &timeNow
-
 	}
 
 	membershipInsertData.Type = &currentMembership
