@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v4"
+	uuid "github.com/satori/go.uuid"
 	"gitlab.bbdev.team/vh/vh-srv-profile/utils"
 )
 
@@ -97,6 +98,8 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 		email = *evalBody.Email
 	}
 
+	var uuidErr error
+
 	var membershipInsertData membership
 	var currentMembership string
 	var latestGrantCreatedAt *time.Time
@@ -119,9 +122,18 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	var previousOrderQuantity int
 	currentMonth := int(time.Now().Month())
 	currentYear := time.Now().Year()
+	// default value of active is false
+	membershipInsertData.Active = BoolAddr(false)
+	membershipInsertData.Month = &currentMonth
+	membershipInsertData.Year = &currentYear
 
-	*membershipInsertData.Month = currentMonth
-	*membershipInsertData.Year = currentYear
+	var userUUID uuid.UUID
+	userUUID, uuidErr = uuid.FromString(userID)
+	membershipInsertData.UserID = &userUUID
+
+	if uuidErr != nil {
+		return userMembershipRes{}, fmt.Errorf("problem converting userID to uuid: %w", uuidErr)
+	}
 
 	// if not email exit
 	if email == "" {
@@ -1201,19 +1213,28 @@ func (db *pgProfileDB) softDeleteMembershipByID(ctx context.Context, id int) err
 }
 
 func (db *pgProfileDB) deleteAllMembershipSubTableByMembershipID(ctx context.Context, membershipID int) error {
-	_, err := db.Exec(ctx, `
-	BEGIN;
 
-	DELETE FROM membership_manual WHERE membership_id=$1;
-	DELETE FROM membership_special WHERE membership_id=$1;
-	DELETE FROM membership_automatic WHERE membership_id=$1;
-	DELETE FROM membership_helphaver WHERE membership_id=$1;
-	
-	COMMIT;
-	`, membershipID)
-	if err != nil {
-		return fmt.Errorf("problem soft deleting membership: %w", err)
+	// start transaction
+	tx, txErr := db.Begin(ctx)
+	if txErr != nil {
+		return fmt.Errorf("problem starting transaction: %w", txErr)
 	}
+
+	// run delete on all sub tables
+	_, membership_manualErr := tx.Exec(ctx, `DELETE FROM membership_manual WHERE membership_id=$1`, membershipID)
+	_, membership_specialErr := tx.Exec(ctx, `DELETE FROM membership_special WHERE membership_id=$1`, membershipID)
+	_, membership_automaticErr := tx.Exec(ctx, `DELETE FROM membership_automatic WHERE membership_id=$1`, membershipID)
+	_, membership_helphaverErr := tx.Exec(ctx, `DELETE FROM membership_helphaver WHERE membership_id=$1`, membershipID)
+
+	if membership_manualErr != nil || membership_specialErr != nil || membership_automaticErr != nil || membership_helphaverErr != nil {
+		return fmt.Errorf("problem deleting membership sub table: %w", membership_manualErr)
+	}
+
+	// commit transaction
+	if commitErr := tx.Commit(ctx); commitErr != nil {
+		return fmt.Errorf("problem committing transaction: %w", commitErr)
+	}
+
 	return nil
 }
 

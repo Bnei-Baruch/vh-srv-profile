@@ -1,0 +1,5 @@
+BEGIN;
+
+ALTER TABLE membership ALTER COLUMN expiry DROP NOT NULL;
+
+COMMIT;

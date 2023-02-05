@@ -180,3 +180,8 @@ func SyncDBStructInsertionAndMigrations() error {
 	fmt.Println("UP Migration Done!")
 	return nil
 }
+
+func BoolAddr(b bool) *bool {
+	boolVar := b
+	return &boolVar
+}
