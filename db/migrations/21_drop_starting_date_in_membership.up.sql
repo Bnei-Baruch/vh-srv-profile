@@ -1,0 +1,6 @@
+BEGIN;
+
+ALTER TABLE membership
+DROP COLUMN IF EXISTS starting_date;
+
+COMMIT;

@@ -36,4 +36,6 @@ func (p *profileManager) hardDelete(c *gin.Context) {
 		_ = c.Error(fmt.Errorf("error while getting user %q: %w", keycloakIDString, err))
 		return
 	}
+
+	c.Status(http.StatusOK)
 }

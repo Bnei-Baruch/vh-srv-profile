@@ -62,7 +62,7 @@ func (db *pgProfileDB) hardDeleteProfile(ctx context.Context, keycloakID uuid.UU
 	}
 
 	// delete grant
-	_, err = tx.Exec(ctx, `DELETE FROM grant WHERE user_id=(SELECT user_id FROM users WHERE keycloak_id=$1)`, keycloakID)
+	_, err = tx.Exec(ctx, `DELETE FROM "grant" WHERE user_id=(SELECT user_id FROM users WHERE keycloak_id=$1)`, keycloakID)
 	if err != nil {
 		return fmt.Errorf("problem deleting grant for keycloak id %q: %w", keycloakID, err)
 	}
