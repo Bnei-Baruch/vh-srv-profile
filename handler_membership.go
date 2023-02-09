@@ -16,7 +16,7 @@ type membershipInterface interface {
 	getMembershipByID(ctx context.Context, id int) (membershipRes, error)
 	getMembershipByUserID(ctx context.Context, userID string, authHeader string) (userMembershipRes, error)
 	getMultipleMembership(ctx context.Context, intSkip int, intLimit int, month int, year int, userID string) ([]membershipRes, error)
-	patchMembershipByID(ctx context.Context, membership membership, id int) error
+	patchMembershipByID(ctx context.Context, membership membership, id int) (int, error)
 	softDeleteMembershipByID(ctx context.Context, id int) error
 	cancelMembership(ctx context.Context, body emailKeycloakAndUserIDBody, authHeader string) (int, int, int, error)
 	getAutomaticMembershipByMembershipID(ctx context.Context, membershipID int) (membershipAutomatic, error)
@@ -212,7 +212,7 @@ func (p *profileManager) handleMembershipPatchByID(c *gin.Context) {
 		return
 	}
 
-	patchErr := p.membership.patchMembershipByID(c.Request.Context(), membership, membershipID)
+	_, patchErr := p.membership.patchMembershipByID(c.Request.Context(), membership, membershipID)
 
 	if patchErr != nil {
 		c.Status(http.StatusInternalServerError)

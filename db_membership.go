@@ -323,7 +323,8 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	}
 
 	if currentMembership == "automatic" || currentMembership == "manual" {
-		*membershipInsertData.Expiry = previousStartingDate.AddDate(0, 0, 30*previousOrderQuantity)
+		var newDate = previousStartingDate.AddDate(0, 0, 30*previousOrderQuantity)
+		membershipInsertData.Expiry = &newDate
 	} else if currentMembership == "helphaver" {
 		// TODO: add integration of extra manual payment after grant is over
 		userMonthsUsed, userMonthsUsedErr := db.getNumberOfGrantMonthsUsedByGrantID(ctx, *grantID)
@@ -333,7 +334,8 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 		} else {
 			userTotalMonthsLeft := *grantMonthsGranted - userMonthsUsed
 
-			*membershipInsertData.Expiry = time.Now().AddDate(0, 0, 30*userTotalMonthsLeft)
+			var newExpiryDate = time.Now().AddDate(0, 0, 30*userTotalMonthsLeft)
+			membershipInsertData.Expiry = &newExpiryDate
 		}
 	}
 
@@ -400,6 +402,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	var (
 		membershipID  int
 		insertMembErr error
+		updateMembErr error
 	)
 
 	if len(userMemb) == 0 {
@@ -411,6 +414,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 		}
 
 		// remove all the prvious sub memberships entries as they'll be added again ( latest will be added )
+		// #check with yasha
 		deleteAllMembershipSubTableErr := db.deleteAllMembershipSubTableByMembershipID(ctx, membershipID)
 
 		if deleteAllMembershipSubTableErr != nil {
@@ -418,7 +422,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 		}
 	} else {
 		// update membership
-		updateMembErr := db.patchMembershipByID(ctx, membershipInsertData, *userMemb[0].ID)
+		membershipID, updateMembErr = db.patchMembershipByID(ctx, membershipInsertData, *userMemb[0].ID)
 
 		if updateMembErr != nil {
 			fmt.Printf("error while updating membership: %+v", updateMembErr)
@@ -1093,24 +1097,22 @@ func (db *pgProfileDB) getHelphaverMembershipByMembershipID(ctx context.Context,
 	return helphaverMembership, nil
 }
 
-func (db *pgProfileDB) patchMembershipByID(ctx context.Context, membership membership, id int) error {
+func (db *pgProfileDB) patchMembershipByID(ctx context.Context, membership membership, id int) (int, error) {
 
 	toUpdate, toUpdateArgs := prepareMembershipUpdateQuery(membership)
 
+	var membershipID int
+
 	if len(toUpdateArgs) != 0 {
-		updateRes, err := db.Exec(ctx, fmt.Sprintf(`UPDATE membership SET %s WHERE id=%d`, toUpdate, id),
-			toUpdateArgs...)
-		if err != nil {
-			return fmt.Errorf("problem updating membership: %w", err)
+		if err := db.QueryRow(ctx, fmt.Sprintf(`UPDATE membership SET %s WHERE id=%d returning id`, toUpdate, id),
+			toUpdateArgs...).
+			Scan(&membershipID); err != nil {
+			return 0, fmt.Errorf("problem updating membership: %w", err)
 		}
 
-		if updateRes.RowsAffected() == 0 {
-			return fmt.Errorf("not found")
-		}
-
-		return nil
+		return membershipID, nil
 	} else {
-		return fmt.Errorf("invalid values")
+		return 0, fmt.Errorf("no fields to update")
 	}
 }
 
