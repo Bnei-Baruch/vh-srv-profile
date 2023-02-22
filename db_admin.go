@@ -73,6 +73,12 @@ func (db *pgProfileDB) hardDeleteProfile(ctx context.Context, keycloakID uuid.UU
 		return fmt.Errorf("problem deleting user_notification for keycloak id %q: %w", keycloakID, err)
 	}
 
+	// delete request
+	_, err = tx.Exec(ctx, `DELETE FROM request WHERE keycloak_id=$1`, keycloakID)
+	if err != nil {
+		return fmt.Errorf("problem deleting request for keycloak id %q: %w", keycloakID, err)
+	}
+
 	tag, err := tx.Exec(ctx, `DELETE FROM users WHERE keycloak_id=$1`, keycloakID)
 	if err != nil {
 		return fmt.Errorf("problem deleting users for keycloak id %q: %w", keycloakID, err)
