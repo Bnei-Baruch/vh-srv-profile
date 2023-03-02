@@ -30,6 +30,7 @@ func (db *pgProfileDB) getGrantByIDAndUserID(ctx context.Context, id int, userID
 		loaned,
 		granted,
 		repayed,
+		request_id,
 		cancelled_at,
 		created_at,
 		updated_at,
@@ -43,6 +44,7 @@ func (db *pgProfileDB) getGrantByIDAndUserID(ctx context.Context, id int, userID
 		&grant.Loaned,
 		&grant.Granted,
 		&grant.Repayed,
+		&grant.RequestID,
 		&grant.CancelledAt,
 		&grant.CreatedAt,
 		&grant.UpdatedAt,
@@ -208,6 +210,7 @@ func (db *pgProfileDB) getMultipleGrant(ctx context.Context, intSkip int, intLim
 		loaned,
 		granted,
 		repayed,
+		request_id,
 		cancelled_at,
 		created_at,
 		updated_at,
@@ -231,6 +234,7 @@ func (db *pgProfileDB) getMultipleGrant(ctx context.Context, intSkip int, intLim
 			&r.Loaned,
 			&r.Granted,
 			&r.Repayed,
+			&r.RequestID,
 			&r.CancelledAt,
 			&r.CreatedAt,
 			&r.UpdatedAt,
@@ -258,15 +262,15 @@ func buildAndGetWhereGrantQuery(cancelled *bool, userID string, grantType string
 	if cancelled != nil {
 		if whereCondition.String() != "" {
 			if *cancelled {
-				whereCondition.WriteString(fmt.Sprintf(" AND cancelled_at IS NOT NULL"))
+				whereCondition.WriteString(" AND cancelled_at IS NOT NULL")
 			} else {
-				whereCondition.WriteString(fmt.Sprintf(" AND cancelled_at IS NULL"))
+				whereCondition.WriteString(" AND cancelled_at IS NULL")
 			}
 		} else {
 			if *cancelled {
-				whereCondition.WriteString(fmt.Sprintf(" cancelled_at IS NOT NULL"))
+				whereCondition.WriteString(" cancelled_at IS NOT NULL")
 			} else {
-				whereCondition.WriteString(fmt.Sprintf(" cancelled_at IS NULL"))
+				whereCondition.WriteString(" cancelled_at IS NULL")
 			}
 		}
 	}
@@ -343,6 +347,11 @@ func prepareGrantCreateQuery(req grantAndGrantMembership) (string, string, []int
 		createStrings = append(createStrings, "repayed")
 		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
 		args = append(args, *req.Repayed)
+	}
+	if req.RequestID != nil {
+		createStrings = append(createStrings, "request_id")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.RequestID)
 	}
 
 	concatedCreateString := strings.Join(createStrings, ",")
@@ -441,6 +450,10 @@ func prepareGrantUpdate(req grant) (string, []interface{}) {
 	if req.Repayed != nil {
 		updateStrings = append(updateStrings, fmt.Sprintf("repayed=$%d", len(updateStrings)+1))
 		args = append(args, *req.Repayed)
+	}
+	if req.RequestID != nil {
+		updateStrings = append(updateStrings, fmt.Sprintf("request_id=$%d", len(updateStrings)+1))
+		args = append(args, *req.RequestID)
 	}
 
 	if len(args) != 0 {

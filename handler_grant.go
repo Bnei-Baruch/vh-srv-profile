@@ -50,6 +50,7 @@ type grant struct {
 	Loaned      *int       `json:"loaned" db:"loaned"`
 	Granted     *int       `json:"granted" db:"granted"`
 	Repayed     *int       `json:"repayed" db:"repayed"`
+	RequestID   *int       `json:"request_id" db:"request_id"`
 	CancelledAt *time.Time `json:"cancelled_at" db:"cancelled_at"`
 }
 
