@@ -1,0 +1,6 @@
+BEGIN;
+
+ALTER TABLE "grant"
+DROP COLUMN IF EXISTS request_id;
+
+COMMIT;

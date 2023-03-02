@@ -1107,6 +1107,9 @@ func (db *pgProfileDB) patchMembershipByID(ctx context.Context, membership membe
 		if err := db.QueryRow(ctx, fmt.Sprintf(`UPDATE membership SET %s WHERE id=%d returning id`, toUpdate, id),
 			toUpdateArgs...).
 			Scan(&membershipID); err != nil {
+			if err == pgx.ErrNoRows {
+				return 0, errNotFound
+			}
 			return 0, fmt.Errorf("problem updating membership: %w", err)
 		}
 
