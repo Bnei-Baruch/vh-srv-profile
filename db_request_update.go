@@ -7,17 +7,47 @@ import (
 	"time"
 )
 
-func (db *pgProfileDB) updateRequest(ctx context.Context, id int, request newRequest) (string, error) {
+func createOrUpdateGrant(p *profileManager, ctx context.Context, request newRequest, requestID int) error {
+
+	patchErr := p.grant.patchGrant(ctx, request.grant, 0, requestID)
+
+	if patchErr != nil {
+		if patchErr.Error() == "not found" {
+
+			grantBody := new(grantAndGrantMembership)
+			grantBody.grant = request.grant
+
+			_, createErr := p.grant.createGrant(ctx, *grantBody)
+			if createErr != nil {
+				return fmt.Errorf("problem creating grant: %w", createErr)
+			}
+			return nil
+		}
+		return fmt.Errorf("problem updating grant: %w", patchErr)
+	}
+
+	return nil
+}
+
+func (db *pgProfileDB) updateRequest(ctx context.Context, id int, request newRequest, p *profileManager) (string, error) {
 
 	var kc_id string
+	var reqType string
 
 	toUpdate, toUpdateArgs := prepareRequestUpdate(request)
 
 	if len(toUpdateArgs) != 0 {
-		if err := db.QueryRow(ctx, fmt.Sprintf(`UPDATE request SET %s WHERE id='%d' RETURNING keycloak_id`, toUpdate, id),
+		if err := db.QueryRow(ctx, fmt.Sprintf(`UPDATE request SET %s WHERE id='%d' RETURNING keycloak_id, type`, toUpdate, id),
 			toUpdateArgs...).
-			Scan(&kc_id); err != nil {
+			Scan(&kc_id, &reqType); err != nil {
 			return "", fmt.Errorf("problem updating event: %w", err)
+		}
+
+		if reqType == "hhmembership" {
+			grantErr := createOrUpdateGrant(p, ctx, request, id)
+			if grantErr != nil {
+				return "", fmt.Errorf("problem updating grant: %w", grantErr)
+			}
 		}
 
 		return kc_id, nil

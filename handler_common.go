@@ -85,6 +85,7 @@ type newRequest struct {
 	Type          *string `json:"type"`
 	RequestNote   *string `json:"request_note,omitempty"`
 	RejectionNote *string `json:"rejection_note,omitempty"`
+	grant
 }
 
 func SyncWithKeycloak(tokenString string, keycloakID string, firstName *string, lastName *string) error {
