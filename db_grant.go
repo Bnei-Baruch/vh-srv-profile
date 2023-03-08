@@ -149,12 +149,22 @@ func (db *pgProfileDB) getGrantMembershipByGrantID(ctx context.Context, grantId 
 	return grantMemb, nil
 }
 
-func (db *pgProfileDB) patchGrant(ctx context.Context, grant grant, id int) error {
+func (db *pgProfileDB) patchGrant(ctx context.Context, grant grant, id int, requestID int) error {
+
+	var whereQuery string
+
+	if requestID != 0 {
+		whereQuery = fmt.Sprintf("WHERE request_id=%d", requestID)
+	} else if id != 0 {
+		whereQuery = fmt.Sprintf("WHERE id=%d", id)
+	} else {
+		return fmt.Errorf("invalid values")
+	}
 
 	toUpdate, toUpdateArgs := prepareGrantUpdate(grant)
 
 	if len(toUpdateArgs) != 0 {
-		updateRes, err := db.Exec(ctx, fmt.Sprintf(`UPDATE "grant" SET %s WHERE id=%d`, toUpdate, id),
+		updateRes, err := db.Exec(ctx, fmt.Sprintf(`UPDATE "grant" SET %s %s`, toUpdate, whereQuery),
 			toUpdateArgs...)
 		if err != nil {
 			return fmt.Errorf("problem updating grant: %w", err)

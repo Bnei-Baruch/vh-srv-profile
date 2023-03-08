@@ -14,7 +14,7 @@ import (
 )
 
 type updateRequestStorage interface {
-	updateRequest(ctx context.Context, keycloakID int, toUpdate newRequest) (string, error)
+	updateRequest(ctx context.Context, keycloakID int, toUpdate newRequest, p *profileManager) (string, error)
 }
 
 func (p *profileManager) updateRequest(c *gin.Context) {
@@ -55,7 +55,7 @@ func (p *profileManager) updateRequest(c *gin.Context) {
 		}
 	}
 
-	kc_id, updateErr := p.requestUpdater.updateRequest(c.Request.Context(), intID, request)
+	kc_id, updateErr := p.requestUpdater.updateRequest(c.Request.Context(), intID, request, p)
 	if updateErr != nil {
 		if errors.Is(updateErr, errNotFound) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": updateErr.Error()})

@@ -16,7 +16,7 @@ type grantInterface interface {
 	getGrantByIDAndUserID(ctx context.Context, id int, userID string) (grantRes, error)
 	getMultipleGrant(ctx context.Context, intSkip int, intLimit int, boolCancelled *bool, userID string, grantType string, createdAt string) ([]grantRes, error)
 	createGrant(ctx context.Context, grant grantAndGrantMembership) (int, error)
-	patchGrant(ctx context.Context, grant grant, id int) error
+	patchGrant(ctx context.Context, grant grant, id int, reqID int) error
 	softDeleteGrantByID(ctx context.Context, id int) error
 	createGrantMembership(ctx context.Context, grant grantAndGrantMembership) (int, error)
 	patchGrantMembership(ctx context.Context, grant grantMembeship, grantId int) (int, error)
@@ -147,7 +147,7 @@ func (p *profileManager) handleGrantPatchByID(c *gin.Context) {
 		return
 	}
 
-	patchErr := p.grant.patchGrant(c.Request.Context(), grant, grantID)
+	patchErr := p.grant.patchGrant(c.Request.Context(), grant, grantID, 0)
 
 	if patchErr != nil {
 		c.Status(http.StatusInternalServerError)
