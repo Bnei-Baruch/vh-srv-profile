@@ -161,6 +161,16 @@ func (db *pgProfileDB) patchGrant(ctx context.Context, grant grant, id int, requ
 		return fmt.Errorf("invalid values")
 	}
 
+	if *grant.Type == "membership" {
+		if grant.Amount == nil {
+			*grant.Amount = 10
+		}
+
+		if grant.Currency == nil {
+			*grant.Currency = "USD"
+		}
+	}
+
 	toUpdate, toUpdateArgs := prepareGrantUpdate(grant)
 
 	if len(toUpdateArgs) != 0 {
