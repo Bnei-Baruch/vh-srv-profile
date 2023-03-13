@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	uuid "github.com/satori/go.uuid"
 )
 
 func createOrUpdateGrant(p *profileManager, ctx context.Context, request newRequest, requestID int) error {
@@ -44,6 +46,17 @@ func (db *pgProfileDB) updateRequest(ctx context.Context, id int, request newReq
 		}
 
 		if reqType == "hhmembership" {
+
+			if request.grant.UserID == nil {
+				var userID uuid.UUID
+				// fetch userID via keycloak_id
+				if err := db.QueryRow(ctx, `SELECT user_id FROM users WHERE keycloak_id=$1`, request.KeycloakId).Scan(&userID); err != nil {
+					return "", fmt.Errorf("problem updating event: %w", err)
+				}
+
+				request.grant.UserID = &userID
+			}
+
 			grantErr := createOrUpdateGrant(p, ctx, request, id)
 			if grantErr != nil {
 				return "", fmt.Errorf("problem updating grant: %w", grantErr)
