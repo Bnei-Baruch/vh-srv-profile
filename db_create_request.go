@@ -10,10 +10,11 @@ func (db *pgProfileDB) createRequest(ctx context.Context, req newRequest) error 
 
 	createString, numString, createQueryArgs := prepareRequestCreateQuery(req)
 
+	var ID int
+
 	if len(createQueryArgs) != 0 {
-		_, err := db.Exec(ctx, fmt.Sprintf(`INSERT INTO request (%s) VALUES (%s)`, createString, numString),
-			createQueryArgs...)
-		if err != nil {
+		if err := db.QueryRow(ctx, fmt.Sprintf(`INSERT INTO request (%s) VALUES (%s) RETURNING id`, createString, numString),
+			createQueryArgs...).Scan(&ID); err != nil {
 			return fmt.Errorf("problem creating request: %w", err)
 		}
 

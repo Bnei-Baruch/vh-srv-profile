@@ -9,23 +9,54 @@ import (
 	uuid "github.com/satori/go.uuid"
 )
 
-func createOrUpdateGrant(p *profileManager, ctx context.Context, request newRequest, requestID int) error {
+func createOrUpdateGrantAndGrantMembership(p *profileManager, ctx context.Context, request newRequest, requestID int) error {
 
-	patchErr := p.grant.patchGrant(ctx, request.grant, 0, requestID)
+	request.grant.Type = request.Type
+
+	grantID, patchErr := p.grant.patchGrant(ctx, request.grant, 0, requestID)
 
 	if patchErr != nil {
 		if patchErr.Error() == "not found" {
 
 			grantBody := new(grantAndGrantMembership)
+			request.grant.RequestID = &requestID
 			grantBody.grant = request.grant
+			grantBody.Month = request.grantMembeship.Month
 
-			_, createErr := p.grant.createGrant(ctx, *grantBody)
+			newGrantID, createErr := p.grant.createGrant(ctx, *grantBody)
 			if createErr != nil {
 				return fmt.Errorf("problem creating grant: %w", createErr)
 			}
+
+			grantBody.grantMembeship.GrantID = &newGrantID
+			grantBody.grantMembeship.Month = request.grantMembeship.Month
+			grantBody.grantMembeship.MonthsLeft = request.grantMembeship.Month
+			grantBody.grantMembeship.MonthsUsed = new(int)
+
+			_, createErr = p.grant.createGrantMembership(ctx, *grantBody)
+
+			if createErr != nil {
+				return fmt.Errorf("problem creating grant membership: %w", createErr)
+			}
+
 			return nil
 		}
 		return fmt.Errorf("problem updating grant: %w", patchErr)
+	}
+
+	if grantID != 0 {
+		grantBody := new(grantAndGrantMembership)
+		grantBody.grantMembeship.GrantID = &grantID
+		grantBody.grantMembeship.Month = request.grantMembeship.Month
+		grantBody.grantMembeship.MonthsLeft = request.grantMembeship.Month
+		grantBody.grantMembeship.MonthsUsed = new(int)
+
+		_, patchErr := p.grant.patchGrantMembership(ctx, grantBody.grantMembeship, grantID)
+
+		if patchErr != nil {
+			return fmt.Errorf("problem creating grant membership: %w", patchErr)
+		}
+
 	}
 
 	return nil
@@ -57,7 +88,7 @@ func (db *pgProfileDB) updateRequest(ctx context.Context, id int, request newReq
 				request.grant.UserID = &userID
 			}
 
-			grantErr := createOrUpdateGrant(p, ctx, request, id)
+			grantErr := createOrUpdateGrantAndGrantMembership(p, ctx, request, id)
 			if grantErr != nil {
 				return "", fmt.Errorf("problem updating grant: %w", grantErr)
 			}

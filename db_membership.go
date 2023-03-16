@@ -154,6 +154,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 
 	// fetch all the order of the user ( limit 200 as of now )
 	userOrderDetails := getServerUrl() + "/pay/v2/orders?email=" + email + "&product-type=globalmembership&limit=" + strconv.Itoa(LIMIT) + "&evaluate-membership=true&o-payment-date=desc"
+	// userOrderDetails := "http://localhost:8185/v2/orders?email=" + email + "&product-type=globalmembership&limit=" + strconv.Itoa(LIMIT) + "&evaluate-membership=true&o-payment-date=desc"
 
 	orderDetails, _ := utils.HTTPCallAndGetBody(userOrderDetails, authHeader, nil, "GET")
 
@@ -165,7 +166,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	}
 
 	// fetch user grant if any
-	userGrant, userGrantErr := db.getMultipleGrant(ctx, 0, LIMIT, nil, userID, "helphaver", "desc")
+	userGrant, userGrantErr := db.getMultipleGrant(ctx, 0, LIMIT, nil, userID, "hhmembership", "desc")
 
 	if userGrantErr != nil {
 		if !errors.Is(userGrantErr, errUserNotFound) {
@@ -187,7 +188,11 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 		grantMemb, grantMembErr := db.getGrantMembershipByGrantID(ctx, *grantID)
 
 		if grantMembErr != nil {
-			return userMembershipRes{}, fmt.Errorf("problem getting grant membership: %w", grantMembErr)
+			if errors.Is(grantMembErr, errNotFound) {
+				fmt.Println("no grant membership found for grant id: ", *grantID)
+			} else {
+				return userMembershipRes{}, fmt.Errorf("problem getting grant membership: %w", grantMembErr)
+			}
 		}
 
 		// set number of months granted to the user
@@ -224,6 +229,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 
 			// fetch latest order payment id
 			paymentDetails, _ := utils.HTTPCallAndGetBody(getServerUrl()+"/pay/v2/payments?o-created-at=desc&order-id="+fmt.Sprint(latestOrder.ID), authHeader, nil, "GET")
+			// paymentDetails, _ := utils.HTTPCallAndGetBody("http://localhost:8185/v2/payments?o-created-at=desc&order-id="+fmt.Sprint(latestOrder.ID), authHeader, nil, "GET")
 
 			// unmarshal payment details
 			var paymentDetailRes multiplePaymentRes
@@ -288,6 +294,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 				// update order via http call
 				orderID := strconv.Itoa(allPaidOrders[i].ID)
 				cancelOrder := getServerUrl() + "/pay/v2/order/" + orderID
+				// cancelOrder := "http://localhost:8185/v2/order/" + orderID
 
 				postBody, _ := json.Marshal(map[string]interface{}{
 					"StartingDate": orderStartingDate,
@@ -341,6 +348,7 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 
 	if membershipInsertData.Expiry == nil || membershipInsertData.Expiry.Before(time.Now()) {
 		specialMembDetailUrl := getServerUrl() + "/pay/v2/special/" + email
+		// specialMembDetailUrl := "http://localhost:8185/v2/special/" + email
 
 		speMemDetails, statusCode := utils.HTTPCallAndGetBody(specialMembDetailUrl, authHeader, nil, "GET")
 
@@ -457,7 +465,6 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 		_, helphaverErr := db.createHelpHaverMembership(ctx, membershipHelpHaver{
 			MembershipID: &membershipID,
 			GrantID:      grantID,
-			NbMonths:     grantMonthsGranted,
 		})
 
 		if helphaverErr != nil {
@@ -683,11 +690,6 @@ func prepareHelpHaverMembershipCreateQuery(req membershipHelpHaver) (string, str
 		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
 		args = append(args, *req.GrantID)
 	}
-	if req.NbMonths != nil {
-		createStrings = append(createStrings, "nb_months")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.NbMonths)
-	}
 
 	concatedCreateString := strings.Join(createStrings, ",")
 	concatedNumString := strings.Join(numString, ",")
@@ -882,6 +884,7 @@ func (db *pgProfileDB) getMembershipByUserID(ctx context.Context, userID string,
 
 		// Get payment details from order service
 		userPaymentDetails := getServerUrl() + "/pay/v2/payment/" + fmt.Sprint(autoMembership.PaymentID)
+		// userPaymentDetails := "http://localhost:8185/v2/payment/" + fmt.Sprint(autoMembership.PaymentID)
 
 		orderDetails, _ := utils.HTTPCallAndGetBody(userPaymentDetails, authHeader, nil, "GET")
 
@@ -913,6 +916,7 @@ func (db *pgProfileDB) getMembershipByUserID(ctx context.Context, userID string,
 		}
 
 		manualUserPaymentDetails := getServerUrl() + "/pay/v2/payment/" + fmt.Sprint(manualMembership.PaymentID)
+		// manualUserPaymentDetails := "http://localhost:8185/v2/payment/" + fmt.Sprint(manualMembership.PaymentID)
 
 		paymentDetails, _ := utils.HTTPCallAndGetBody(manualUserPaymentDetails, authHeader, nil, "GET")
 
@@ -939,6 +943,7 @@ func (db *pgProfileDB) getMembershipByUserID(ctx context.Context, userID string,
 		}
 
 		specialMembDetailUrl := getServerUrl() + "/pay/v2/special/" + userEmail
+		// specialMembDetailUrl := "http://localhost:8185/v2/special/" + userEmail
 
 		speMemDetails, _ := utils.HTTPCallAndGetBody(specialMembDetailUrl, authHeader, nil, "GET")
 
@@ -1072,13 +1077,13 @@ func (db *pgProfileDB) getHelphaverMembershipByMembershipID(ctx context.Context,
 	if err := db.QueryRow(ctx, `
 		SELECT 
 		membership_helphaver.id,
-		grant_id,
+		membership_helphaver.grant_id,
 		membership_id,
-		"grant".nb_months,
-		created_at,
-		updated_at,
-		deleted_at 
-		from membership_helphaver LEFT JOIN "grant" ON membership_helphaver.grant_id = "grant".id 
+		grant_membership.nb_months,
+		membership_helphaver.created_at,
+		membership_helphaver.updated_at,
+		membership_helphaver.deleted_at 
+		from membership_helphaver LEFT JOIN grant_membership ON membership_helphaver.grant_id = grant_membership.grant_id 
 		WHERE membership_id = $1`, membershipID).Scan(
 		&helphaverMembership.ID,
 		&helphaverMembership.GrantID,
@@ -1150,6 +1155,7 @@ func (db *pgProfileDB) cancelMembership(ctx context.Context, membBody emailKeycl
 
 	// implemennt to only update orders where status is not equal to cancelled
 	userOrderDetails := getServerUrl() + "/pay/v2/orders?email=" + email + "&product-type=globalmembership&limit=100"
+	// userOrderDetails := "http://localhost:8185/v2/orders?email=" + email + "&product-type=globalmembership&limit=100"
 
 	orderDetails, _ := utils.HTTPCallAndGetBody(userOrderDetails, authHeader, nil, "GET")
 
@@ -1165,6 +1171,7 @@ func (db *pgProfileDB) cancelMembership(ctx context.Context, membBody emailKeycl
 		// id int to string
 		orderID := fmt.Sprintf("%d", order.ID)
 		cancelOrder := getServerUrl() + "/pay/v2/order/" + orderID
+		// cancelOrder := "http://localhost:8185/v2/order/" + orderID
 		postBody, _ := json.Marshal(map[string]interface{}{
 			"Status": "cancelled",
 		})
@@ -1193,6 +1200,7 @@ func (db *pgProfileDB) cancelMembership(ctx context.Context, membBody emailKeycl
 	numberOfRowsUpdated := grantUpdateRes.RowsAffected()
 
 	specialTableDelete := getServerUrl() + "/pay/v2/special/" + email
+	// specialTableDelete := "http://localhost:8185/v2/special/" + email
 
 	specialTableDelRes, _ := utils.HTTPCallAndGetBody(specialTableDelete, authHeader, nil, "DELETE")
 
