@@ -332,6 +332,12 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 	if currentMembership == "automatic" || currentMembership == "manual" {
 		var newDate = previousStartingDate.AddDate(0, 0, 30*previousOrderQuantity)
 		membershipInsertData.Expiry = &newDate
+
+		// check if final orderStartingDate is more than 90 days in past from now
+		if orderStartingDate.Before(time.Now().AddDate(0, 0, -90)) {
+			membershipInsertData.Active = BoolAddr(false)
+		}
+
 	} else if currentMembership == "helphaver" {
 		// TODO: add integration of extra manual payment after grant is over
 		userMonthsUsed, userMonthsUsedErr := db.getNumberOfGrantMonthsUsedByGrantID(ctx, *grantID)
@@ -493,7 +499,10 @@ func (db *pgProfileDB) evaluateMembershipByUserID(ctx context.Context, evalBody 
 
 		if currentMembership == "manual" && time.Now().After(*membershipInsertData.Expiry) {
 			notificationSlugs = append(notificationSlugs, "mb_expiration_notice")
-
+			// check if final orderStartingDate is more than 90 days in past from now
+			if orderStartingDate.Before(time.Now().AddDate(0, 0, -90)) {
+				notificationSlugs = append(notificationSlugs, "mb_has_expired_notice")
+			}
 		}
 
 		if currentMembership == "cancelled" {
