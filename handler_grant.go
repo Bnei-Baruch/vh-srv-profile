@@ -16,7 +16,7 @@ type grantInterface interface {
 	getGrantByIDAndUserID(ctx context.Context, id int, userID string) (grantRes, error)
 	getMultipleGrant(ctx context.Context, intSkip int, intLimit int, boolCancelled *bool, userID string, grantType string, createdAt string) ([]grantRes, error)
 	createGrant(ctx context.Context, grant grantAndGrantMembership) (int, error)
-	patchGrant(ctx context.Context, grant grant, id int, reqID int) error
+	patchGrant(ctx context.Context, grant grant, id int, reqID int) (int, error)
 	softDeleteGrantByID(ctx context.Context, id int) error
 	createGrantMembership(ctx context.Context, grant grantAndGrantMembership) (int, error)
 	patchGrantMembership(ctx context.Context, grant grantMembeship, grantId int) (int, error)
@@ -100,7 +100,7 @@ func (p *profileManager) handleGrantCreate(c *gin.Context) {
 
 	// Checking if the grant type is not nil and if it is not equal to membership.
 	// As of now we only have membership grant type.
-	if grant.Type == nil || *grant.Type != "membership" {
+	if grant.Type == nil || *grant.Type != "hhmembership" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid grant type"})
 		return
 	}
@@ -115,7 +115,11 @@ func (p *profileManager) handleGrantCreate(c *gin.Context) {
 
 	grant.GrantID = &ID
 
-	if *grant.Type == "membership" {
+	if *grant.Type == "hhmembership" {
+
+		grant.MonthsLeft = grant.Month
+		grant.MonthsUsed = new(int)
+
 		_, grantMembErr := p.grant.createGrantMembership(c.Request.Context(), grant)
 
 		if grantMembErr != nil {
@@ -147,7 +151,7 @@ func (p *profileManager) handleGrantPatchByID(c *gin.Context) {
 		return
 	}
 
-	patchErr := p.grant.patchGrant(c.Request.Context(), grant, grantID, 0)
+	_, patchErr := p.grant.patchGrant(c.Request.Context(), grant, grantID, 0)
 
 	if patchErr != nil {
 		c.Status(http.StatusInternalServerError)

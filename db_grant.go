@@ -61,6 +61,22 @@ func (db *pgProfileDB) getGrantByIDAndUserID(ctx context.Context, id int, userID
 
 func (db *pgProfileDB) createGrant(ctx context.Context, req grantAndGrantMembership) (int, error) {
 
+	if *req.Type == "hhmembership" {
+		if req.Amount == nil {
+			// set default req.Amount to 10
+			var defaultAmount = new(int)
+			*defaultAmount = 10
+			totalAmount := *defaultAmount * *req.Month
+			req.Amount = &totalAmount
+		}
+
+		if req.Currency == nil {
+			var defaultCurrency = new(string)
+			*defaultCurrency = "EUR"
+			req.Currency = defaultCurrency
+		}
+	}
+
 	var ID int
 
 	createString, numString, createQueryArgs := prepareGrantCreateQuery(req)
@@ -149,7 +165,7 @@ func (db *pgProfileDB) getGrantMembershipByGrantID(ctx context.Context, grantId 
 	return grantMemb, nil
 }
 
-func (db *pgProfileDB) patchGrant(ctx context.Context, grant grant, id int, requestID int) error {
+func (db *pgProfileDB) patchGrant(ctx context.Context, grant grant, id int, requestID int) (int, error) {
 
 	var whereQuery string
 
@@ -158,35 +174,41 @@ func (db *pgProfileDB) patchGrant(ctx context.Context, grant grant, id int, requ
 	} else if id != 0 {
 		whereQuery = fmt.Sprintf("WHERE id=%d", id)
 	} else {
-		return fmt.Errorf("invalid values")
+		return 0, fmt.Errorf("invalid values")
 	}
 
-	if *grant.Type == "membership" {
+	if *grant.Type == "hhmembership" {
+
 		if grant.Amount == nil {
-			*grant.Amount = 10
+			// set default req.Amount to 10
+			var defaultAmount = new(int)
+			*defaultAmount = 10
+			grant.Amount = defaultAmount
 		}
 
 		if grant.Currency == nil {
-			*grant.Currency = "USD"
+			var defaultCurrency = new(string)
+			*defaultCurrency = "EUR"
+			grant.Currency = defaultCurrency
 		}
 	}
 
 	toUpdate, toUpdateArgs := prepareGrantUpdate(grant)
 
+	var grantID int
+
 	if len(toUpdateArgs) != 0 {
-		updateRes, err := db.Exec(ctx, fmt.Sprintf(`UPDATE "grant" SET %s %s`, toUpdate, whereQuery),
-			toUpdateArgs...)
-		if err != nil {
-			return fmt.Errorf("problem updating grant: %w", err)
+		if err := db.QueryRow(ctx, fmt.Sprintf(`UPDATE "grant" SET %s %s RETURNING id`, toUpdate, whereQuery),
+			toUpdateArgs...).Scan(&grantID); err != nil {
+			if err == pgx.ErrNoRows {
+				return 0, errNotFound
+			}
+			return 0, fmt.Errorf("problem updating grant: %w", err)
 		}
 
-		if updateRes.RowsAffected() == 0 {
-			return fmt.Errorf("not found")
-		}
-
-		return nil
+		return grantID, nil
 	} else {
-		return fmt.Errorf("invalid values")
+		return 0, fmt.Errorf("invalid values")
 	}
 }
 
@@ -200,19 +222,19 @@ func (db *pgProfileDB) softDeleteGrantByID(ctx context.Context, id int) error {
 
 func (db *pgProfileDB) getNumberOfGrantMonthsUsedByGrantID(ctx context.Context, grantID int) (int, error) {
 
-	var monthUsed int
+	var monthUsed *int
 
 	if err := db.QueryRow(ctx, `
-	SELECT COUNT(*) 
+	SELECT COUNT(*)
     FROM membership_helphaver
     WHERE grant_id = $1
 	`, grantID).Scan(
-		monthUsed,
+		&monthUsed,
 	); err != nil {
 		return 0, fmt.Errorf("error while getting number of months used in grant by grant ID: %w", err)
 	}
 
-	return monthUsed, nil
+	return *monthUsed, nil
 }
 
 func (db *pgProfileDB) getMultipleGrant(ctx context.Context, intSkip int, intLimit int, cancelled *bool, userID string, grantType string, createdAt string) ([]grantRes, error) {
