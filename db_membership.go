@@ -892,8 +892,8 @@ func (db *pgProfileDB) getMembershipByUserID(ctx context.Context, userID string,
 		membership.Details.Automatic.PaymentID = autoMembership.PaymentID
 
 		// Get payment details from order service
-		userPaymentDetails := getServerUrl() + "/pay/v2/payment/" + fmt.Sprint(autoMembership.PaymentID)
-		// userPaymentDetails := "http://localhost:8185/v2/payment/" + fmt.Sprint(autoMembership.PaymentID)
+		userPaymentDetails := getServerUrl() + "/pay/v2/payment/" + fmt.Sprint(*autoMembership.PaymentID)
+		// userPaymentDetails := "http://localhost:8185/v2/payment/" + fmt.Sprint(*autoMembership.PaymentID)
 
 		orderDetails, _ := utils.HTTPCallAndGetBody(userPaymentDetails, authHeader, nil, "GET")
 
@@ -924,8 +924,8 @@ func (db *pgProfileDB) getMembershipByUserID(ctx context.Context, userID string,
 			return userMembershipRes{}, fmt.Errorf("error while getting automatic membership: %w", err)
 		}
 
-		manualUserPaymentDetails := getServerUrl() + "/pay/v2/payment/" + fmt.Sprint(manualMembership.PaymentID)
-		// manualUserPaymentDetails := "http://localhost:8185/v2/payment/" + fmt.Sprint(manualMembership.PaymentID)
+		manualUserPaymentDetails := getServerUrl() + "/pay/v2/payment/" + fmt.Sprint(*manualMembership.PaymentID)
+		// manualUserPaymentDetails := "http://localhost:8185/v2/payment/" + fmt.Sprint(*manualMembership.PaymentID)
 
 		paymentDetails, _ := utils.HTTPCallAndGetBody(manualUserPaymentDetails, authHeader, nil, "GET")
 
