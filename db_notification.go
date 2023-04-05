@@ -17,6 +17,7 @@ func (db *pgProfileDB) getActiveUserNotificationByUserID(ctx context.Context, us
 			active,
 			seen_at,
 			notification.slug,
+			notification.content,
 			user_notification.created_at,
 			user_notification.updated_at,
 			user_notification.deleted_at
@@ -38,6 +39,7 @@ func (db *pgProfileDB) getActiveUserNotificationByUserID(ctx context.Context, us
 			&r.Active,
 			&r.SeenAt,
 			&r.Slug,
+			&r.Content,
 			&r.CreatedAt,
 			&r.UpdatedAt,
 			&r.DeletedAt,

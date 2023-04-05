@@ -981,6 +981,7 @@ func (db *pgProfileDB) getMembershipByUserID(ctx context.Context, userID string,
 	for _, noti := range userActiveNotification {
 		var userNoti userMembershipNotification
 		userNoti.Slug = noti.Slug
+		userNoti.Content = noti.Content
 		userNotiSlug = append(userNotiSlug, userNoti)
 	}
 
