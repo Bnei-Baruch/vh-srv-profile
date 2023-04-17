@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
+
+	"github.com/jackc/pgx/v4"
 )
 
 func (db *pgProfileDB) getActiveUserNotificationByUserID(ctx context.Context, userID string) ([]userNotificationRes, error) {
@@ -49,6 +52,121 @@ func (db *pgProfileDB) getActiveUserNotificationByUserID(ctx context.Context, us
 	}
 
 	return userNotiRes, nil
+}
+
+func (db *pgProfileDB) getNotificationByID(ctx context.Context, id int) (notificationRes, error) {
+	var r notificationRes
+	err := db.QueryRow(ctx, `
+		SELECT 
+		id,
+		slug,
+		content,
+		created_at,
+		updated_at,
+		deleted_at
+		FROM notification
+		WHERE id = $1
+		`, id).Scan(
+		&r.ID,
+		&r.Slug,
+		&r.Content,
+		&r.CreatedAt,
+		&r.UpdatedAt,
+		&r.DeletedAt,
+	)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return notificationRes{}, errNotFound
+		}
+		return notificationRes{}, err
+	}
+
+	return r, nil
+}
+
+func (db *pgProfileDB) createNotification(ctx context.Context, noti notification) (int, error) {
+	var id int
+	err := db.QueryRow(ctx, `
+		INSERT INTO notification (slug, content)
+		VALUES ($1, $2)
+		RETURNING id
+		`, noti.Slug, noti.Content).Scan(&id)
+	if err != nil {
+		return 0, err
+	}
+
+	return id, nil
+}
+
+func (db *pgProfileDB) getMultipleNotification(ctx context.Context, intSkip int, intLimit int) ([]notificationRes, error) {
+	notifRes := []notificationRes{}
+
+	rows, err := db.Query(ctx, `
+		SELECT 
+		id,
+		slug,
+		content,
+		created_at,
+		updated_at,
+		deleted_at
+		FROM notification
+		ORDER BY id DESC
+		LIMIT $1 OFFSET $2
+		`, intLimit, intSkip)
+	if err != nil {
+		fmt.Println("--error-while-executing-query", err)
+		return []notificationRes{}, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var r notificationRes
+		if err := rows.Scan(
+			&r.ID,
+			&r.Slug,
+			&r.Content,
+			&r.CreatedAt,
+			&r.UpdatedAt,
+			&r.DeletedAt,
+		); err != nil {
+			return []notificationRes{}, err
+		}
+
+		notifRes = append(notifRes, r)
+	}
+
+	return notifRes, nil
+}
+
+func (db *pgProfileDB) patchNotification(ctx context.Context, noti notification, id int) (int, error) {
+
+	var ID int
+
+	toUpdate, toUpdateArgs := prepareNotificationUpdate(noti)
+
+	if len(toUpdateArgs) != 0 {
+		if err := db.QueryRow(ctx, fmt.Sprintf(`UPDATE notification SET %s WHERE id='%d' RETURNING id`, toUpdate, id),
+			toUpdateArgs...).
+			Scan(&ID); err != nil {
+			return 0, fmt.Errorf("problem updating notification: %w", err)
+		}
+
+		return ID, nil
+	} else {
+		return 0, fmt.Errorf("invalid values")
+	}
+}
+
+func (db *pgProfileDB) softDeleteNotification(ctx context.Context, id int) error {
+	_, err := db.Exec(ctx, `
+		UPDATE notification
+		SET deleted_at = $1
+		WHERE id = $2
+		`, time.Now(), id)
+	if err != nil {
+		return fmt.Errorf("problem deleting notification: %w", err)
+	}
+
+	return nil
 }
 
 // add user notfications
@@ -144,4 +262,27 @@ func prepareUserNotificationCreateQuery(req userNotification) (string, string, [
 	concatedNumString := strings.Join(numString, ",")
 
 	return concatedCreateString, concatedNumString, args
+}
+
+func prepareNotificationUpdate(req notification) (string, []interface{}) {
+	var updateStrings []string
+	var args []interface{}
+
+	if req.Slug != nil {
+		updateStrings = append(updateStrings, fmt.Sprintf("slug=$%d", len(updateStrings)+1))
+		args = append(args, *req.Slug)
+	}
+	if req.Content != nil {
+		updateStrings = append(updateStrings, fmt.Sprintf("content=$%d", len(updateStrings)+1))
+		args = append(args, *req.Content)
+	}
+
+	if len(args) != 0 {
+		updateStrings = append(updateStrings, fmt.Sprintf("updated_at=$%d", len(updateStrings)+1))
+		args = append(args, time.Now())
+	}
+
+	updateArgument := strings.Join(updateStrings, ",")
+
+	return updateArgument, args
 }
