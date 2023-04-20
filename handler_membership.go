@@ -87,10 +87,11 @@ type userNotification struct {
 type userNotificationRes struct {
 	ID *int `json:"id"`
 	userNotification
-	Slug      *string    `json:"slug"`
-	CreatedAt *time.Time `json:"created_at"`
-	UpdatedAt *time.Time `json:"updated_at"`
-	DeletedAt *time.Time `json:"deleted_at"`
+	Slug      *string                 `json:"slug"`
+	Content   *map[string]interface{} `json:"content"`
+	CreatedAt *time.Time              `json:"created_at"`
+	UpdatedAt *time.Time              `json:"updated_at"`
+	DeletedAt *time.Time              `json:"deleted_at"`
 }
 
 type notificationRes struct {
@@ -103,7 +104,8 @@ type notificationRes struct {
 }
 
 type userMembershipNotification struct {
-	Slug *string `json:"slug"`
+	Slug    *string                 `json:"slug"`
+	Content *map[string]interface{} `json:"content,omitempty"`
 }
 
 type userMembershipRes struct {
