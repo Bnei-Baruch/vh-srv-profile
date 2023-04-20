@@ -56,6 +56,7 @@ func main() {
 		fetchRequests:  profileDB,
 		grant:          profileDB,
 		membership:     profileDB,
+		notification:   profileDB,
 	}
 
 	app := initApp(appHandlers{
@@ -81,6 +82,11 @@ func main() {
 		handleMembershipFetchAll:           profile.handleMembershipFetchAll,
 		handleMembershipCancellation:       profile.handleMembershipCancellation,
 		handleMembershipEvaluationByUserID: profile.handleMembershipEvaluationByUserID,
+		handleNotificationFetchByID:        profile.handleNotificationFetchByID,
+		handleNotificationCreate:           profile.handleNotificationCreate,
+		handleNotificationPatchByID:        profile.handleNotificationPatchByID,
+		handleNotificationSoftDeleteByID:   profile.handleNotificationSoftDelete,
+		handleNotificationFetchAll:         profile.handleNotificationFetchAll,
 	})
 
 	if err := app.Run(":" + config.appPort); err != nil {
@@ -111,6 +117,11 @@ type appHandlers struct {
 	handleMembershipSoftDeleteByID     gin.HandlerFunc
 	handleMembershipCancellation       gin.HandlerFunc
 	handleMembershipEvaluationByUserID gin.HandlerFunc
+	handleNotificationFetchByID        gin.HandlerFunc
+	handleNotificationCreate           gin.HandlerFunc
+	handleNotificationPatchByID        gin.HandlerFunc
+	handleNotificationSoftDeleteByID   gin.HandlerFunc
+	handleNotificationFetchAll         gin.HandlerFunc
 }
 
 func initApp(handlers appHandlers) *gin.Engine {
@@ -151,6 +162,16 @@ func initApp(handlers appHandlers) *gin.Engine {
 		membership.POST("/cancellation", handlers.handleMembershipCancellation)
 	}
 	baseV1Path.GET("/memberships", handlers.handleMembershipFetchAll)
+
+	// notification crud
+	notification := baseV1Path.Group("/notification")
+	{
+		notification.POST("", handlers.handleNotificationCreate)
+		notification.GET("/:id", handlers.handleNotificationFetchByID)
+		notification.PATCH("/:id", handlers.handleNotificationPatchByID)
+		notification.DELETE("/:id", handlers.handleNotificationSoftDeleteByID)
+	}
+	baseV1Path.GET("/notifications", handlers.handleNotificationFetchAll)
 
 	return app
 }

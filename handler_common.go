@@ -32,6 +32,7 @@ type profileManager struct {
 	fetchProfiles  readMultipleProfileStorage
 	grant          grantInterface
 	membership     membershipInterface
+	notification   notificationInterface
 }
 
 type profileRequest struct {
