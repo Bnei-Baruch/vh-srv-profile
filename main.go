@@ -60,33 +60,38 @@ func main() {
 	}
 
 	app := initApp(appHandlers{
-		create:                             profile.create,
-		createRequest:                      profile.createRequest,
-		get:                                profile.get,
-		update:                             profile.update,
-		updateRequest:                      profile.updateRequest,
-		delete:                             profile.delete,
-		deleteRequest:                      profile.deleteRequest,
-		hardDelete:                         profile.hardDelete,
-		getProfiles:                        profile.getProfiles,
-		getRequests:                        profile.getRequest,
-		handleGrantFetchByID:               profile.handleGrantFetchByID,
-		handleGrantCreate:                  profile.handleGrantCreate,
-		handleGrantPatchByID:               profile.handleGrantPatchByID,
-		handleGrantSoftDeleteByID:          profile.handleGrantSoftDeleteByID,
-		handleGrantFetchAll:                profile.handleGrantFetchAll,
-		handleMembershipFetchByID:          profile.handleMembershipFetchByID,
-		handleMembershipFetchByUserID:      profile.handleMembershipFetchByUserID,
-		handleMembershipPatchByID:          profile.handleMembershipPatchByID,
-		handleMembershipSoftDeleteByID:     profile.handleMembershipSoftDeleteByID,
-		handleMembershipFetchAll:           profile.handleMembershipFetchAll,
-		handleMembershipCancellation:       profile.handleMembershipCancellation,
-		handleMembershipEvaluationByUserID: profile.handleMembershipEvaluationByUserID,
-		handleNotificationFetchByID:        profile.handleNotificationFetchByID,
-		handleNotificationCreate:           profile.handleNotificationCreate,
-		handleNotificationPatchByID:        profile.handleNotificationPatchByID,
-		handleNotificationSoftDeleteByID:   profile.handleNotificationSoftDelete,
-		handleNotificationFetchAll:         profile.handleNotificationFetchAll,
+		create:                               profile.create,
+		createRequest:                        profile.createRequest,
+		get:                                  profile.get,
+		update:                               profile.update,
+		updateRequest:                        profile.updateRequest,
+		delete:                               profile.delete,
+		deleteRequest:                        profile.deleteRequest,
+		hardDelete:                           profile.hardDelete,
+		getProfiles:                          profile.getProfiles,
+		getRequests:                          profile.getRequest,
+		handleGrantFetchByID:                 profile.handleGrantFetchByID,
+		handleGrantCreate:                    profile.handleGrantCreate,
+		handleGrantPatchByID:                 profile.handleGrantPatchByID,
+		handleGrantSoftDeleteByID:            profile.handleGrantSoftDeleteByID,
+		handleGrantFetchAll:                  profile.handleGrantFetchAll,
+		handleMembershipFetchByID:            profile.handleMembershipFetchByID,
+		handleMembershipFetchByUserID:        profile.handleMembershipFetchByUserID,
+		handleMembershipPatchByID:            profile.handleMembershipPatchByID,
+		handleMembershipSoftDeleteByID:       profile.handleMembershipSoftDeleteByID,
+		handleMembershipFetchAll:             profile.handleMembershipFetchAll,
+		handleMembershipCancellation:         profile.handleMembershipCancellation,
+		handleMembershipEvaluationByUserID:   profile.handleMembershipEvaluationByUserID,
+		handleNotificationFetchByID:          profile.handleNotificationFetchByID,
+		handleNotificationCreate:             profile.handleNotificationCreate,
+		handleNotificationPatchByID:          profile.handleNotificationPatchByID,
+		handleNotificationSoftDeleteByID:     profile.handleNotificationSoftDelete,
+		handleNotificationFetchAll:           profile.handleNotificationFetchAll,
+		handleUserNotificationFetchByID:      profile.handleUserNotificationFetchByID,
+		handleUserNotificationCreate:         profile.handleUserNotificationCreate,
+		handleUserNotificationPatchByID:      profile.handleUserNotificationPatchByID,
+		handleUserNotificationSoftDeleteByID: profile.handleUserNotificationSoftDelete,
+		handleUserNotificationFetchAll:       profile.handleUserNotificationFetchAll,
 	})
 
 	if err := app.Run(":" + config.appPort); err != nil {
@@ -95,33 +100,38 @@ func main() {
 }
 
 type appHandlers struct {
-	create                             gin.HandlerFunc
-	createRequest                      gin.HandlerFunc
-	get                                gin.HandlerFunc
-	update                             gin.HandlerFunc
-	updateRequest                      gin.HandlerFunc
-	delete                             gin.HandlerFunc
-	deleteRequest                      gin.HandlerFunc
-	hardDelete                         gin.HandlerFunc
-	getProfiles                        gin.HandlerFunc
-	getRequests                        gin.HandlerFunc
-	handleGrantFetchByID               gin.HandlerFunc
-	handleGrantCreate                  gin.HandlerFunc
-	handleGrantPatchByID               gin.HandlerFunc
-	handleGrantSoftDeleteByID          gin.HandlerFunc
-	handleGrantFetchAll                gin.HandlerFunc
-	handleMembershipFetchByID          gin.HandlerFunc
-	handleMembershipFetchByUserID      gin.HandlerFunc
-	handleMembershipPatchByID          gin.HandlerFunc
-	handleMembershipFetchAll           gin.HandlerFunc
-	handleMembershipSoftDeleteByID     gin.HandlerFunc
-	handleMembershipCancellation       gin.HandlerFunc
-	handleMembershipEvaluationByUserID gin.HandlerFunc
-	handleNotificationFetchByID        gin.HandlerFunc
-	handleNotificationCreate           gin.HandlerFunc
-	handleNotificationPatchByID        gin.HandlerFunc
-	handleNotificationSoftDeleteByID   gin.HandlerFunc
-	handleNotificationFetchAll         gin.HandlerFunc
+	create                               gin.HandlerFunc
+	createRequest                        gin.HandlerFunc
+	get                                  gin.HandlerFunc
+	update                               gin.HandlerFunc
+	updateRequest                        gin.HandlerFunc
+	delete                               gin.HandlerFunc
+	deleteRequest                        gin.HandlerFunc
+	hardDelete                           gin.HandlerFunc
+	getProfiles                          gin.HandlerFunc
+	getRequests                          gin.HandlerFunc
+	handleGrantFetchByID                 gin.HandlerFunc
+	handleGrantCreate                    gin.HandlerFunc
+	handleGrantPatchByID                 gin.HandlerFunc
+	handleGrantSoftDeleteByID            gin.HandlerFunc
+	handleGrantFetchAll                  gin.HandlerFunc
+	handleMembershipFetchByID            gin.HandlerFunc
+	handleMembershipFetchByUserID        gin.HandlerFunc
+	handleMembershipPatchByID            gin.HandlerFunc
+	handleMembershipFetchAll             gin.HandlerFunc
+	handleMembershipSoftDeleteByID       gin.HandlerFunc
+	handleMembershipCancellation         gin.HandlerFunc
+	handleMembershipEvaluationByUserID   gin.HandlerFunc
+	handleNotificationFetchByID          gin.HandlerFunc
+	handleNotificationCreate             gin.HandlerFunc
+	handleNotificationPatchByID          gin.HandlerFunc
+	handleNotificationSoftDeleteByID     gin.HandlerFunc
+	handleNotificationFetchAll           gin.HandlerFunc
+	handleUserNotificationFetchByID      gin.HandlerFunc
+	handleUserNotificationCreate         gin.HandlerFunc
+	handleUserNotificationPatchByID      gin.HandlerFunc
+	handleUserNotificationSoftDeleteByID gin.HandlerFunc
+	handleUserNotificationFetchAll       gin.HandlerFunc
 }
 
 func initApp(handlers appHandlers) *gin.Engine {
@@ -172,6 +182,15 @@ func initApp(handlers appHandlers) *gin.Engine {
 		notification.DELETE("/:id", handlers.handleNotificationSoftDeleteByID)
 	}
 	baseV1Path.GET("/notifications", handlers.handleNotificationFetchAll)
+
+	userNotification := baseV1Path.Group("/user/notification")
+	{
+		userNotification.POST("", handlers.handleUserNotificationCreate)
+		userNotification.GET("/:id", handlers.handleUserNotificationFetchByID)
+		userNotification.PATCH("/:id", handlers.handleUserNotificationPatchByID)
+		userNotification.DELETE("/:id", handlers.handleUserNotificationSoftDeleteByID)
+	}
+	baseV1Path.GET("/user/notifications", handlers.handleUserNotificationFetchAll)
 
 	return app
 }

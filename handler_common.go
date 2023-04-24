@@ -20,19 +20,20 @@ var (
 )
 
 type profileManager struct {
-	creator        createStorage
-	requestCreator createRequestStorage
-	getter         readStorage
-	updater        updateStorage
-	requestUpdater updateRequestStorage
-	deleter        deleteStorage
-	requestDeleter deleteRequestStorage
-	hardDeleter    hardDeleteStorage
-	fetchRequests  readMultipleRequestStorage
-	fetchProfiles  readMultipleProfileStorage
-	grant          grantInterface
-	membership     membershipInterface
-	notification   notificationInterface
+	creator          createStorage
+	requestCreator   createRequestStorage
+	getter           readStorage
+	updater          updateStorage
+	requestUpdater   updateRequestStorage
+	deleter          deleteStorage
+	requestDeleter   deleteRequestStorage
+	hardDeleter      hardDeleteStorage
+	fetchRequests    readMultipleRequestStorage
+	fetchProfiles    readMultipleProfileStorage
+	grant            grantInterface
+	membership       membershipInterface
+	notification     notificationInterface
+	userNotification userNotificationInterface
 }
 
 type profileRequest struct {

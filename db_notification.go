@@ -171,23 +171,6 @@ func (db *pgProfileDB) softDeleteNotification(ctx context.Context, id int) error
 	return nil
 }
 
-// add user notfications
-func (db *pgProfileDB) createUserNotification(ctx context.Context, req userNotification) error {
-	createString, numString, createQueryArgs := prepareUserNotificationCreateQuery(req)
-
-	if len(createQueryArgs) != 0 {
-		_, err := db.Exec(ctx, fmt.Sprintf(`INSERT INTO user_notification (%s) VALUES (%s)`, createString, numString),
-			createQueryArgs...)
-		if err != nil {
-			return fmt.Errorf("problem creating request: %w", err)
-		}
-
-		return nil
-	} else {
-		return fmt.Errorf("invalid values")
-	}
-}
-
 func (db *pgProfileDB) updateAllUserNotificationToInactive(ctx context.Context, userID string) error {
 	_, err := db.Exec(ctx, `
 		UPDATE user_notification
@@ -232,38 +215,6 @@ func (db *pgProfileDB) getNotificationBySlug(ctx context.Context, slug string) (
 	}
 
 	return r, nil
-}
-
-func prepareUserNotificationCreateQuery(req userNotification) (string, string, []interface{}) {
-	var createStrings []string
-	var numString []string
-	var args []interface{}
-
-	if req.Active != nil {
-		createStrings = append(createStrings, "active")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.Active)
-	}
-	if req.UserID != nil {
-		createStrings = append(createStrings, "user_id")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.UserID)
-	}
-	if req.NotificationID != nil {
-		createStrings = append(createStrings, "notification_id")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.NotificationID)
-	}
-	if req.SeenAt != nil {
-		createStrings = append(createStrings, "seen_at")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.SeenAt)
-	}
-
-	concatedCreateString := strings.Join(createStrings, ",")
-	concatedNumString := strings.Join(numString, ",")
-
-	return concatedCreateString, concatedNumString, args
 }
 
 func prepareNotificationUpdate(req notification) (string, []interface{}) {
