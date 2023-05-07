@@ -33,6 +33,7 @@ type profileManager struct {
 	grant          grantInterface
 	membership     membershipInterface
 	notification   notificationInterface
+	operation      operationInterface
 }
 
 type profileRequest struct {

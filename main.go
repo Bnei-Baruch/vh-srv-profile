@@ -57,6 +57,7 @@ func main() {
 		grant:          profileDB,
 		membership:     profileDB,
 		notification:   profileDB,
+		operation:      profileDB,
 	}
 
 	app := initApp(appHandlers{
@@ -87,6 +88,7 @@ func main() {
 		handleNotificationPatchByID:        profile.handleNotificationPatchByID,
 		handleNotificationSoftDeleteByID:   profile.handleNotificationSoftDelete,
 		handleNotificationFetchAll:         profile.handleNotificationFetchAll,
+		handleOperationCreate:              profile.handleOperationCreate,
 	})
 
 	if err := app.Run(":" + config.appPort); err != nil {
@@ -122,6 +124,7 @@ type appHandlers struct {
 	handleNotificationPatchByID        gin.HandlerFunc
 	handleNotificationSoftDeleteByID   gin.HandlerFunc
 	handleNotificationFetchAll         gin.HandlerFunc
+	handleOperationCreate              gin.HandlerFunc
 }
 
 func initApp(handlers appHandlers) *gin.Engine {
@@ -172,6 +175,11 @@ func initApp(handlers appHandlers) *gin.Engine {
 		notification.DELETE("/:id", handlers.handleNotificationSoftDeleteByID)
 	}
 	baseV1Path.GET("/notifications", handlers.handleNotificationFetchAll)
+
+	operation := baseV1Path.Group("/operation")
+	{
+		operation.POST("/", handlers.handleOperationCreate)
+	}
 
 	return app
 }
