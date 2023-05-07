@@ -13,7 +13,7 @@ import (
 
 type userNotificationInterface interface {
 	getUserNotificationByID(ctx context.Context, id int) (userNotificationRes, error)
-	createUserNotification(ctx context.Context, noti userNotification) (int, error)
+	createUserNotification(ctx context.Context, noti userNotification) error
 	getMultipleUserNotification(ctx context.Context, intSkip int, intLimit int) ([]userNotificationRes, error)
 	patchUserNotification(ctx context.Context, noti userNotification, id int) (int, error)
 	softDeleteUserNotification(ctx context.Context, id int) error
@@ -77,7 +77,7 @@ func (p *profileManager) handleUserNotificationCreate(c *gin.Context) {
 		return
 	}
 
-	ID, dbErr := p.userNotification.createUserNotification(c.Request.Context(), noti)
+	dbErr := p.userNotification.createUserNotification(c.Request.Context(), noti)
 
 	if dbErr != nil {
 		c.Status(http.StatusInternalServerError)
@@ -85,7 +85,7 @@ func (p *profileManager) handleUserNotificationCreate(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Created!", "data": ID})
+	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Created!", "data": noti})
 }
 
 func (p *profileManager) handleUserNotificationPatchByID(c *gin.Context) {

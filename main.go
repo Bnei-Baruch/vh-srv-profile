@@ -44,19 +44,21 @@ func main() {
 	fmt.Println("Migrated profile db")
 
 	profile := &profileManager{
-		creator:        profileDB,
-		requestCreator: profileDB,
-		getter:         profileDB,
-		updater:        profileDB,
-		requestUpdater: profileDB,
-		deleter:        profileDB,
-		requestDeleter: profileDB,
-		hardDeleter:    profileDB,
-		fetchProfiles:  profileDB,
-		fetchRequests:  profileDB,
-		grant:          profileDB,
-		membership:     profileDB,
-		notification:   profileDB,
+		creator:          profileDB,
+		requestCreator:   profileDB,
+		getter:           profileDB,
+		updater:          profileDB,
+		requestUpdater:   profileDB,
+		deleter:          profileDB,
+		requestDeleter:   profileDB,
+		hardDeleter:      profileDB,
+		fetchProfiles:    profileDB,
+		fetchRequests:    profileDB,
+		grant:            profileDB,
+		membership:       profileDB,
+		notification:     profileDB,
+		userNotification: profileDB,
+		operation:        profileDB,
 	}
 
 	app := initApp(appHandlers{
@@ -92,6 +94,7 @@ func main() {
 		handleUserNotificationPatchByID:      profile.handleUserNotificationPatchByID,
 		handleUserNotificationSoftDeleteByID: profile.handleUserNotificationSoftDelete,
 		handleUserNotificationFetchAll:       profile.handleUserNotificationFetchAll,
+		handleOperationCreate:                profile.handleOperationCreate,
 	})
 
 	if err := app.Run(":" + config.appPort); err != nil {
@@ -132,6 +135,7 @@ type appHandlers struct {
 	handleUserNotificationPatchByID      gin.HandlerFunc
 	handleUserNotificationSoftDeleteByID gin.HandlerFunc
 	handleUserNotificationFetchAll       gin.HandlerFunc
+	handleOperationCreate                gin.HandlerFunc
 }
 
 func initApp(handlers appHandlers) *gin.Engine {
@@ -191,6 +195,10 @@ func initApp(handlers appHandlers) *gin.Engine {
 		userNotification.DELETE("/:id", handlers.handleUserNotificationSoftDeleteByID)
 	}
 	baseV1Path.GET("/user/notifications", handlers.handleUserNotificationFetchAll)
+	operation := baseV1Path.Group("/operation")
+	{
+		operation.POST("/", handlers.handleOperationCreate)
+	}
 
 	return app
 }
