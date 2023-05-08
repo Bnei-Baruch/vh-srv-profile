@@ -6,8 +6,7 @@ CREATE TABLE IF NOT EXISTS operation_trace (
     type TEXT NOT NULL,
     output JSON NOT NULL,
     status TEXT NOT NULL,
-    revert JSON,
-    revert_output JSON
+    revert JSON
 );
 
 COMMIT;

@@ -9,12 +9,13 @@ import (
 )
 
 type operationInterface interface {
-	createOperation(ctx context.Context, opr operationReq) (int, error)
+	performOperation(ctx context.Context, opr operationReq) (int, error)
 }
 
 type operationReq struct {
 	ID            *int    `json:"id"`
 	NewEmail      *string `json:"new_email"`
+	OldEmail      *string `json:"old_email"`
 	NewKeycloakID *string `json:"new_keycloak_id"`
 	OldKeycloakID *string `json:"old_keycloak_id"`
 	Input         *string `json:"input"`
@@ -22,7 +23,6 @@ type operationReq struct {
 	Output        *string `json:"output"`
 	Status        *string `json:"status"`
 	Revert        *string `json:"revert"`
-	RevertOutput  *string `json:"revert_output"`
 }
 
 func (p *profileManager) handleOperationCreate(c *gin.Context) {
@@ -40,7 +40,22 @@ func (p *profileManager) handleOperationCreate(c *gin.Context) {
 		return
 	}
 
-	ID, dbErr := p.operation.createOperation(c.Request.Context(), opr)
+	if opr.NewKeycloakID == nil || opr.OldKeycloakID == nil {
+		if opr.NewKeycloakID == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "new keycloak id missing"})
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "old keycloak id missing"})
+		}
+	}
+
+	// check if both keycloak ids are same
+
+	if *opr.NewKeycloakID == *opr.OldKeycloakID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "both keycloak ids are same"})
+		return
+	}
+
+	ID, dbErr := p.operation.performOperation(c.Request.Context(), opr)
 
 	if dbErr != nil {
 		c.Status(http.StatusInternalServerError)
