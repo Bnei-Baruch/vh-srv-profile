@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
 
 type operationInterface interface {
 	performOperation(ctx context.Context, opr operationReq) (int, error)
+	revertOperation(ctx context.Context, id int) error
 }
 
 type operationReq struct {
@@ -23,6 +25,45 @@ type operationReq struct {
 	Output        *string `json:"output"`
 	Status        *string `json:"status"`
 	Revert        *string `json:"revert"`
+	ToRevert      *bool   `json:"to_revert"`
+}
+
+type operationTrace struct {
+	ID     *int    `json:"id"`
+	Input  *string `json:"input"`
+	Output *string `json:"output"`
+	Type   *string `json:"type"`
+	Status *string `json:"status"`
+	Revert *string `json:"revert"`
+}
+
+// handleOperationRevert
+func (p *profileManager) handleOperationRevert(c *gin.Context) {
+
+	idStr, ok := c.Params.Get("id")
+
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id missing"})
+		return
+	}
+
+	// convert id to int
+	id, err := strconv.Atoi(idStr)
+
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+
+	revertErr := p.operation.revertOperation(c.Request.Context(), id)
+
+	if revertErr != nil {
+		_ = c.Error(fmt.Errorf("error while reverting operation: %w", revertErr))
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Reverted!"})
 }
 
 func (p *profileManager) handleOperationCreate(c *gin.Context) {
