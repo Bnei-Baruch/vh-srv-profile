@@ -97,13 +97,66 @@ func (db *pgProfileDB) performOperation(ctx context.Context, req operationReq) (
 	}
 }
 
-// BEGIN;
+func (db *pgProfileDB) revertOperation(ctx context.Context, id int) error {
+	// get operation by id
+	var operation operationTrace
 
-// UPDATE users
-// SET keycloak_id = 'new_kc_id', primary_email = 'new_email'
-// WHERE keycloak_id = 'old_kc_id';
+	if err := db.QueryRow(ctx, `SELECT status, revert FROM operation_trace WHERE id=$1`, id).Scan(
+		&operation.Status,
+		&operation.Revert); err != nil {
+		return fmt.Errorf("problem getting operation_trace: %w", err)
+	}
 
-// COMMIT;
+	if *operation.Status == "reverted" {
+		return fmt.Errorf("operation already reverted")
+	}
+
+	// revert operation
+	var revert QueryLog
+	if err := json.Unmarshal([]byte(*operation.Revert), &revert); err != nil {
+		return fmt.Errorf("problem unmarshalling operation_trace: %w", err)
+	}
+
+	tx, err := db.Begin(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if err != nil {
+		return err
+	}
+
+	var query string
+	// first query in the Queries array is the query to revert
+	if revert.Queries != nil {
+		query = revert.Queries[0].(string)
+	}
+
+	revertRes, err := tx.Exec(ctx, query)
+	if err != nil {
+		return fmt.Errorf("problem reverting operation: %w", err)
+	}
+
+	// update operation_trace
+	revert.Logs = append(revert.Logs, revertRes.String())
+	revertJson := convertStructToJSONString(revert)
+	operation.Revert = &revertJson
+
+	var revertedStr = "reverted"
+	operation.Status = &revertedStr
+
+	updateString, updateQueryArgs := prepareOperationTraceUpdateQuery(operation)
+
+	if len(updateQueryArgs) != 0 {
+		if err := tx.QueryRow(ctx, fmt.Sprintf(`UPDATE operation_trace SET %s WHERE id='%d' RETURNING id`, updateString, id),
+			updateQueryArgs...).Scan(&operation.ID); err != nil {
+			return fmt.Errorf("problem updating operation_trace: %w", err)
+		}
+
+		return tx.Commit(ctx)
+	} else {
+		return fmt.Errorf("invalid values")
+	}
+
+}
 
 func prepareOperationCreateQuery(req operationReq) (string, string, []interface{}) {
 	var createStrings []string
@@ -144,4 +197,43 @@ func prepareOperationCreateQuery(req operationReq) (string, string, []interface{
 	concatedNumString := strings.Join(numString, ",")
 
 	return concatedCreateString, concatedNumString, args
+}
+
+func prepareOperationTraceUpdateQuery(req operationTrace) (string, []interface{}) {
+	var updateStrings []string
+	var args []interface{}
+
+	if req.Input != nil {
+		updateStrings = append(updateStrings, fmt.Sprintf("input=$%d", len(updateStrings)+1))
+		args = append(args, *req.Input)
+	}
+
+	if req.Output != nil {
+		updateStrings = append(updateStrings, fmt.Sprintf("output=$%d", len(updateStrings)+1))
+		args = append(args, *req.Output)
+	}
+
+	if req.Revert != nil {
+		updateStrings = append(updateStrings, fmt.Sprintf("revert=$%d", len(updateStrings)+1))
+		args = append(args, *req.Revert)
+	}
+
+	if req.Status != nil {
+		updateStrings = append(updateStrings, fmt.Sprintf("status=$%d", len(updateStrings)+1))
+		args = append(args, *req.Status)
+	}
+
+	if req.Type != nil {
+		updateStrings = append(updateStrings, fmt.Sprintf("type=$%d", len(updateStrings)+1))
+		args = append(args, *req.Type)
+	}
+
+	// if len(args) != 0 {
+	// 	updateStrings = append(updateStrings, fmt.Sprintf("updated_at=$%d", len(updateStrings)+1))
+	// 	args = append(args, time.Now())
+	// }
+
+	updateArgument := strings.Join(updateStrings, ",")
+
+	return updateArgument, args
 }

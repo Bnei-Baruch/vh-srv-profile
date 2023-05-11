@@ -89,6 +89,7 @@ func main() {
 		handleNotificationSoftDeleteByID:   profile.handleNotificationSoftDelete,
 		handleNotificationFetchAll:         profile.handleNotificationFetchAll,
 		handleOperationCreate:              profile.handleOperationCreate,
+		handleOperationRevert:              profile.handleOperationRevert,
 	})
 
 	if err := app.Run(":" + config.appPort); err != nil {
@@ -125,6 +126,7 @@ type appHandlers struct {
 	handleNotificationSoftDeleteByID   gin.HandlerFunc
 	handleNotificationFetchAll         gin.HandlerFunc
 	handleOperationCreate              gin.HandlerFunc
+	handleOperationRevert              gin.HandlerFunc
 }
 
 func initApp(handlers appHandlers) *gin.Engine {
@@ -179,6 +181,7 @@ func initApp(handlers appHandlers) *gin.Engine {
 	operation := baseV1Path.Group("/operation")
 	{
 		operation.POST("/", handlers.handleOperationCreate)
+		operation.POST("/:id/revert", handlers.handleOperationRevert)
 	}
 
 	return app
