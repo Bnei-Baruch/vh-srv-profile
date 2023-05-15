@@ -34,6 +34,7 @@ type profileManager struct {
 	membership       membershipInterface
 	notification     notificationInterface
 	userNotification userNotificationInterface
+	operation        operationInterface
 }
 
 type profileRequest struct {
