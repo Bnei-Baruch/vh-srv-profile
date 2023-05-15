@@ -197,6 +197,7 @@ func initApp(handlers appHandlers) *gin.Engine {
 		userNotification.DELETE("/:id", handlers.handleUserNotificationSoftDeleteByID)
 	}
 	baseV1Path.GET("/user/notifications", handlers.handleUserNotificationFetchAll)
+
 	operation := baseV1Path.Group("/operation")
 	{
 		operation.POST("/", handlers.handleOperationCreate)
