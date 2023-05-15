@@ -77,23 +77,6 @@ type emailKeycloakAndUserIDBody struct {
 	UserID     *string `json:"user_id"`
 }
 
-type userNotification struct {
-	UserID         *string    `json:"user_id"`
-	NotificationID *int       `json:"notification_id"`
-	Active         *bool      `json:"active"`
-	SeenAt         *time.Time `json:"seen_at"`
-}
-
-type userNotificationRes struct {
-	ID *int `json:"id"`
-	userNotification
-	Slug      *string                 `json:"slug"`
-	Content   *map[string]interface{} `json:"content"`
-	CreatedAt *time.Time              `json:"created_at"`
-	UpdatedAt *time.Time              `json:"updated_at"`
-	DeletedAt *time.Time              `json:"deleted_at"`
-}
-
 type notificationRes struct {
 	ID        *int       `json:"id"`
 	Slug      *string    `json:"slug"`
