@@ -181,7 +181,7 @@ func initApp(handlers appHandlers) *gin.Engine {
 	operation := baseV1Path.Group("/operation")
 	{
 		operation.POST("/", handlers.handleOperationCreate)
-		operation.POST("/:id/revert", handlers.handleOperationRevert)
+		operation.POST("/revert", handlers.handleOperationRevert)
 	}
 
 	return app
