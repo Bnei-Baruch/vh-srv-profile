@@ -4,28 +4,26 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
 
 type operationInterface interface {
 	performOperation(ctx context.Context, opr operationReq) (int, error)
-	revertOperation(ctx context.Context, id int) error
+	revertOperation(ctx context.Context, newEmail string, oldEmail string) error
 }
 
 type operationReq struct {
-	ID            *int    `json:"id"`
-	NewEmail      *string `json:"new_email"`
-	OldEmail      *string `json:"old_email"`
-	NewKeycloakID *string `json:"new_keycloak_id"`
-	OldKeycloakID *string `json:"old_keycloak_id"`
+	ID            *int    `json:"id" form:"id"`
+	NewEmail      *string `json:"new_email" form:"new_email" binding:"required"`
+	OldEmail      *string `json:"old_email" form:"old_email" binding:"required"`
+	NewKeycloakID *string `json:"new_keycloak_id" form:"new_keycloak_id"`
+	OldKeycloakID *string `json:"old_keycloak_id" form:"old_keycloak_id"`
 	Input         *string `json:"input"`
 	Type          *string `json:"type"`
 	Output        *string `json:"output"`
 	Status        *string `json:"status"`
 	Revert        *string `json:"revert"`
-	ToRevert      *bool   `json:"to_revert"`
 }
 
 type operationTrace struct {
@@ -40,26 +38,23 @@ type operationTrace struct {
 // handleOperationRevert
 func (p *profileManager) handleOperationRevert(c *gin.Context) {
 
-	idStr, ok := c.Params.Get("id")
+	var opr operationReq
 
-	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "id missing"})
+	if err := c.Bind(&opr); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// convert id to int
-	id, err := strconv.Atoi(idStr)
-
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+	if opr.NewEmail == nil || opr.OldEmail == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "new email and old email missing"})
 		return
 	}
 
-	revertErr := p.operation.revertOperation(c.Request.Context(), id)
+	revertErr := p.operation.revertOperation(c.Request.Context(), *opr.NewEmail, *opr.OldEmail)
 
 	if revertErr != nil {
 		_ = c.Error(fmt.Errorf("error while reverting operation: %w", revertErr))
-		c.Status(http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": revertErr.Error()})
 		return
 	}
 

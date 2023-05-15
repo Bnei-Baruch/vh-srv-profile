@@ -97,11 +97,14 @@ func (db *pgProfileDB) performOperation(ctx context.Context, req operationReq) (
 	}
 }
 
-func (db *pgProfileDB) revertOperation(ctx context.Context, id int) error {
+func (db *pgProfileDB) revertOperation(ctx context.Context, newEmail string, oldEmail string) error {
 	// get operation by id
 	var operation operationTrace
 
-	if err := db.QueryRow(ctx, `SELECT status, revert FROM operation_trace WHERE id=$1`, id).Scan(
+	// get operation by newEmail and oldEmail
+
+	if err := db.QueryRow(ctx, `SELECT id, status, revert FROM operation_trace WHERE input->>'new_email'=$1 AND input->>'old_email'=$2`, newEmail, oldEmail).Scan(
+		&operation.ID,
 		&operation.Status,
 		&operation.Revert); err != nil {
 		return fmt.Errorf("problem getting operation_trace: %w", err)
@@ -146,7 +149,7 @@ func (db *pgProfileDB) revertOperation(ctx context.Context, id int) error {
 	updateString, updateQueryArgs := prepareOperationTraceUpdateQuery(operation)
 
 	if len(updateQueryArgs) != 0 {
-		if err := tx.QueryRow(ctx, fmt.Sprintf(`UPDATE operation_trace SET %s WHERE id='%d' RETURNING id`, updateString, id),
+		if err := tx.QueryRow(ctx, fmt.Sprintf(`UPDATE operation_trace SET %s WHERE id='%d' RETURNING id`, updateString, *operation.ID),
 			updateQueryArgs...).Scan(&operation.ID); err != nil {
 			return fmt.Errorf("problem updating operation_trace: %w", err)
 		}
