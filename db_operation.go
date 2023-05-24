@@ -103,7 +103,7 @@ func (db *pgProfileDB) revertOperation(ctx context.Context, newEmail string, old
 
 	// get operation by newEmail and oldEmail
 
-	if err := db.QueryRow(ctx, `SELECT id, status, revert FROM operation_trace WHERE input->>'new_email'=$1 AND input->>'old_email'=$2`, newEmail, oldEmail).Scan(
+	if err := db.QueryRow(ctx, `SELECT id, status, revert FROM operation_trace WHERE input->>'new_email'=$1 AND input->>'old_email'=$2 ORDER BY id DESC LIMIT 1`, newEmail, oldEmail).Scan(
 		&operation.ID,
 		&operation.Status,
 		&operation.Revert); err != nil {
