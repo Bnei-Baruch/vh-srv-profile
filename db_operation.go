@@ -38,13 +38,25 @@ func (db *pgProfileDB) performOperation(ctx context.Context, req operationReq) (
 	var input emailInput
 	var revert QueryLog
 
+	var query string
+	var revertQuery string
+
 	tx, err := db.Begin(ctx)
 	if err != nil {
 		return 0, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	query := `UPDATE users SET keycloak_id = '` + *newKcId + `', primary_email = '` + *newEmail + `' WHERE keycloak_id = '` + *oldKcId + `';`
+	// migration query
+	if oldKcId == nil {
+		query = `UPDATE users SET primary_email = '` + *newEmail + `' WHERE primary_email = '` + *oldEmail + ` AND keycloak_id = ` + *newKcId + `';`
+
+		revertQuery = `UPDATE users SET primary_email = '` + *oldEmail + `' WHERE primary_email = '` + *newEmail + ` AND keycloak_id = ` + *newKcId + `';`
+	} else {
+		query = `UPDATE users SET keycloak_id = '` + *newKcId + `', primary_email = '` + *newEmail + `' WHERE keycloak_id = '` + *oldKcId + `';`
+
+		revertQuery = `UPDATE users SET keycloak_id = '` + *oldKcId + `', primary_email = '` + *oldEmail + `' WHERE keycloak_id = '` + *newKcId + `';`
+	}
 
 	updatedRes, err := tx.Exec(ctx, query)
 
@@ -59,8 +71,6 @@ func (db *pgProfileDB) performOperation(ctx context.Context, req operationReq) (
 	input.NewKeycloakID = newKcId
 	input.OldKeycloakID = oldKcId
 	input.OldEmail = req.OldEmail
-
-	revertQuery := `UPDATE users SET keycloak_id = '` + *oldKcId + `', primary_email = '` + *oldEmail + `' WHERE keycloak_id = '` + *newKcId + `';`
 
 	revert.Queries = append(revert.Queries, revertQuery)
 
@@ -103,7 +113,7 @@ func (db *pgProfileDB) revertOperation(ctx context.Context, newEmail string, old
 
 	// get operation by newEmail and oldEmail
 
-	if err := db.QueryRow(ctx, `SELECT id, status, revert FROM operation_trace WHERE input->>'new_email'=$1 AND input->>'old_email'=$2`, newEmail, oldEmail).Scan(
+	if err := db.QueryRow(ctx, `SELECT id, status, revert FROM operation_trace WHERE input->>'new_email'=$1 AND input->>'old_email'=$2 ORDER BY id DESC LIMIT 1`, newEmail, oldEmail).Scan(
 		&operation.ID,
 		&operation.Status,
 		&operation.Revert); err != nil {
