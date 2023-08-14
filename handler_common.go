@@ -83,7 +83,7 @@ func SyncWithKeycloak(tokenString string, keycloakID string, firstName *string, 
 
 	var serverURL string
 	var realm string
-	if value, ok := os.LookupEnv("KEYCLOAK_SERVER_URL"); ok {
+	if value, ok := os.LookupEnv("KEYCLOAK_BASE_URL"); ok {
 		serverURL = value
 	}
 
