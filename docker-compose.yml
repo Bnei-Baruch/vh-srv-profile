@@ -3,6 +3,7 @@ services:
   profiledb:
     image: postgres:9.6
     container_name: profiledb
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_DB: ${DB_DATABASE}
@@ -10,7 +11,9 @@ services:
     volumes:
       - /opt/srv-profile-db:/docker-entrypoint-initdb.d
   vh-srv-profile:
+    image: "${IMAGE_NAME}"
     container_name: 'vh-srv-profile'
+    restart: unless-stopped
     environment: 
       DB_NETWORK: "tcp"
       DB_USERNAME: ${DB_USER}
@@ -25,7 +28,6 @@ services:
       APP_MODE: "${APP_MODE}"
       KEYCLOAK_SERVER_URL: "${KEYCLOAK_BASE_URL}"
       KEYCLOAK_REALM: "${KEYCLOAK_REALM}"
-    image: "${IMAGE_NAME}"
     cpus: '0.5'
     mem_limit: 250M
     ports:
