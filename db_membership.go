@@ -844,6 +844,19 @@ func (db *pgProfileDB) getMembershipByID(ctx context.Context, id int) (membershi
 	return membership, nil
 }
 
+func (db *pgProfileDB) getMembershipByKCID(ctx context.Context, kcID string, authHeader string) (userMembershipRes, error) {
+	var userID uuid.UUID
+	if err := db.QueryRow(ctx, "SELECT user_id FROM users WHERE keycloak_id=$1", kcID).
+		Scan(&userID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return userMembershipRes{}, errNotFound
+		}
+		return userMembershipRes{}, fmt.Errorf("error while getting membership: %w", err)
+	}
+
+	return db.getMembershipByUserID(ctx, userID.String(), authHeader)
+}
+
 func (db *pgProfileDB) getMembershipByUserID(ctx context.Context, userID string, authHeader string) (userMembershipRes, error) {
 	var membership userMembershipRes
 

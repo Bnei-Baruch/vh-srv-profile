@@ -15,6 +15,7 @@ import (
 type membershipInterface interface {
 	getMembershipByID(ctx context.Context, id int) (membershipRes, error)
 	getMembershipByUserID(ctx context.Context, userID string, authHeader string) (userMembershipRes, error)
+	getMembershipByKCID(ctx context.Context, kcID string, authHeader string) (userMembershipRes, error)
 	getMultipleMembership(ctx context.Context, intSkip int, intLimit int, month int, year int, userID string) ([]membershipRes, error)
 	patchMembershipByID(ctx context.Context, membership membership, id int) (int, error)
 	softDeleteMembershipByID(ctx context.Context, id int) error
@@ -152,6 +153,30 @@ func (p *profileManager) handleMembershipFetchByID(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Fetched!", "data": res})
 }
 
+func (p *profileManager) handleMembershipFetchByKCID(c *gin.Context) {
+	kcID := c.Param("kcid")
+	if kcID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid kcid"})
+		return
+	}
+
+	authHeader := c.GetHeader("Authorization")
+
+	res, dbErr := p.membership.getMembershipByKCID(c.Request.Context(), kcID, authHeader)
+
+	if dbErr != nil {
+		if errors.Is(dbErr, errNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": dbErr.Error()})
+			return
+		}
+		c.Status(http.StatusInternalServerError)
+		_ = c.Error(fmt.Errorf("error while getting membership: %w", dbErr))
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Fetched!", "data": res})
+}
+
 func (p *profileManager) handleMembershipFetchByUserID(c *gin.Context) {
 
 	userID := c.Param("user_id")
@@ -171,7 +196,7 @@ func (p *profileManager) handleMembershipFetchByUserID(c *gin.Context) {
 			return
 		}
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while getting users: %w", dbErr))
+		_ = c.Error(fmt.Errorf("error while getting membership: %w", dbErr))
 		return
 	}
 
