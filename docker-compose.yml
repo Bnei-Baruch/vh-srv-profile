@@ -20,7 +20,7 @@ services:
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_HOST: "${DB_HOST}"
-      PGPORT: ${DB_PORT}
+      DB_PORT: ${DB_PORT}
       DB_NAME: ${DB_DATABASE}
       DB_APPNAME: "bbdev"
       DATABASE_URL: "${DATABASE_URL}"
