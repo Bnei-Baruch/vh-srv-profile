@@ -20,4 +20,4 @@ COPY --from=base /app/db /db
 
 EXPOSE 7471
 
-CMD ["./profile", "--port",  "7471"]
+CMD ["./profile", "server"]
