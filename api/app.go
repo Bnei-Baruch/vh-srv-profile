@@ -54,6 +54,7 @@ func (a *App) Initialize() {
 	}
 	fmt.Println("Migrated profile db")
 
+	a.initKeycloak()
 	a.ProfileManager = NewProfileManager(a.ProfileDB, a.kcClient)
 	a.initGinEngine()
 }
