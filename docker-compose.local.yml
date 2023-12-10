@@ -5,13 +5,7 @@ services:
     container_name: profiledb
     environment:
       POSTGRES_USER: ${DB_USER}
-      POSTGRES_DB: ${DB_DATABASE}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-    volumes:
-      - /opt/srv-profile-db:/docker-entrypoint-initdb.d
+      POSTGRES_DB: ${DB_NAME}
     ports:
       - ${DB_PORT}:5432
-networks:
-    default:
-        external:
-            name: vh

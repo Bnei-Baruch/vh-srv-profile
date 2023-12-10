@@ -4,13 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"gitlab.bbdev.team/vh/vh-srv-profile/api/middleware"
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
-	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/keycloak"
 	"gitlab.bbdev.team/vh/vh-srv-profile/repo"
 )
 
@@ -18,8 +17,6 @@ type App struct {
 	ProfileManager *ProfileManager
 	ProfileDB      *repo.ProfileDB
 	gEngine        *gin.Engine
-	config         common.AppConfig
-	kcClient       keycloak.KeycloakClient
 }
 
 func NewApp() *App {
@@ -27,13 +24,6 @@ func NewApp() *App {
 }
 
 func (a *App) Initialize() {
-	a.config = common.LoadConfig()
-	if a.config.Mode == "dev" {
-		gin.SetMode(gin.DebugMode)
-	} else {
-		gin.SetMode(gin.ReleaseMode)
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -54,14 +44,14 @@ func (a *App) Initialize() {
 	}
 	fmt.Println("Migrated profile db")
 
-	a.initKeycloak()
-	a.ProfileManager = NewProfileManager(a.ProfileDB, a.kcClient)
+	a.ProfileManager = NewProfileManager(a.ProfileDB)
 	a.initGinEngine()
 }
 
 func (a *App) initGinEngine() {
+	gin.SetMode(common.Config.Mode)
 	a.gEngine = gin.Default()
-	//a.gEngine.Use(cors.Default())
+	a.gEngine.Use(middleware.TokenSource())
 
 	// Creating a group of routes that will be prefixed with `/v1`
 	baseV1Path := a.gEngine.Group("/v1")
@@ -125,19 +115,8 @@ func (a *App) initGinEngine() {
 	}
 }
 
-func (a *App) initKeycloak() {
-	serverURL := os.Getenv("KEYCLOAK_SERVER_URL")
-	realm := os.Getenv("KEYCLOAK_REALM")
-
-	if serverURL == "" || realm == "" {
-		log.Fatal("missing keycloak server url or realm")
-	}
-
-	a.kcClient = keycloak.NewClient(serverURL, realm)
-}
-
 func (a *App) Run() {
-	if err := a.gEngine.Run(":" + a.config.Port); err != nil {
+	if err := a.gEngine.Run(":" + common.Config.Port); err != nil {
 		log.Fatalf("server stopped: %s", err)
 	}
 }

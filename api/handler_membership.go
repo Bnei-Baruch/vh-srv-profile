@@ -47,9 +47,7 @@ func (p *ProfileManager) handleMembershipFetchByKCID(c *gin.Context) {
 		return
 	}
 
-	authHeader := c.GetHeader("Authorization")
-
-	res, dbErr := p.repo.GetMembershipByKCID(c.Request.Context(), kcID, authHeader)
+	res, dbErr := p.repo.GetMembershipByKCID(c.Request.Context(), kcID)
 
 	if dbErr != nil {
 		if errors.Is(dbErr, common.ErrNotFound) {
@@ -65,17 +63,13 @@ func (p *ProfileManager) handleMembershipFetchByKCID(c *gin.Context) {
 }
 
 func (p *ProfileManager) handleMembershipFetchByUserID(c *gin.Context) {
-
 	userID := c.Param("user_id")
-
-	authHeader := c.GetHeader("Authorization")
-
 	if userID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user_id"})
 		return
 	}
 
-	res, dbErr := p.repo.GetMembershipByUserID(c.Request.Context(), userID, authHeader)
+	res, dbErr := p.repo.GetMembershipByUserID(c.Request.Context(), userID)
 
 	if dbErr != nil {
 		if errors.Is(dbErr, common.ErrNotFound) {
@@ -151,21 +145,14 @@ func (p *ProfileManager) handleMembershipCancellation(c *gin.Context) {
 		}
 	}
 
-	authHeader := c.GetHeader("Authorization")
-
-	orderCancelledNum, grantCancelledNum, specialTableDeletedNum, cancelErr := p.repo.CancelMembership(c.Request.Context(), membCancel, authHeader)
-
-	if cancelErr != nil {
+	err := p.repo.CancelMembership(c.Request.Context(), membCancel)
+	if err != nil {
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while updating membership: %w", cancelErr))
+		_ = c.Error(fmt.Errorf("error while updating membership: %w", err))
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Cancelled!", "data": gin.H{
-		"order_cancelled": orderCancelledNum,
-		"grant_cancelled": grantCancelledNum,
-		"special_deleted": specialTableDeletedNum,
-	}})
+	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Cancelled!"})
 }
 
 func (p *ProfileManager) handleMembershipEvaluationByUserID(c *gin.Context) {
@@ -182,9 +169,7 @@ func (p *ProfileManager) handleMembershipEvaluationByUserID(c *gin.Context) {
 		return
 	}
 
-	authHeader := c.GetHeader("Authorization")
-
-	userMembershipRes, evaluateErr := p.repo.EvaluateMembershipByUserID(c.Request.Context(), evalbody, authHeader)
+	userMembershipRes, evaluateErr := p.repo.EvaluateMembershipByUserID(c.Request.Context(), evalbody)
 
 	if evaluateErr != nil {
 		c.Status(http.StatusInternalServerError)

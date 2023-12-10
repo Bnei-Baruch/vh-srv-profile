@@ -1,0 +1,50 @@
+[V] Expiry, StartingDate - possible bug fix
+
+[V] QA rerun of migration
+
+Triggers to eval
+    - after monthly charge - only automatic orders
+    - new and updated payments - webhook
+    - daily cron to expire after 60 days grace
+    - new users // (see emails mismatch below orders<->profile)
+  * avoid infinite webhook loop on cancel membership and update starting_date
+
+[v] Country Russia
+    - [v] fix for order structure -> manual order, 1 month, offline payment
+    - [v] importer
+    - [v] cancel all skipru
+    - [v] cron job
+
+help haver months in request
+Status new in UI
+payments v2 amount/currency issues + use v2 in dash payments
+[v] don't set order starting_date in orders (globalmembership)
+possibly merge accounts (orderdb) ? yaakov ?
+Block transition to manual from active automatic
+amnon admin to limit 200 orders today it's only 10
+
+
+---- actual release process
+
+Prod migration
+    - backup DBs
+    - reset all specials
+    - reset relevant orders starting_date (update orders set starting_date = null where "ProductType" = 'globalmembership';)
+    - dry run migration on local
+    - run actual migration on prod
+
+UI v2 flag to true
+
+post production tests
+----
+
+Admin v2 read flows
+Admin write flows
+Help haver admin
+Help haver grant rules in eval
+
+
+future
+---
+charge or skip specials with orders ?
+ui for user and admin to note that an order after help haver grant cancel the grant

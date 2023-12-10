@@ -36,7 +36,7 @@ func Test_profileHandler_get_succeeds(t *testing.T) {
 				Emails:              repo.Emails{Primary: utils.PointerString("someemail@email.com")},
 			},
 		}, nil)
-	profile := NewProfileManager(&sm, nil)
+	profile := NewProfileManager(&sm)
 	g := gin.New()
 	g.GET("/:keycloak_id", profile.get)
 
@@ -113,7 +113,7 @@ func Test_profileHandler_get_full_succeeds(t *testing.T) {
 					NameOfGroup: utils.PointerString("some name"),
 				},
 			}}, nil)
-	profile := NewProfileManager(&sm, nil)
+	profile := NewProfileManager(&sm)
 	g := gin.New()
 	g.GET("/:keycloak_id", profile.get)
 
@@ -168,7 +168,7 @@ func Test_profileHandler_get_returns_404_when_storage_returns_errProfileNotFound
 	sm := storageMock{}
 	sm.On("GetProfile", mock.Anything, mock.Anything).Return(repo.User{}, fmt.Errorf("%w: %q",
 		common.ErrProfileNotFound, "example string"))
-	profile := NewProfileManager(&sm, nil)
+	profile := NewProfileManager(&sm)
 	g := gin.New()
 	g.GET("/:keycloak_id", profile.get)
 
@@ -183,7 +183,7 @@ func Test_profileHandler_get_returns_404_when_storage_returns_errProfileNotFound
 func Test_profileHandler_get_returns_500_when_storage_returns_error(t *testing.T) {
 	sm := storageMock{}
 	sm.On("GetProfile", mock.Anything, mock.Anything).Return(repo.User{}, fmt.Errorf("some error"))
-	profile := NewProfileManager(&sm, nil)
+	profile := NewProfileManager(&sm)
 	g := gin.New()
 	g.GET("/:keycloak_id", profile.get)
 

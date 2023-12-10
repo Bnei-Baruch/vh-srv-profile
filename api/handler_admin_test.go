@@ -17,7 +17,7 @@ import (
 func Test_profileHandler_hardDelete_succeeds(t *testing.T) {
 	sm := storageMock{}
 	sm.On("HardDeleteProfile", mock.Anything, uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000")).Return(nil)
-	profile := NewProfileManager(&sm, nil)
+	profile := NewProfileManager(&sm)
 	g := gin.New()
 	g.DELETE("/:keycloak_id", profile.hardDelete)
 
@@ -32,7 +32,7 @@ func Test_profileHandler_hardDelete_returns_400_when_storage_returns_errProfileN
 	sm := storageMock{}
 	sm.On("HardDeleteProfile", mock.Anything, mock.Anything).Return(fmt.Errorf("%w: %q",
 		common.ErrProfileNotFound, "example string"))
-	profile := NewProfileManager(&sm, nil)
+	profile := NewProfileManager(&sm)
 	g := gin.New()
 	g.DELETE("/:keycloak_id", profile.hardDelete)
 
@@ -47,7 +47,7 @@ func Test_profileHandler_hardDelete_returns_400_when_storage_returns_errProfileN
 func Test_profileHandler_hardDelete_returns_500_when_storage_returns_error(t *testing.T) {
 	sm := storageMock{}
 	sm.On("HardDeleteProfile", mock.Anything, mock.Anything).Return(fmt.Errorf("some error"))
-	profile := NewProfileManager(&sm, nil)
+	profile := NewProfileManager(&sm)
 	g := gin.New()
 	g.DELETE("/:keycloak_id", profile.hardDelete)
 

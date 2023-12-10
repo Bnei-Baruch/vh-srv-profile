@@ -3,13 +3,16 @@ package repo
 import (
 	"context"
 	"fmt"
-	"os"
+	"net/url"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/jackc/pgx/v4/pgxpool"
 	_ "github.com/lib/pq"
+
+	"gitlab.bbdev.team/vh/vh-srv-profile/common"
+	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/orders"
 )
 
 type ProfileRepository interface {
@@ -32,48 +35,7 @@ type ProfileRepository interface {
 
 type ProfileDB struct {
 	*pgxpool.Pool
-}
-
-func getDBUser() string {
-	if value, ok := os.LookupEnv("DB_USER"); ok {
-		return value
-	}
-	return "DEFAULT_USER"
-}
-func getDBPassword() string {
-	if value, ok := os.LookupEnv("DB_PASSWORD"); ok {
-		return value
-	}
-	return "DEFAULT_PASS"
-}
-func getDBHost() string {
-	if value, ok := os.LookupEnv("DB_HOST"); ok {
-		return value
-	}
-	return "db"
-}
-
-func getDBPort() string {
-	if value, ok := os.LookupEnv("DB_PORT"); ok {
-		return value
-	}
-	return "5432"
-}
-
-func getDBName() string {
-	if value, ok := os.LookupEnv("DB_NAME"); ok {
-		return value
-	}
-	return "default"
-}
-
-func MakeDBURL() string {
-	db_user := getDBUser()
-	db_pass := getDBPassword()
-	db_host := getDBHost()
-	db_port := getDBPort()
-	db_name := getDBName()
-	return "postgres://" + db_user + ":" + db_pass + "@" + db_host + ":" + db_port + "/" + db_name
+	ordersServiceFactory orders.OrdersServiceFactory
 }
 
 func NewProfileDB(ctx context.Context, databaseURL string) (*ProfileDB, error) {
@@ -82,7 +44,19 @@ func NewProfileDB(ctx context.Context, databaseURL string) (*ProfileDB, error) {
 		return nil, fmt.Errorf("unable to connect to database: %w", err)
 	}
 
-	return &ProfileDB{pool}, nil
+	return &ProfileDB{
+		Pool:                 pool,
+		ordersServiceFactory: orders.OrdersAPIFactory,
+	}, nil
+}
+
+func MakeDBURL() string {
+	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s",
+		url.QueryEscape(common.Config.PgUser),
+		url.QueryEscape(common.Config.PgPass),
+		common.Config.PgHost,
+		common.Config.PgPort,
+		url.QueryEscape(common.Config.PgDbName))
 }
 
 func SyncDBStructInsertionAndMigrations() error {

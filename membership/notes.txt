@@ -1,0 +1,69 @@
+Reset all grants
+reset all specials
+duplicate users / profile user <-> orders account mapping ??
+what triggers eval ?
+    - monthly charge
+    - new and updated payments
+    - daily cron (expire manual after 90 days)
+    - new users (see emails mismatch below orders<->profile)
+it's possible to have membership without an order. special and grants
+
+ukraine need to charge
+Maybe. Cancel old orders before bump to 20$. old orders are orders older than 1 month.
+
+russia we skip trying. They should pay nonetheless (offline payments)
+What should we do with their order ? should it be recurring or regular ?
+
+We have mismatch between orders accounts and profile users
+* changed emails in profile but not in order (accounts & specials)
+* emails in orders specials without a profile user
+maybe trigger eval on new user creation ?
+
+export specials counts to marek and ask what to erase
+send new grants schema to marek (email,start_date, end_date, category, etc...)
+Ask marek for users to exclude from 20$ (email, currency, amount)
+
+
+
+grep errors
+PaymentType - offline / cash
+manual quantity =? expiry
+special category subcategory
+oldStatus isSpecial diff with membership type special
+cancelled membership type
+order flag
+ recurring |                  | 24863
+ recurring | muh_bitul        |     4
+ recurring | muh_hiyuv_niklat |     1
+ recurring | muh_lotakin      |     1
+ recurring | muh_nidha        |    58
+ recurring | renewed          |  2936
+ recurring | skip             |    12
+ recurring | skipru           |   612
+ recurring | torenew          |   747
+ recurring |                  |   285
+
+
+-----------------------------------------------------------------
+grep errors -> no errors
+Amnon should use v2 for a user payments
+
+Offline payments (255 rows):
+* all but 1 record are old robokassa import
+* kalshtil@gmail.com is wrong, his entire order and payment is wrong. manual 12 months
+    grom -> payments -> "PaymentStatus"='sucess' = typo (4 rows)
+    grom -> payments.created_at != order PaymentDate
+
+manual quantity =? expiry
+* I don't understand what's going on with values in expiry.
+* I get what it is used for but not the whole order starting_date / prevQuantity
+
+special category subcategory
+* hard to compare numbers due to emails mismatch
+
+oldStatus isSpecial diff with membership type special
+* new is not special, old is (code 2) -> all are cancelled. Probably a bug, they should be special. 128 such records
+* new is special, old is not. bug in old status endpoint. we have special row in db but also an order (we charge if we can)
+
+cancelled membership type
+* looks good part for the bug with special

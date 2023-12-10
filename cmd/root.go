@@ -4,6 +4,8 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+
+	"gitlab.bbdev.team/vh/vh-srv-profile/common"
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -19,4 +21,8 @@ func Execute() {
 	if err != nil {
 		os.Exit(1)
 	}
+}
+
+func init() {
+	cobra.OnInitialize(common.LoadConfig)
 }

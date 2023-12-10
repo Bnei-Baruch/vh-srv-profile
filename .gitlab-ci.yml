@@ -26,27 +26,21 @@ build_staging:
     - master
 
 deploy_staging:
-  #image: tmaier/docker-compose:latest
-  variables: 
-    # we want to use the db in staging server itself.
-    DB_HOST: "profiledb" #"${DEV_PG_HOST}" 
+  variables:
+    DB_HOST: "profiledb"
     DB_PORT: 5432
     DB_USER: "dev_registration"
     DB_NAME: "profile"
-    DB_DATABASE: "profile"
-    DB_PASSWORD: "password" #${DEV_PG_PWD}
-    DATABASE_URL: "postgres://${DEV_REG_PG_USER}:password@profiledb:5432/${DEV_PROFILE_PG_DBNAME}"
+    DB_PASSWORD: "password"
     APP_PORT: "7471"
-    APP_MODE: "dev"
-  image: gitlab.bbdev.team:5050/vh/buildutils/buildutil:0.5.0
+    APP_MODE: "debug"
+  image: gitlab.bbdev.team:5050/vh/buildutils/buildutil:0.7.0
   stage: deploy
   tags:
     - staging
   script:
     - for variable in "${!DYN_STAGING@}"; do echo "${variable#DYN_STAGING_}"="${!variable}"; export "${variable#DYN_STAGING_}"="${!variable}"; done;
-    - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY
-    # - "[ ! -d /opt/srv-profile-db ] && mkdir /opt/srv-profile-db"
-    # - cp -f db/initial.sql /opt/srv-profile-db/initial.sql
+    - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY`
     - IMAGE_NAME=$STAGING_IMAGE docker-compose up -d --remove-orphans
   only:
     - master
@@ -55,8 +49,6 @@ deploy_staging:
 build_production:
   image: docker:latest
   stage: build
-  tags:
-    - dockerbuild
   services:
     - docker:19.03.12-dind
   script:
@@ -68,22 +60,18 @@ build_production:
     - tags
 
 deploy_production:
-  #image: tmaier/docker-compose:latest
-  image: gitlab.bbdev.team:5050/vh/buildutils/buildutil:0.5.0
+  image: gitlab.bbdev.team:5050/vh/buildutils/buildutil:0.7.0
   stage: deploy
   tags:
     - production
   variables: 
-    # we want to use the db in staging server itself.
-    DB_HOST: "${PROD_PG_HOST}" 
+    DB_HOST: ${PROD_PG_HOST}
     DB_PORT: ${PROD_PG_PORT} 
     DB_USER: ${PROD_PROFILE_DB_USER}
-    DB_DATABASE: ${PROD_PROFILE_DB_NAME}
-    DB_NAME: ${PROD_PROFILE_DB_NAME}
     DB_PASSWORD: ${PROD_PROFILE_DB_PASS}
+    DB_NAME: ${PROD_PROFILE_DB_NAME}
     APP_PORT: "7471"
-    APP_MODE: "prod"
-    DATABASE_URL: "postgres://${PROD_PROFILE_DB_USER}:${PROD_PROFILE_DB_PASS}@${PROD_PG_HOST}:${PROD_PG_PORT}/${PROD_PROFILE_DB_NAME}"
+    APP_MODE: "release"
   script:
     - for variable in "${!DYN_PROD@}"; do echo "${variable#DYN_PROD_}"="${!variable}"; export "${variable#DYN_PROD_}"="${!variable}"; done;
     - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY
@@ -91,96 +79,3 @@ deploy_production:
   only:
     - tags
   when: manual
-
-
-
-# #======
-# stages:
-#   - publish
-#   - deploy
-#   - publish_prod
-#   - deploy_prod
-#   - deploy_stand
-
-# variables:
-#   IMAGE: $CI_REGISTRY_IMAGE/$CI_COMMIT_REF_NAME:$CI_COMMIT_SHORT_SHA
-#   PROD_IMAGE: $CI_REGISTRY_IMAGE/$CI_COMMIT_REF_NAME:prod_$CI_COMMIT_SHORT_SHA
-
-# publish:
-#   image: docker:latest
-#   stage: publish
-#   tags:
-#     - dockerbuild
-#   services:
-#     - docker:19.03.12-dind
-#   script:
-#     - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY
-#     - docker build -t $IMAGE .
-#     - docker push $IMAGE
-#   only:
-#     - development
-
-# deploy:
-#   image: docker:latest
-#   stage: deploy
-#   tags:
-#     - dockerbuild
-#   script:
-#     - chmod og= $ID_RSA
-#     - apk update && apk add openssh-client
-#     - ssh -i $ID_RSA -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY"
-#     - ssh -i $ID_RSA -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "docker pull $IMAGE"
-#     - ssh -i $ID_RSA -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "docker container rm -f vh-srv-profile || true"
-#     - ssh -i $ID_RSA -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "docker run -d --net=vh --name vh-srv-profile --memory="200m" --cpus="0.5" --restart always -p 7471:7471 $IMAGE "
-#   environment:
-#     name: development
-#     url: http://51.15.238.1
-#   when: manual
-#   only:
-#     - development
-
-# publish_prod:
-#   image: docker:latest
-#   stage: publish
-#   tags:
-#     - dockerbuild
-#   services:
-#     - docker:19.03.12-dind
-#   script:
-#     - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY
-#     - docker build -t $PROD_IMAGE .
-#     - docker push $PROD_IMAGE
-#   only:
-#     - master
-
-# deploy_prod:
-#   image: docker:latest
-#   stage: deploy_prod
-#   tags:
-#     - dockerbuild
-#   script:
-#     - chmod og= $ID_RSA
-#     - apk update && apk add openssh-client
-#     - ssh -i $ID_RSA -o StrictHostKeyChecking=no $PROD_SERVER_USER@$PROD_SERVER_IP "docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY"
-#     - ssh -i $ID_RSA -o StrictHostKeyChecking=no $PROD_SERVER_USER@$PROD_SERVER_IP "docker pull $PROD_IMAGE"
-#     - ssh -i $ID_RSA -o StrictHostKeyChecking=no $PROD_SERVER_USER@$PROD_SERVER_IP "docker container rm -f prod-vh-srv-profile || true"
-#     - ssh -i $ID_RSA -o StrictHostKeyChecking=no $PROD_SERVER_USER@$PROD_SERVER_IP "docker run -d --net=vh --name prod-vh-srv-profile --memory="200m" --cpus="0.5" --restart always -p 7471:7471 $PROD_IMAGE "
-#   when: manual
-#   only:
-#     - master
-
-# deploy_stand:
-#   image: docker:latest
-#   stage: deploy_stand
-#   tags:
-#     - dockerbuild
-#   script:
-#     - chmod og= $ID_RSA
-#     - apk update && apk add openssh-client
-#     - ssh -i $ID_RSA -o StrictHostKeyChecking=no $STAND_SERVER_USER@$STAND_SERVER_IP "docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY"
-#     - ssh -i $ID_RSA -o StrictHostKeyChecking=no $STAND_SERVER_USER@$STAND_SERVER_IP "docker pull $PROD_IMAGE"
-#     - ssh -i $ID_RSA -o StrictHostKeyChecking=no $STAND_SERVER_USER@$STAND_SERVER_IP "docker container rm -f prod-vh-srv-profile || true"
-#     - ssh -i $ID_RSA -o StrictHostKeyChecking=no $STAND_SERVER_USER@$STAND_SERVER_IP "docker run -d --net=vh --name prod-vh-srv-profile --memory="200m" --cpus="0.5" --restart always -p 7471:7471 $PROD_IMAGE "
-#   when: manual
-#   only:
-#     - master
