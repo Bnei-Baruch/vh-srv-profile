@@ -10,6 +10,7 @@ import (
 	"github.com/satori/go.uuid"
 
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
+	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/utils"
 )
 
 type grantInterface interface {
@@ -105,20 +106,14 @@ func (db *ProfileDB) GetGrantByIDAndUserID(ctx context.Context, id int, userID s
 }
 
 func (db *ProfileDB) CreateGrant(ctx context.Context, req GrantAndGrantMembership) (int, error) {
-
+	// TODO: (Edo) amount and currency are not related here. I think they should be
 	if *req.Type == "hhmembership" {
 		if req.Amount == nil {
-			// set default req.Amount to 10
-			var defaultAmount = new(int)
-			*defaultAmount = 10
-			totalAmount := *defaultAmount * *req.Month
-			req.Amount = &totalAmount
+			req.Amount = utils.PointerInt(20 * *req.Month) // Minimum 20 Euro
 		}
 
 		if req.Currency == nil {
-			var defaultCurrency = new(string)
-			*defaultCurrency = "EUR"
-			req.Currency = defaultCurrency
+			req.Currency = utils.PointerString("EUR")
 		}
 	}
 
@@ -223,18 +218,13 @@ func (db *ProfileDB) PatchGrant(ctx context.Context, grant Grant, id int, reques
 	}
 
 	if *grant.Type == "hhmembership" {
-
+		// TODO: (Edo) amount and currency are not related here. I think they should be
 		if grant.Amount == nil {
-			// set default req.Amount to 10
-			var defaultAmount = new(int)
-			*defaultAmount = 10
-			grant.Amount = defaultAmount
+			grant.Amount = utils.PointerInt(20)
 		}
 
 		if grant.Currency == nil {
-			var defaultCurrency = new(string)
-			*defaultCurrency = "EUR"
-			grant.Currency = defaultCurrency
+			grant.Currency = utils.PointerString("EUR")
 		}
 	}
 

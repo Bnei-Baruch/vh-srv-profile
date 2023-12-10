@@ -37,7 +37,6 @@ type readMultipleProfileStorage interface {
 }
 
 func (db *ProfileDB) GetMultipleProfiles(ctx context.Context, intSkip int, intLimit int, country string, email string, name string, tenGroupName string, language string, firstLanguage string, otherLanguageOne string, otherLanguageTwo string, otherLanguageThree string, otherLanguageFour string, updatedAt string, createdAt string, membership string, membershipType string, convention string, ticket string, galaxy string, gender string) ([]User, error) {
-	var userID uuid.UUID
 	var keycloakId string
 	users := []User{}
 
@@ -97,7 +96,7 @@ func (db *ProfileDB) GetMultipleProfiles(ctx context.Context, intSkip int, intLi
 	for rows.Next() {
 		var profile User
 		if err := rows.Scan(
-			&userID,
+			&profile.UserID,
 			&keycloakId,
 			&profile.UpdatedAt,
 			&profile.CreatedAt,
@@ -145,7 +144,6 @@ func (db *ProfileDB) GetMultipleProfiles(ctx context.Context, intSkip int, intLi
 		// Add keycloakID and UserID to user struct
 		keyCloakUUID, err := uuid.FromString(keycloakId)
 		profile.UserInput.KeycloakID = &keyCloakUUID
-		profile.UserID = &userID
 
 		if err != nil {
 			return []User{}, err
@@ -440,11 +438,13 @@ func buildAndGetWhereUserQuery(country string, email string, name string, tenGro
 			updatedAt = "asc"
 		}
 		orderBy.WriteString(fmt.Sprintf(" ORDER BY updated_at %s", updatedAt))
-	} else {
+	} else if createdAt != "" {
 		if strings.ToLower(createdAt) == "" || (strings.ToLower(createdAt) != "desc" && strings.ToLower(createdAt) != "asc") {
 			createdAt = "asc"
 		}
 		orderBy.WriteString(fmt.Sprintf(" ORDER BY created_at %s", createdAt))
+	} else {
+		orderBy.WriteString(" ORDER BY user_id")
 	}
 
 	if whereCondition.String() != "" {

@@ -11,6 +11,7 @@ type userNotificationInterface interface {
 	GetUserNotificationByID(ctx context.Context, id int) (UserNotification, error)
 	CreateUserNotification(ctx context.Context, noti UserNotification) error
 	GetMultipleUserNotification(ctx context.Context, intSkip int, intLimit int) ([]UserNotification, error)
+	GetActiveUserNotificationByUserID(ctx context.Context, userID string) ([]UserNotification, error)
 	PatchUserNotification(ctx context.Context, noti UserNotification, id int) (int, error)
 	SoftDeleteUserNotification(ctx context.Context, id int) error
 }
@@ -63,7 +64,6 @@ func (db *ProfileDB) GetUserNotificationByID(ctx context.Context, id int) (UserN
 	return r, nil
 }
 
-// add user notfications
 func (db *ProfileDB) CreateUserNotification(ctx context.Context, req UserNotification) error {
 	createString, numString, createQueryArgs := prepareUserNotificationCreateQuery(req)
 
@@ -124,8 +124,54 @@ func (db *ProfileDB) GetMultipleUserNotification(ctx context.Context, intSkip in
 	return r, nil
 }
 
-func (db *ProfileDB) PatchUserNotification(ctx context.Context, noti UserNotification, id int) (int, error) {
+func (db *ProfileDB) GetActiveUserNotificationByUserID(ctx context.Context, userID string) ([]UserNotification, error) {
+	userNotiRes := []UserNotification{}
 
+	rows, err := db.Query(ctx, `
+		SELECT 
+			user_notification.id,
+			user_id,
+			notification_id,
+			active,
+			seen_at,
+			notification.slug,
+			notification.content,
+			user_notification.created_at,
+			user_notification.updated_at,
+			user_notification.deleted_at
+		FROM user_notification
+		INNER JOIN notification ON notification.id = user_notification.notification_id
+		WHERE user_id = $1 AND active = true
+		`, userID)
+	if err != nil {
+		fmt.Println("--error-while-executing-query", err)
+		return []UserNotification{}, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var r UserNotification
+		if err := rows.Scan(
+			&r.ID,
+			&r.UserID,
+			&r.NotificationID,
+			&r.Active,
+			&r.SeenAt,
+			&r.Slug,
+			&r.Content,
+			&r.CreatedAt,
+			&r.UpdatedAt,
+			&r.DeletedAt,
+		); err != nil {
+			return []UserNotification{}, err
+		}
+
+		userNotiRes = append(userNotiRes, r)
+	}
+
+	return userNotiRes, nil
+}
+
+func (db *ProfileDB) PatchUserNotification(ctx context.Context, noti UserNotification, id int) (int, error) {
 	var ID int
 
 	toUpdate, toUpdateArgs := prepareUserNotificationUpdate(noti)
@@ -146,6 +192,19 @@ func (db *ProfileDB) SoftDeleteUserNotification(ctx context.Context, id int) err
 		SET active = false
 		WHERE id = $1
 		`, id)
+	if err != nil {
+		return fmt.Errorf("problem updating user notification: %w", err)
+	}
+
+	return nil
+}
+
+func (db *ProfileDB) updateAllUserNotificationToInactive(ctx context.Context, userID string) error {
+	_, err := db.Exec(ctx, `
+		UPDATE user_notification
+		SET active = false
+		WHERE user_id = $1
+		`, userID)
 	if err != nil {
 		return fmt.Errorf("problem updating user notification: %w", err)
 	}

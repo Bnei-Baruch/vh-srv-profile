@@ -1,41 +1,74 @@
 package common
 
 import (
-	"log"
 	"os"
 )
 
-type AppConfig struct {
+type config struct {
 	Port string
 	Mode string
+
+	PgHost   string
+	PgPort   string
+	PgUser   string
+	PgPass   string
+	PgDbName string
+
+	KeycloakServerUrl    string
+	KeycloakRealm        string
+	KeycloakClientID     string
+	KeycloakClientSecret string
+
+	OrdersServiceUrl string
 }
 
-func LoadConfig() AppConfig {
-	return AppConfig{
-		Port: getEnvOrFatal("APP_PORT"),
-		Mode: getEnvOrFatal("APP_MODE"),
-	}
-}
+var Config = new(config)
 
-func GetOrdersServiceUrl() string {
-	serverUrl := os.Getenv("ORDERS_SERVICE_URL")
-	if serverUrl != "" {
-		return serverUrl
-	}
+func LoadConfig() {
+	// defaults
+	Config.Port = "7471"
+	Config.Mode = "dev"
+	Config.PgHost = "localhost"
+	Config.PgPort = "5678"
+	Config.PgUser = "postgres"
+	Config.PgPass = "password"
+	Config.PgDbName = "profiledb"
 
-	if getEnvOrFatal("APP_MODE") == "prod" {
-		serverUrl = "https://api.kli.one/pay"
-	} else {
-		serverUrl = "https://api.eurokab.info/pay"
+	// env override
+	if val, ok := os.LookupEnv("APP_PORT"); ok {
+		Config.Port = val
 	}
-
-	return serverUrl
-}
-
-func getEnvOrFatal(key string) string {
-	value, ok := os.LookupEnv(key)
-	if !ok {
-		log.Printf("Required ENV variable %q not found\n", key)
+	if val, ok := os.LookupEnv("APP_MODE"); ok {
+		Config.Mode = val
 	}
-	return value
+	if val, ok := os.LookupEnv("DB_HOST"); ok {
+		Config.PgHost = val
+	}
+	if val, ok := os.LookupEnv("DB_PORT"); ok {
+		Config.PgPort = val
+	}
+	if val, ok := os.LookupEnv("DB_USER"); ok {
+		Config.PgUser = val
+	}
+	if val, ok := os.LookupEnv("DB_PASSWORD"); ok {
+		Config.PgPass = val
+	}
+	if val, ok := os.LookupEnv("DB_NAME"); ok {
+		Config.PgDbName = val
+	}
+	if val, ok := os.LookupEnv("KEYCLOAK_SERVER_URL"); ok {
+		Config.KeycloakServerUrl = val
+	}
+	if val, ok := os.LookupEnv("KEYCLOAK_REALM"); ok {
+		Config.KeycloakRealm = val
+	}
+	if val, ok := os.LookupEnv("KEYCLOAK_CLIENT_ID"); ok {
+		Config.KeycloakClientID = val
+	}
+	if val, ok := os.LookupEnv("KEYCLOAK_CLIENT_SECRET"); ok {
+		Config.KeycloakClientSecret = val
+	}
+	if val, ok := os.LookupEnv("ORDERS_SERVICE_URL"); ok {
+		Config.OrdersServiceUrl = val
+	}
 }

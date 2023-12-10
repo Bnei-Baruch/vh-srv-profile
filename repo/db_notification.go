@@ -28,55 +28,6 @@ type Notification struct {
 	DeletedAt *time.Time `json:"deleted_at"`
 }
 
-func (db *ProfileDB) DDDd() {}
-
-func (db *ProfileDB) getActiveUserNotificationByUserID(ctx context.Context, userID string) ([]UserNotification, error) {
-	userNotiRes := []UserNotification{}
-
-	rows, err := db.Query(ctx, `
-		SELECT 
-			user_notification.id,
-			user_id,
-			notification_id,
-			active,
-			seen_at,
-			notification.slug,
-			notification.content,
-			user_notification.created_at,
-			user_notification.updated_at,
-			user_notification.deleted_at
-		FROM user_notification
-		INNER JOIN notification ON notification.id = user_notification.notification_id
-		WHERE user_id = $1 AND active = true
-		`, userID)
-	if err != nil {
-		fmt.Println("--error-while-executing-query", err)
-		return []UserNotification{}, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var r UserNotification
-		if err := rows.Scan(
-			&r.ID,
-			&r.UserID,
-			&r.NotificationID,
-			&r.Active,
-			&r.SeenAt,
-			&r.Slug,
-			&r.Content,
-			&r.CreatedAt,
-			&r.UpdatedAt,
-			&r.DeletedAt,
-		); err != nil {
-			return []UserNotification{}, err
-		}
-
-		userNotiRes = append(userNotiRes, r)
-	}
-
-	return userNotiRes, nil
-}
-
 func (db *ProfileDB) GetNotificationByID(ctx context.Context, id int) (Notification, error) {
 	var r Notification
 	err := db.QueryRow(ctx, `
@@ -187,19 +138,6 @@ func (db *ProfileDB) SoftDeleteNotification(ctx context.Context, id int) error {
 		`, time.Now(), id)
 	if err != nil {
 		return fmt.Errorf("problem deleting notification: %w", err)
-	}
-
-	return nil
-}
-
-func (db *ProfileDB) updateAllUserNotificationToInactive(ctx context.Context, userID string) error {
-	_, err := db.Exec(ctx, `
-		UPDATE user_notification
-		SET active = false
-		WHERE user_id = $1
-		`, userID)
-	if err != nil {
-		return fmt.Errorf("problem updating user notification: %w", err)
 	}
 
 	return nil

@@ -27,10 +27,11 @@ func Test_profileHandler_update_succeeds(t *testing.T) {
 			Emails:              repo.Emails{Primary: utils.PointerString("something@fakemail.com")},
 		}).Return(nil)
 
-	km := keycloakMock{}
-	km.On("UpdateUser", "", "11000000-0000-0000-0000-000000000000", "First", "Name").Return(nil)
-
-	profile := NewProfileManager(&sm, &km)
+	profile := NewProfileManager(&sm)
+	profile.SetKeycloakServiceFactory(MakeKeycloakAPIMockFactory(func(km *keycloakAPIMock) {
+		km.On("UpdateUser", mock.Anything, "11000000-0000-0000-0000-000000000000",
+			utils.PointerString("First"), utils.PointerString("Name")).Return(nil)
+	}))
 	g := gin.New()
 	g.PATCH("/:keycloak_id", profile.update)
 
@@ -50,7 +51,7 @@ func Test_profileHandler_update_returns_400_when_storage_returns_errProfileNotFo
 	sm := storageMock{}
 	sm.On("UpdateProfile", mock.Anything, mock.Anything, mock.Anything).Return(fmt.Errorf("%w: %q",
 		common.ErrProfileNotFound, "example string"))
-	profile := NewProfileManager(&sm, nil)
+	profile := NewProfileManager(&sm)
 	g := gin.New()
 	g.PATCH("/:keycloak_id", profile.update)
 
@@ -70,7 +71,7 @@ func Test_profileHandler_update_returns_400_when_storage_returns_errProfileNotFo
 func Test_profileHandler_update_returns_500_when_storage_returns_error(t *testing.T) {
 	sm := storageMock{}
 	sm.On("UpdateProfile", mock.Anything, mock.Anything, mock.Anything).Return(fmt.Errorf("some error"))
-	profile := NewProfileManager(&sm, nil)
+	profile := NewProfileManager(&sm)
 	g := gin.New()
 	g.PATCH("/:keycloak_id", profile.update)
 

@@ -20,32 +20,27 @@ func HTTPCallAndGetBody(fullUrl string, authHeader string, bodyBuffer *bytes.Buf
 	} else {
 		req, err = http.NewRequest(typeOfReq, fullUrl, nil)
 	}
-
 	if err != nil {
 		fmt.Println("Error while creating new request ::", err)
+		return nil, 0
 	}
 
-	// add authorization header to the req
 	req.Header.Add("Authorization", authHeader)
-
 	req.Header.Set("Content-Type", "application/json")
-
 	resp, err := client.Do(req)
-
 	if err != nil {
 		fmt.Println("Error while creating the data ::", err)
+		return nil, 0
 	}
 
 	// To avoid memory leak if the connection is left open
 	defer resp.Body.Close()
 
-	fmt.Println("response Status:", resp.StatusCode)
-
 	// Read all the data until EOF as byte
 	body, err := io.ReadAll(resp.Body)
-
 	if err != nil {
 		fmt.Println("Error while parsing the body ::", err)
+		return nil, 0
 	}
 
 	return body, resp.StatusCode

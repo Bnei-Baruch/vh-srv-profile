@@ -72,7 +72,7 @@ func (p *ProfileManager) updateRequest(c *gin.Context) {
 }
 
 func eventParticipationStatusUpdateTrigger(req *gin.Context, kcId string, slug string, status string) {
-
+	// TODO (edo): have a facade struct for vh-srv-events. Remove http_req when done
 	authHeader := req.Request.Header.Get("Authorization")
 
 	var confirmedStatus bool

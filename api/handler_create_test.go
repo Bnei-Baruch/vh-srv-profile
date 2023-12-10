@@ -27,10 +27,11 @@ func Test_profileHandler_create_succeeds_with_minimal_required_fields(t *testing
 			Status:              repo.UserStatus{UserID: utils.PointerUUID(uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000"))},
 		}).Return(nil)
 
-	km := keycloakMock{}
-	km.On("UpdateUser", "", "11000000-0000-0000-0000-000000000000", "First", "Name").Return(nil)
-
-	profile := NewProfileManager(&sm, &km)
+	profile := NewProfileManager(&sm)
+	profile.SetKeycloakServiceFactory(MakeKeycloakAPIMockFactory(func(km *keycloakAPIMock) {
+		km.On("UpdateUser", mock.Anything, "11000000-0000-0000-0000-000000000000",
+			utils.PointerString("First"), utils.PointerString("Name")).Return(nil)
+	}))
 	g := gin.New()
 	g.POST("/", profile.create)
 
@@ -50,7 +51,7 @@ func Test_profileHandler_create_succeeds_with_minimal_required_fields(t *testing
 func Test_profileHandler_create_returns_bad_request_when_request_is_empty(t *testing.T) {
 	sm := storageMock{}
 	sm.On("CreateProfile", mock.Anything, mock.Anything).Return(nil)
-	profile := NewProfileManager(&sm, nil)
+	profile := NewProfileManager(&sm)
 	g := gin.New()
 	g.POST("/", profile.create)
 
@@ -65,7 +66,7 @@ func Test_profileHandler_create_returns_bad_request_when_request_is_empty(t *tes
 func Test_profileHandler_create_returns_500_when_storage_returns_error(t *testing.T) {
 	sm := storageMock{}
 	sm.On("CreateProfile", mock.Anything, mock.Anything).Return(fmt.Errorf("some error"))
-	profile := NewProfileManager(&sm, nil)
+	profile := NewProfileManager(&sm)
 	g := gin.New()
 	g.POST("/", profile.create)
 

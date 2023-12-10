@@ -8,15 +8,19 @@ import (
 )
 
 type ProfileManager struct {
-	repo     repo.ProfileRepository
-	kcClient keycloak.KeycloakClient
+	repo                   repo.ProfileRepository
+	keycloakServiceFactory keycloak.KeycloakServiceFactory
 }
 
-func NewProfileManager(db repo.ProfileRepository, kcClient keycloak.KeycloakClient) *ProfileManager {
+func NewProfileManager(db repo.ProfileRepository) *ProfileManager {
 	return &ProfileManager{
-		repo:     db,
-		kcClient: kcClient,
+		repo:                   db,
+		keycloakServiceFactory: keycloak.KeycloakAPIFactory,
 	}
+}
+
+func (p *ProfileManager) SetKeycloakServiceFactory(keycloakServiceFactory keycloak.KeycloakServiceFactory) {
+	p.keycloakServiceFactory = keycloakServiceFactory
 }
 
 type profileRequest struct {

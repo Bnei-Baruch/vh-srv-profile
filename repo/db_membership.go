@@ -1,12 +1,10 @@
 package repo
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
+	"log"
 	"strings"
 	"time"
 
@@ -14,19 +12,20 @@ import (
 	uuid "github.com/satori/go.uuid"
 
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
+	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/orders"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/utils"
 )
 
 type membershipInterface interface {
 	GetMembershipByID(ctx context.Context, id int) (Membership, error)
-	GetMembershipByUserID(ctx context.Context, userID string, authHeader string) (UserMembershipRes, error)
-	GetMembershipByKCID(ctx context.Context, kcID string, authHeader string) (UserMembershipRes, error)
+	GetMembershipByUserID(ctx context.Context, userID string) (UserMembershipRes, error)
+	GetMembershipByKCID(ctx context.Context, kcID string) (UserMembershipRes, error)
 	GetMultipleMembership(ctx context.Context, intSkip int, intLimit int, month int, year int, userID string) ([]Membership, error)
 	PatchMembershipByID(ctx context.Context, membership Membership, id int) (int, error)
 	SoftDeleteMembershipByID(ctx context.Context, id int) error
-	CancelMembership(ctx context.Context, body EmailKeycloakAndUserIDBody, authHeader string) (int, int, int, error)
+	CancelMembership(ctx context.Context, body EmailKeycloakAndUserIDBody) error
 	GetAutomaticMembershipByMembershipID(ctx context.Context, membershipID int) (MembershipAutomatic, error)
-	EvaluateMembershipByUserID(ctx context.Context, evalbody EmailKeycloakAndUserIDBody, authHeader string) (UserMembershipRes, error)
+	EvaluateMembershipByUserID(ctx context.Context, evalbody EmailKeycloakAndUserIDBody) (UserMembershipRes, error)
 }
 
 type Membership struct {
@@ -90,12 +89,18 @@ type UserMembershipRes struct {
 			Amount        *int       `json:"amount,omitempty"`
 			Currency      *string    `json:"currency,omitempty"`
 			PaymentMethod *string    `json:"payment_method,omitempty"`
+			PaymentType   *string    `json:"payment_type,omitempty"`
 			Status        *string    `json:"status,omitempty"`
 		} `json:"payment,omitempty"`
 		Automatic struct {
 			OrderID   *int `json:"order_id,omitempty"`
 			PaymentID *int `json:"payment_id,omitempty"`
-		} `json:"automatic"`
+		} `json:"automatic,omitempty"`
+		Manual struct {
+			OrderID   *int `json:"order_id,omitempty"`
+			PaymentID *int `json:"payment_id,omitempty"`
+			Quantity  *int `json:"quantity,omitempty"`
+		} `json:"manual,omitempty"`
 		Special struct {
 			ApprovedBy *string `json:"approved_by,omitempty"`
 			Type       *string `json:"type,omitempty"`
@@ -118,67 +123,7 @@ type EmailKeycloakAndUserIDBody struct {
 	UserID     *string `json:"user_id"`
 }
 
-type MessageAndSuccess struct {
-	Message string `json:"message"`
-	Success bool   `json:"success"`
-}
-
-type order struct {
-	ID           int       `json:"ID"`
-	Status       string    `json:"Status"`
-	ProductType  string    `json:"ProductType"`
-	PaymentDate  time.Time `json:"PaymentDate"`
-	Type         string    `json:"type"`
-	Quantity     int       `json:"Quantity"`
-	StartingDate time.Time `json:"StartingDate"`
-}
-
-type payment struct {
-	ID            int       `json:"ID"`
-	Amount        int       `json:"Amount"`
-	DebitCurrency string    `json:"DebitCurrency"`
-	CCNumber      string    `json:"CCNumber"`
-	PaymentStatus string    `json:"PaymentStatus"`
-	CreatedAt     time.Time `json:"created_at"`
-	Status        string    `json:"Status"`
-}
-
-type special struct {
-	Email       string `json:"email"`
-	Category    string `json:"category"`
-	SubCategory string `json:"subcategory"`
-}
-
-type specialRes struct {
-	MessageAndSuccess
-	Data special `json:"data"`
-}
-
-type paymentRes struct {
-	MessageAndSuccess
-	Data payment `json:"data"`
-}
-
-type multiplePaymentRes struct {
-	MessageAndSuccess
-	Data []payment `json:"data"`
-}
-
-type orderRes struct {
-	MessageAndSuccess
-	Data []order `json:"data"`
-}
-
-type orderDeleteRes struct {
-	MessageAndSuccess
-	Data int `json:"data"`
-}
-
-// TODO: test all the scenarios
-// TODO: comment every step of the process
-// TODO: check the execution sequence
-func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody EmailKeycloakAndUserIDBody, authHeader string) (UserMembershipRes, error) {
-
+func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody EmailKeycloakAndUserIDBody) (UserMembershipRes, error) {
 	var email string
 	var userID string
 	var userKeycloakID string
@@ -210,7 +155,7 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 	var latestOrderPaymentID *int
 	var latestOrderPaymentStatus string
 	var grantID *int
-	var latestOrder order
+	var latestOrder orders.Order
 	var grantMonthsGranted *int
 	var allOrderCancelled bool
 	var latestGrantCancelled bool
@@ -221,8 +166,7 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 	// limit to string
 
 	var orderStartingDate time.Time
-	var previousStartingDate time.Time
-	var previousOrderQuantity int
+	var orderQuantity int
 	currentMonth := int(time.Now().Month())
 	currentYear := time.Now().Year()
 	// default value of active is false
@@ -245,35 +189,26 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 
 	// check if user has any active request
 	userRequests, userRequestsErr := db.GetMultipleRequest(ctx, 0, LIMIT, userKeycloakID, "", "", "hhmembership", "desc")
-
 	if userRequestsErr != nil {
-		return UserMembershipRes{}, fmt.Errorf("problem getting User requests: %w", userRequestsErr)
+		return UserMembershipRes{}, fmt.Errorf("problem getting user requests: %w", userRequestsErr)
 	}
 
 	if len(userRequests) != 0 {
-		// latest request of the user
 		latestRequest = userRequests[0]
 	}
 
 	// fetch all the order of the user ( limit 200 as of now )
-	userOrderDetails := common.GetOrdersServiceUrl() + "/v2/orders?email=" + email +
-		"&product-type=globalmembership&limit=" + strconv.Itoa(LIMIT) +
-		"&evaluate-membership=true&o-payment-date=desc"
-	orderDetails, _ := utils.HTTPCallAndGetBody(userOrderDetails, authHeader, nil, "GET")
-
-	// unmarshal order details
-	var orderDetailsRes orderRes
-	err := json.Unmarshal(orderDetails, &orderDetailsRes)
+	ordersService := db.ordersServiceFactory()
+	userOrders, err := ordersService.GetOrders(ctx, email, "globalmembership", true, "desc", LIMIT, 0)
 	if err != nil {
-		fmt.Println("problem unmarshalling order details: %w", err)
+		return UserMembershipRes{}, fmt.Errorf("ordersService.GetOrders: %w", err)
 	}
 
-	// fetch user grant if any
+	// fetch user grants if any
 	userGrant, userGrantErr := db.GetMultipleGrant(ctx, 0, LIMIT, nil, userID, "hhmembership", "desc")
-
 	if userGrantErr != nil {
 		if !errors.Is(userGrantErr, common.ErrUserNotFound) {
-			fmt.Println("problem getting user grant: %w", userGrantErr)
+			return UserMembershipRes{}, fmt.Errorf("db.GetMultipleGrant: %w", userGrantErr)
 		}
 	}
 
@@ -282,17 +217,16 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 		latestGrant := userGrant[0]
 		grantID = latestGrant.ID
 
-		// check if the latest grant is cancelled to check if the user membership is cancellled
+		// check if the latest grant is cancelled to check if the user membership is cancelled
 		if latestGrant.CancelledAt != nil {
 			latestGrantCancelled = true
 		}
 
 		// fetch grant membership based on grant ID
 		grantMemb, grantMembErr := db.getGrantMembershipByGrantID(ctx, *grantID)
-
 		if grantMembErr != nil {
 			if errors.Is(grantMembErr, common.ErrNotFound) {
-				fmt.Println("no grant membership found for grant id: ", *grantID)
+				fmt.Printf("no grant membership found for grant id: %d\n", *grantID)
 			} else {
 				return UserMembershipRes{}, fmt.Errorf("problem getting grant membership: %w", grantMembErr)
 			}
@@ -306,22 +240,22 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 	}
 
 	// Evaluation starts here
-	if len(orderDetailsRes.Data) != 0 {
+	if len(userOrders) != 0 {
 
 		// count number of cancelled order in orderDetailsRes.Data
 		var cancelledOrderCount int
-		for _, order := range orderDetailsRes.Data {
+		for _, order := range userOrders {
 			if order.Status == "cancelled" {
 				cancelledOrderCount++
 			}
 		}
 
 		// if all orders are cancelled, then current membership is cancelled
-		if cancelledOrderCount != 0 && cancelledOrderCount == len(orderDetailsRes.Data) {
+		if cancelledOrderCount != 0 && cancelledOrderCount == len(userOrders) {
 			allOrderCancelled = true
 		} else {
 			// latest order
-			latestOrder = orderDetailsRes.Data[0]
+			latestOrder = userOrders[0]
 			latestOrderPaymentDate = &latestOrder.PaymentDate
 
 			if latestOrder.Type == "recurring" {
@@ -330,81 +264,66 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 				currentMembership = "manual"
 			}
 
-			// fetch latest order payment id
-			paymentDetails, _ := utils.HTTPCallAndGetBody(common.GetOrdersServiceUrl()+"/v2/payments?o-created-at=desc&order-id="+fmt.Sprint(latestOrder.ID), authHeader, nil, "GET")
-
-			// unmarshal payment details
-			var paymentDetailRes multiplePaymentRes
-			paymentResErr := json.Unmarshal(paymentDetails, &paymentDetailRes)
-			if paymentResErr != nil {
-				fmt.Printf("error while unmarshalling payment details: %v", paymentResErr)
+			// fetch latest order payment
+			orderPayments, err := ordersService.GetOrderPayments(ctx, latestOrder.ID, "desc", 1, 0)
+			if err != nil {
+				return UserMembershipRes{}, fmt.Errorf("ordersService.GetOrderPayments: %w", err)
 			}
 
-			if len(paymentDetailRes.Data) == 0 {
+			if len(orderPayments) == 0 {
 				fmt.Printf("payment details not found for order id: %v", latestOrder.ID)
 				// set latestOrderPaymentID as -1
-				latestOrderPaymentID = new(int)
-				*latestOrderPaymentID = -1
+				latestOrderPaymentID = utils.PointerInt(-1)
 				// TODO: analyse and set the latestOrderPaymentStatus as well
 			} else {
-				latestOrderPaymentID = &paymentDetailRes.Data[0].ID
-				latestOrderPaymentStatus = paymentDetailRes.Data[0].Status
+				latestOrderPaymentID = &orderPayments[0].ID
+				latestOrderPaymentStatus = orderPayments[0].Status
 			}
 
-			// filter orderDetailsRes.Data to exclude cancelled orders
-			var allPaidOrders []order
-			for _, order := range orderDetailsRes.Data {
-				if order.Status != "cancelled" {
-					allPaidOrders = append(allPaidOrders, order)
+			// Regular (manual) orders are relative with regard to the timeline.
+			// We have to align them to each other and "attach" them to an absolute date.
+			// The combination of "StartingDate" and "Quantity"
+			// We do this for paid only
+
+			// filter userOrders to exclude cancelled orders
+			var paidManualOrders []orders.Order
+			for _, order := range userOrders {
+				if order.Type == "regular" && order.Status == "paid" {
+					paidManualOrders = append(paidManualOrders, order)
 				}
 			}
 
-			// Regular & Recurring paid order
-			for i := len(allPaidOrders) - 1; i >= 0; i-- {
+			var previousStartingDate time.Time
+			var previousOrderQuantity int
+			for i := len(paidManualOrders) - 1; i >= 0; i-- {
+				order := paidManualOrders[i]
+				orderQuantity = utils.Max(1, order.Quantity)
+
+				if !order.StartingDate.IsZero() {
+					orderStartingDate = order.StartingDate
+					previousStartingDate = orderStartingDate
+					previousOrderQuantity = orderQuantity
+					continue
+				}
 
 				// first order
-				if i == len(allPaidOrders)-1 {
-					if allPaidOrders[i].StartingDate.IsZero() {
-						orderStartingDate = allPaidOrders[i].PaymentDate
-					} else {
-						orderStartingDate = allPaidOrders[i].StartingDate
-					}
-					previousStartingDate = orderStartingDate
-					if allPaidOrders[i].Quantity != 0 {
-						previousOrderQuantity = allPaidOrders[i].Quantity
-					} else {
-						previousOrderQuantity = 1
-					}
+				if i == len(paidManualOrders)-1 {
+					orderStartingDate = order.PaymentDate
 				} else {
-					// TODO: analyse and implement for scenarios where starting of the order is already available
-					if allPaidOrders[i].PaymentDate.Before(previousStartingDate.AddDate(0, 0, 30*previousOrderQuantity)) {
+					if order.PaymentDate.Before(previousStartingDate.AddDate(0, 0, 30*previousOrderQuantity)) {
 						orderStartingDate = previousStartingDate.AddDate(0, 0, 30*previousOrderQuantity)
-						previousStartingDate = orderStartingDate
-						previousOrderQuantity = allPaidOrders[i].Quantity
 					} else {
-						orderStartingDate = allPaidOrders[i].PaymentDate
-						previousStartingDate = orderStartingDate
-						previousOrderQuantity = allPaidOrders[i].Quantity
-					}
-
-					if allPaidOrders[i].StartingDate.IsZero() {
-						orderStartingDate = allPaidOrders[i].PaymentDate
-					} else {
-						orderStartingDate = allPaidOrders[i].StartingDate
+						orderStartingDate = order.PaymentDate
 					}
 				}
-				// update order via http call
-				orderID := strconv.Itoa(allPaidOrders[i].ID)
-				cancelOrder := common.GetOrdersServiceUrl() + "/v2/order/" + orderID
-				postBody, _ := json.Marshal(map[string]interface{}{
-					"StartingDate": orderStartingDate,
-				})
-				buffPostBody := bytes.NewBuffer(postBody)
-				_, resStatusCode := utils.HTTPCallAndGetBody(cancelOrder, authHeader, buffPostBody, "PATCH")
 
-				if resStatusCode != 200 {
-					fmt.Printf("error while updating order starting date: %v", resStatusCode)
-					fmt.Printf("order id: %v", allPaidOrders[i].ID)
+				previousStartingDate = orderStartingDate
+				previousOrderQuantity = orderQuantity
+
+				// update order starting date
+				if err := ordersService.SetOrderStartingDate(ctx, order.ID, orderStartingDate); err != nil {
+					return UserMembershipRes{},
+						fmt.Errorf("error updating order [%d] starting date: %w", order.ID, err)
 				}
 			}
 		}
@@ -415,10 +334,10 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 			if latestOrderPaymentDate.After(*latestGrantCreatedAt) {
 				// update user grant cancelled_at to now
 				_, grantUpdateErr := db.Exec(ctx, `UPDATE "grant" SET cancelled_at=$1 WHERE id=$2`, time.Now(), *grantID)
-
 				if grantUpdateErr != nil {
-					return UserMembershipRes{}, fmt.Errorf("problem updating grant: %w", grantUpdateErr)
+					return UserMembershipRes{}, fmt.Errorf("problem updating grant [%d]: %w", *grantID, grantUpdateErr)
 				}
+				latestGrantCancelled = true
 			} else {
 				currentMembership = "helphaver"
 			}
@@ -427,86 +346,65 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 		}
 	}
 
-	if currentMembership == "automatic" || currentMembership == "manual" {
-		var newDate = previousStartingDate.AddDate(0, 0, 30*previousOrderQuantity)
-		membershipInsertData.Expiry = &newDate
-
-		// check if final orderStartingDate is more than 90 days in past from now
-		if orderStartingDate.Before(time.Now().AddDate(0, 0, -90)) {
-			membershipInsertData.Active = utils.PointerBool(false)
+	if currentMembership == "automatic" {
+		if time.Now().AddDate(0, 0, -60).Before(*latestOrderPaymentDate) {
+			membershipInsertData.Active = utils.PointerBool(true)
 		}
-
+	} else if currentMembership == "manual" {
+		membershipInsertData.Expiry = utils.PointerTime(orderStartingDate.AddDate(0, 0, 30*orderQuantity))
+		if time.Now().AddDate(0, 0, -60).Before(*membershipInsertData.Expiry) {
+			membershipInsertData.Active = utils.PointerBool(true)
+		}
 	} else if currentMembership == "helphaver" {
 		// TODO: add integration of extra manual payment after grant is over
 		userMonthsUsed, userMonthsUsedErr := db.getNumberOfGrantMonthsUsedByGrantID(ctx, *grantID)
-
 		if userMonthsUsedErr != nil {
-			fmt.Printf("error while getting user months used: %+v", userMonthsUsedErr)
-		} else {
-			userTotalMonthsLeft := *grantMonthsGranted - userMonthsUsed
-
-			var newExpiryDate = time.Now().AddDate(0, 0, 30*userTotalMonthsLeft)
-			membershipInsertData.Expiry = &newExpiryDate
+			return UserMembershipRes{}, fmt.Errorf("error while getting grant months used: %w", userMonthsUsedErr)
 		}
+
+		userTotalMonthsLeft := *grantMonthsGranted - userMonthsUsed
+		var newExpiryDate = time.Now().AddDate(0, 0, 30*userTotalMonthsLeft)
+		membershipInsertData.Expiry = &newExpiryDate
 	}
 
 	if membershipInsertData.Expiry == nil || membershipInsertData.Expiry.Before(time.Now()) {
-		specialMembDetailUrl := common.GetOrdersServiceUrl() + "/v2/special/" + email
-		speMemDetails, statusCode := utils.HTTPCallAndGetBody(specialMembDetailUrl, authHeader, nil, "GET")
-
-		if statusCode == 200 {
-			// unmarshal payment details
-			var speRes specialRes
-			speResErr := json.Unmarshal(speMemDetails, &speRes)
-			if speResErr != nil {
-				fmt.Printf("error while unmarshalling special membership details: %+v", speResErr)
-			} else {
-				if speRes.Data.Email == email {
-					userInSpecialTable = true
-					currentMembership = "special"
-					*membershipInsertData.Active = true
-					*membershipInsertData.Type = "special"
-					membershipInsertData.Expiry = nil
-				}
-			}
-		} else if statusCode == 404 {
-			userInSpecialTable = false
-		} else {
-			fmt.Printf("error while getting special membership details: %+v", statusCode)
+		special, err := ordersService.GetSpecial(ctx, email)
+		if err != nil {
+			return UserMembershipRes{}, fmt.Errorf("ordersService.GetSpecial: %w", err)
 		}
 
+		if special != nil {
+			userInSpecialTable = true
+			currentMembership = "special"
+			membershipInsertData.Active = utils.PointerBool(true)
+			membershipInsertData.Type = utils.PointerString("special")
+			membershipInsertData.Expiry = nil //TODO (edo): this should probably be changed to have dates
+		}
 	}
 
-	// check currentMembership is cancelled
-	if allOrderCancelled || latestGrantCancelled {
-		currentMembership = "cancelled"
-	}
+	// check currentMembership is cancelled or new
+	if !userInSpecialTable {
+		// We expect all orders before a grant to be cancelled.
+		// TODO (edo): make sure it is when approving a grant
+		// Note that a grant is cancelled above if an order was payed after the grant
 
-	if len(userGrant) == 0 && !userInSpecialTable && len(orderDetailsRes.Data) == 0 {
-		currentMembership = "new"
+		if len(userOrders) == 0 && len(userGrant) == 0 {
+			// never had an order and never had a grant
+			currentMembership = "new"
+		} else if allOrderCancelled && (len(userGrant) == 0 || latestGrantCancelled) {
+			// all orders are cancelled and either never had a grant or last grant was cancelled
+			currentMembership = "cancelled"
+		} else if latestGrantCancelled && len(userOrders) == 0 {
+			// last grant was cancelled and never had an order
+			currentMembership = "cancelled"
+		}
 	}
-
 	membershipInsertData.Type = &currentMembership
 
 	// check if user has an existing membership of the current month and year
 	userMemb, userMembErr := db.GetMultipleMembership(ctx, 0, 100, currentMonth, currentYear, userID)
-
 	if userMembErr != nil {
-		fmt.Printf("error while getting user membership: %+v", userMembErr)
-	}
-
-	// check if the membership is Active and Inactive
-	if currentMembership != "special" {
-		// check if expiry date is 60 days in past
-		if membershipInsertData.Expiry != nil {
-			if membershipInsertData.Expiry.Before(time.Now().AddDate(0, 0, -60)) {
-				*membershipInsertData.Active = false
-			} else {
-				*membershipInsertData.Active = true
-			}
-		}
-	} else {
-		*membershipInsertData.Active = true
+		return UserMembershipRes{}, fmt.Errorf("error getting user membership: %w", userMembErr)
 	}
 
 	var (
@@ -518,26 +416,21 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 	if len(userMemb) == 0 {
 		// insert membership
 		membershipID, insertMembErr = db.createMembership(ctx, membershipInsertData)
-
 		if insertMembErr != nil {
-			fmt.Printf("error while inserting membership: %+v", insertMembErr)
-		}
-
-		// remove all the prvious sub memberships entries as they'll be added again ( latest will be added )
-		// #check with yasha
-		deleteAllMembershipSubTableErr := db.deleteAllMembershipSubTableByMembershipID(ctx, membershipID)
-
-		if deleteAllMembershipSubTableErr != nil {
-			fmt.Printf("error while deleting all membership sub table: %+v", deleteAllMembershipSubTableErr)
+			return UserMembershipRes{}, fmt.Errorf("error inserting membership: %w", insertMembErr)
 		}
 	} else {
 		// update membership
 		membershipID, updateMembErr = db.PatchMembershipByID(ctx, membershipInsertData, *userMemb[0].ID)
-
 		if updateMembErr != nil {
-			fmt.Printf("error while updating membership: %+v", updateMembErr)
+			return UserMembershipRes{}, fmt.Errorf("error updating membership: %w", updateMembErr)
 		}
 
+		// remove all the previous sub memberships entries as they'll be added again ( latest will be added )
+		deleteAllMembershipSubTableErr := db.deleteAllMembershipSubTableByMembershipID(ctx, membershipID)
+		if deleteAllMembershipSubTableErr != nil {
+			return UserMembershipRes{}, fmt.Errorf("error deleting membership sub tables: %w", deleteAllMembershipSubTableErr)
+		}
 	}
 
 	if currentMembership == "automatic" {
@@ -548,8 +441,7 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 		})
 
 		if automaticErr != nil {
-			fmt.Printf("error while creating automatic membership with membership id: %v", membershipID)
-			fmt.Printf("error: %v", automaticErr)
+			return UserMembershipRes{}, fmt.Errorf("error creating automatic membership [%d]: %w", membershipID, automaticErr)
 		}
 	} else if currentMembership == "manual" {
 		_, manualErr := db.createManualMembership(ctx, MembershipManual{
@@ -560,8 +452,7 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 		})
 
 		if manualErr != nil {
-			fmt.Printf("error while creating manual membership with membership id: %v", membershipID)
-			fmt.Printf("error: %v", manualErr)
+			return UserMembershipRes{}, fmt.Errorf("error creating manual membership [%d]: %w", membershipID, manualErr)
 		}
 	} else if currentMembership == "helphaver" {
 		_, helphaverErr := db.createHelpHaverMembership(ctx, MembershipHelpHaver{
@@ -570,8 +461,7 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 		})
 
 		if helphaverErr != nil {
-			fmt.Printf("error while creating helphaver membership with membership id: %v", membershipID)
-			fmt.Printf("error: %v", helphaverErr)
+			return UserMembershipRes{}, fmt.Errorf("error creating helphaver membership [%d]: %w", membershipID, helphaverErr)
 		}
 	} else if currentMembership == "special" {
 		_, specialErr := db.createSpecialMembership(ctx, MembershipSpecial{
@@ -579,35 +469,27 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 		})
 
 		if specialErr != nil {
-			fmt.Printf("error while creating special membership with membership id: %v", membershipID)
-			fmt.Printf("error: %v", specialErr)
+			return UserMembershipRes{}, fmt.Errorf("error creating special membership [%d]: %w", membershipID, specialErr)
 		}
 	}
 
 	// add user notification
 	var notificationSlugs []string
-	if currentMembership == "automatic" || currentMembership == "manual" ||
-		currentMembership == "cancelled" || currentMembership == "new" {
 
-		if currentMembership == "automatic" && latestOrderPaymentStatus == "nosuccess" {
-			notificationSlugs = append(notificationSlugs, "mb_problem_previous_payment")
+	if currentMembership == "automatic" && latestOrderPaymentStatus == "nosuccess" {
+		notificationSlugs = append(notificationSlugs, "mb_problem_previous_payment")
+		if time.Now().AddDate(0, 0, -60).After(*latestOrderPaymentDate) {
+			notificationSlugs = append(notificationSlugs, "mb_has_expired_notice")
 		}
-
-		if currentMembership == "manual" && time.Now().After(*membershipInsertData.Expiry) {
-			notificationSlugs = append(notificationSlugs, "mb_expiration_notice")
-			// check if final orderStartingDate is more than 90 days in past from now
-			if orderStartingDate.Before(time.Now().AddDate(0, 0, -90)) {
-				notificationSlugs = append(notificationSlugs, "mb_has_expired_notice")
-			}
+	} else if currentMembership == "manual" && time.Now().After(*membershipInsertData.Expiry) {
+		notificationSlugs = append(notificationSlugs, "mb_expiration_notice")
+		if time.Now().AddDate(0, 0, -60).After(*membershipInsertData.Expiry) {
+			notificationSlugs = append(notificationSlugs, "mb_has_expired_notice")
 		}
-
-		if currentMembership == "cancelled" {
-			notificationSlugs = append(notificationSlugs, "mb_cancelled")
-		}
-
-		if currentMembership == "new" {
-			notificationSlugs = append(notificationSlugs, "mb_new")
-		}
+	} else if currentMembership == "cancelled" {
+		notificationSlugs = append(notificationSlugs, "mb_cancelled")
+	} else if currentMembership == "new" {
+		notificationSlugs = append(notificationSlugs, "mb_new")
 	}
 
 	if len(userRequests) != 0 && latestRequest.ID != nil {
@@ -626,43 +508,39 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 				notificationSlugs = append(notificationSlugs, "hh_request_refused")
 			}
 		}
-
 	}
 
 	// add user notification if slug is not empty
 	if len(notificationSlugs) != 0 {
 		updateAllUserNotificationToInactiveErr := db.updateAllUserNotificationToInactive(ctx, userID)
-
 		if updateAllUserNotificationToInactiveErr != nil {
-			fmt.Printf("error while updating all user notification to inactive: %+v", updateAllUserNotificationToInactiveErr)
+			return UserMembershipRes{}, fmt.Errorf("error updating all user notification to inactive: %w", updateAllUserNotificationToInactiveErr)
 		}
 
 		// loop through all the slugs and add notification
 		for _, slug := range notificationSlugs {
 			parentNotificationData, parentNotificationErr := db.getNotificationBySlug(ctx, slug)
-
 			if parentNotificationErr != nil {
-				fmt.Printf("error while getting parent notification: %+v", parentNotificationErr)
-			} else {
-				boolTrue := true
-				userNotificationErr := db.CreateUserNotification(ctx, UserNotification{
-					UserID:         &userID,
-					NotificationID: parentNotificationData.ID,
-					Active:         &boolTrue,
-					SeenAt:         nil,
-				})
+				return UserMembershipRes{}, fmt.Errorf("error getting notification [%s]: %w", slug, parentNotificationErr)
+			}
 
-				if userNotificationErr != nil {
-					fmt.Printf("error while creating notification: %+v", userNotificationErr)
-				}
+			boolTrue := true
+			userNotificationErr := db.CreateUserNotification(ctx, UserNotification{
+				UserID:         &userID,
+				NotificationID: parentNotificationData.ID,
+				Active:         &boolTrue,
+				SeenAt:         nil,
+			})
+
+			if userNotificationErr != nil {
+				return UserMembershipRes{}, fmt.Errorf("error creating notification: %w", userNotificationErr)
 			}
 		}
 	}
 
-	userMembershipResponse, userMembershipResponseErr := db.GetMembershipByUserID(ctx, userID, authHeader)
-
+	userMembershipResponse, userMembershipResponseErr := db.GetMembershipByUserID(ctx, userID)
 	if userMembershipResponseErr != nil {
-		fmt.Printf("error while getting membership by user id: %+v", userMembershipResponseErr)
+		return UserMembershipRes{}, fmt.Errorf("error getting membership [%s]: %w", userID, userMembershipResponseErr)
 	}
 
 	return userMembershipResponse, nil
@@ -940,7 +818,7 @@ func (db *ProfileDB) GetMembershipByID(ctx context.Context, id int) (Membership,
 	return membership, nil
 }
 
-func (db *ProfileDB) GetMembershipByKCID(ctx context.Context, kcID string, authHeader string) (UserMembershipRes, error) {
+func (db *ProfileDB) GetMembershipByKCID(ctx context.Context, kcID string) (UserMembershipRes, error) {
 	var userID uuid.UUID
 	if err := db.QueryRow(ctx, "SELECT user_id FROM users WHERE keycloak_id=$1", kcID).
 		Scan(&userID); err != nil {
@@ -950,10 +828,10 @@ func (db *ProfileDB) GetMembershipByKCID(ctx context.Context, kcID string, authH
 		return UserMembershipRes{}, fmt.Errorf("error while getting membership: %w", err)
 	}
 
-	return db.GetMembershipByUserID(ctx, userID.String(), authHeader)
+	return db.GetMembershipByUserID(ctx, userID.String())
 }
 
-func (db *ProfileDB) GetMembershipByUserID(ctx context.Context, userID string, authHeader string) (UserMembershipRes, error) {
+func (db *ProfileDB) GetMembershipByUserID(ctx context.Context, userID string) (UserMembershipRes, error) {
 	var membership UserMembershipRes
 
 	// fetch current month in int
@@ -992,6 +870,8 @@ func (db *ProfileDB) GetMembershipByUserID(ctx context.Context, userID string, a
 		return UserMembershipRes{}, fmt.Errorf("error while getting membership: %w", err)
 	}
 
+	ordersService := db.ordersServiceFactory()
+
 	if *membership.Type == "automatic" {
 		autoMembership, err := db.GetAutomaticMembershipByMembershipID(ctx, *membership.ID)
 		if err != nil {
@@ -1000,23 +880,18 @@ func (db *ProfileDB) GetMembershipByUserID(ctx context.Context, userID string, a
 		membership.Details.Automatic.OrderID = autoMembership.OrderID
 		membership.Details.Automatic.PaymentID = autoMembership.PaymentID
 
-		// Get payment details from order service
-		userPaymentDetails := common.GetOrdersServiceUrl() + "/v2/payment/" + fmt.Sprint(*autoMembership.PaymentID)
-		orderDetails, _ := utils.HTTPCallAndGetBody(userPaymentDetails, authHeader, nil, "GET")
-
-		// unmarshal payment details
-		var paymentDetailRes paymentRes
-		paymentResErr := json.Unmarshal(orderDetails, &paymentDetailRes)
-		if paymentResErr != nil {
-			return UserMembershipRes{}, fmt.Errorf("error while unmarshalling payment details: %w", paymentResErr)
+		payment, err := ordersService.GetPaymentByID(ctx, *autoMembership.PaymentID)
+		if err != nil {
+			return UserMembershipRes{},
+				fmt.Errorf("ordersService.GetPaymentByID [%d]: %w", *autoMembership.PaymentID, err)
 		}
 
-		// Add payment details to membership
-		membership.Details.Payment.Amount = &paymentDetailRes.Data.Amount
-		membership.Details.Payment.Currency = &paymentDetailRes.Data.DebitCurrency
-		membership.Details.Payment.Status = &paymentDetailRes.Data.PaymentStatus
-		membership.Details.Payment.Date = &paymentDetailRes.Data.CreatedAt
-		membership.Details.Payment.PaymentMethod = &paymentDetailRes.Data.CCNumber
+		membership.Details.Payment.Amount = &payment.Amount
+		membership.Details.Payment.Currency = &payment.DebitCurrency
+		membership.Details.Payment.Status = &payment.PaymentStatus
+		membership.Details.Payment.Date = &payment.CreatedAt
+		membership.Details.Payment.PaymentMethod = &payment.CCNumber
+		membership.Details.Payment.PaymentType = &payment.PaymentType
 
 	} else if *membership.Type == "helphaver" {
 		helphaverMembership, err := db.getHelphaverMembershipByMembershipID(ctx, *membership.ID)
@@ -1031,49 +906,44 @@ func (db *ProfileDB) GetMembershipByUserID(ctx context.Context, userID string, a
 			return UserMembershipRes{}, fmt.Errorf("error while getting automatic membership: %w", err)
 		}
 
-		manualUserPaymentDetails := common.GetOrdersServiceUrl() + "/v2/payment/" + fmt.Sprint(*manualMembership.PaymentID)
-		paymentDetails, _ := utils.HTTPCallAndGetBody(manualUserPaymentDetails, authHeader, nil, "GET")
+		membership.Details.Manual.OrderID = manualMembership.OrderID
+		membership.Details.Manual.PaymentID = manualMembership.PaymentID
+		membership.Details.Manual.Quantity = manualMembership.Quantity
 
-		// unmarshal payment details
-		var paymentDetailRes paymentRes
-		paymentResErr := json.Unmarshal(paymentDetails, &paymentDetailRes)
-		if paymentResErr != nil {
-			return UserMembershipRes{}, fmt.Errorf("error while unmarshalling payment details: %w", paymentResErr)
+		payment, err := ordersService.GetPaymentByID(ctx, *manualMembership.PaymentID)
+		if err != nil {
+			return UserMembershipRes{},
+				fmt.Errorf("ordersService.GetPaymentByID [%d]: %w", *manualMembership.PaymentID, err)
 		}
 
-		// Add payment details to membership
-		membership.Details.Payment.Amount = &paymentDetailRes.Data.Amount
-		membership.Details.Payment.Currency = &paymentDetailRes.Data.DebitCurrency
-		membership.Details.Payment.Status = &paymentDetailRes.Data.PaymentStatus
-		membership.Details.Payment.Date = &paymentDetailRes.Data.CreatedAt
-		membership.Details.Payment.PaymentMethod = &paymentDetailRes.Data.CCNumber
+		membership.Details.Payment.Amount = &payment.Amount
+		membership.Details.Payment.Currency = &payment.DebitCurrency
+		membership.Details.Payment.Status = &payment.PaymentStatus
+		membership.Details.Payment.Date = &payment.CreatedAt
+		membership.Details.Payment.PaymentMethod = &payment.CCNumber
+		membership.Details.Payment.PaymentType = &payment.PaymentType
 
 	} else if *membership.Type == "special" {
-
-		var userEmail string
-
-		if err := db.QueryRow(ctx, `SELECT primary_email FROM users WHERE user_id=$1`, userID).Scan(&userEmail); err != nil {
+		var email string
+		if err := db.QueryRow(ctx, `SELECT primary_email FROM users WHERE user_id=$1`, userID).Scan(&email); err != nil {
 			return UserMembershipRes{}, fmt.Errorf("error while getting User email: %w", err)
 		}
 
-		specialMembDetailUrl := common.GetOrdersServiceUrl() + "/v2/special/" + userEmail
-		speMemDetails, _ := utils.HTTPCallAndGetBody(specialMembDetailUrl, authHeader, nil, "GET")
-
-		// unmarshal payment details
-		var speRes specialRes
-		speResErr := json.Unmarshal(speMemDetails, &speRes)
-		if speResErr != nil {
-			return UserMembershipRes{}, fmt.Errorf("error while unmarshalling special membership details: %w", speResErr)
+		special, err := ordersService.GetSpecial(ctx, email)
+		if err != nil {
+			return UserMembershipRes{}, fmt.Errorf("ordersService.GetSpecial: %w", err)
 		}
 
-		// Add special membership details to membership
-		membership.Details.Special.ApprovedBy = &speRes.Data.Category
-		membership.Details.Special.Type = &speRes.Data.SubCategory
-
+		if special != nil {
+			membership.Details.Special.ApprovedBy = &special.Category
+			membership.Details.Special.Type = &special.SubCategory
+		} else {
+			log.Printf("WARNING: user no longer in special table %s\n", email)
+		}
 	}
 
 	// fetch active user notification
-	userActiveNotification, userNotiErr := db.getActiveUserNotificationByUserID(ctx, userID)
+	userActiveNotification, userNotiErr := db.GetActiveUserNotificationByUserID(ctx, userID)
 
 	if userNotiErr != nil {
 		return UserMembershipRes{}, fmt.Errorf("error while getting active user notification: %w", userNotiErr)
@@ -1237,92 +1107,62 @@ func (db *ProfileDB) PatchMembershipByID(ctx context.Context, membership Members
 	}
 }
 
-func (db *ProfileDB) CancelMembership(ctx context.Context, membBody EmailKeycloakAndUserIDBody, authHeader string) (int, int, int, error) {
-
+func (db *ProfileDB) CancelMembership(ctx context.Context, membBody EmailKeycloakAndUserIDBody) error {
 	var email string
 	var user_id string
 
 	if membBody.UserID != nil && *membBody.UserID != "" {
 		if err := db.QueryRow(ctx, `SELECT primary_email FROM users WHERE user_id=$1`, *membBody.UserID).Scan(&email); err != nil {
-			return 0, 0, 0, fmt.Errorf("error while getting user email: %w", err)
+			return fmt.Errorf("error while getting user email: %w", err)
 		}
 		user_id = *membBody.UserID
 	} else if membBody.KeycloakID != nil && *membBody.KeycloakID != "" {
 		if err := db.QueryRow(ctx, `SELECT primary_email, user_id FROM users WHERE keycloak_id=$1`, *membBody.KeycloakID).Scan(&email, &user_id); err != nil {
-			return 0, 0, 0, fmt.Errorf("error while getting user email: %w", err)
+			return fmt.Errorf("error while getting user email: %w", err)
 		}
 	} else {
 		if err := db.QueryRow(ctx, `SELECT user_id FROM users WHERE primary_email=$1`, *membBody.Email).Scan(&user_id); err != nil {
-			return 0, 0, 0, fmt.Errorf("error while getting user id: %w", err)
+			return fmt.Errorf("error while getting user id: %w", err)
 		}
 		email = *membBody.Email
 	}
 
 	tx, txErr := db.Begin(ctx)
-
 	if txErr != nil {
-		return 0, 0, 0, txErr
+		return txErr
 	}
 
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	// implement to only update orders where status is not equal to cancelled
-	userOrderDetails := common.GetOrdersServiceUrl() + "/v2/orders?email=" + email + "&product-type=globalmembership&limit=100"
-	orderDetails, _ := utils.HTTPCallAndGetBody(userOrderDetails, authHeader, nil, "GET")
+	ordersService := db.ordersServiceFactory()
 
-	// un marshal order details
-	var orderDetailsRes orderRes
-	err := json.Unmarshal(orderDetails, &orderDetailsRes)
+	// cancel orders
+	userOrders, err := ordersService.GetOrders(ctx, email, "globalmembership", false, "", 100, 0)
 	if err != nil {
-		return 0, 0, 0, fmt.Errorf("error while unmarshalling order details: %w", err)
+		return fmt.Errorf("ordersService.GetOrders: %w", err)
 	}
 
-	// loop over order details and cancel the order
-	for _, order := range orderDetailsRes.Data {
-		// id int to string
-		orderID := fmt.Sprintf("%d", order.ID)
-		cancelOrder := common.GetOrdersServiceUrl() + "/v2/order/" + orderID
-		postBody, _ := json.Marshal(map[string]interface{}{
-			"Status": "cancelled",
-		})
-
-		buffPostBody := bytes.NewBuffer(postBody)
-
-		cancelOrderRes, _ := utils.HTTPCallAndGetBody(cancelOrder, authHeader, buffPostBody, "PATCH")
-
-		// un marshal cancel order details
-		var cancelOrderResRes orderRes
-		err := json.Unmarshal(cancelOrderRes, &cancelOrderResRes)
-		if err != nil {
-			return 0, 0, 0, fmt.Errorf("error while unmarshalling cancel order details: %w", err)
+	for _, order := range userOrders {
+		if order.Status == "cancelled" {
+			continue
+		}
+		if err := ordersService.CancelOrder(ctx, order.ID); err != nil {
+			return fmt.Errorf("ordersService.CancelOrder [%d]: %w", order.ID, err)
 		}
 	}
 
-	// update user grant cancelled_at to now
-
-	//double check
-	grantUpdateRes, grantUpdateErr := db.Exec(ctx, `UPDATE "grant" SET cancelled_at=$1 WHERE user_id=$2 AND type='membership' AND cancelled_at IS NULL`, time.Now(), user_id)
-
-	if grantUpdateErr != nil {
-		return 0, 0, 0, fmt.Errorf("error while updating grant: %w", grantUpdateErr)
+	// delete special
+	if err = ordersService.DeleteSpecial(ctx, email); err != nil {
+		return fmt.Errorf("ordersService.DeleteSpecial : %w", err)
 	}
 
-	numberOfRowsUpdated := grantUpdateRes.RowsAffected()
-
-	specialTableDelete := common.GetOrdersServiceUrl() + "/v2/special/" + email
-	specialTableDelRes, _ := utils.HTTPCallAndGetBody(specialTableDelete, authHeader, nil, "DELETE")
-
-	// un marshal special table delete details
-	var specialTableDelResRes orderDeleteRes
-
-	err = json.Unmarshal(specialTableDelRes, &specialTableDelResRes)
-
+	// cancel grants
+	_, err = db.Exec(ctx, `UPDATE "grant" SET cancelled_at=$1 WHERE user_id=$2 AND type='membership' AND cancelled_at IS NULL`, time.Now(), user_id)
 	if err != nil {
-		return 0, 0, 0, fmt.Errorf("error while unmarshalling special table delete details: %w", err)
+		return fmt.Errorf("error while updating grant: %w", err)
 	}
 
-	return len(orderDetailsRes.Data), int(numberOfRowsUpdated), specialTableDelResRes.Data, tx.Commit(ctx)
-
+	return tx.Commit(ctx)
 }
 
 func (db *ProfileDB) SoftDeleteMembershipByID(ctx context.Context, id int) error {

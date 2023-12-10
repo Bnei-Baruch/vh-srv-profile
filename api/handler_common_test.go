@@ -6,6 +6,7 @@ import (
 	uuid "github.com/satori/go.uuid"
 	"github.com/stretchr/testify/mock"
 
+	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/keycloak"
 	"gitlab.bbdev.team/vh/vh-srv-profile/repo"
 )
 
@@ -73,12 +74,12 @@ func (m *storageMock) GetMembershipByID(ctx context.Context, id int) (repo.Membe
 	panic("implement me")
 }
 
-func (m *storageMock) GetMembershipByUserID(ctx context.Context, userID string, authHeader string) (repo.UserMembershipRes, error) {
+func (m *storageMock) GetMembershipByUserID(ctx context.Context, userID string) (repo.UserMembershipRes, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (m *storageMock) GetMembershipByKCID(ctx context.Context, kcID string, authHeader string) (repo.UserMembershipRes, error) {
+func (m *storageMock) GetMembershipByKCID(ctx context.Context, kcID string) (repo.UserMembershipRes, error) {
 	//TODO implement me
 	panic("implement me")
 }
@@ -98,7 +99,7 @@ func (m *storageMock) SoftDeleteMembershipByID(ctx context.Context, id int) erro
 	panic("implement me")
 }
 
-func (m *storageMock) CancelMembership(ctx context.Context, body repo.EmailKeycloakAndUserIDBody, authHeader string) (int, int, int, error) {
+func (m *storageMock) CancelMembership(ctx context.Context, body repo.EmailKeycloakAndUserIDBody) error {
 	//TODO implement me
 	panic("implement me")
 }
@@ -108,7 +109,7 @@ func (m *storageMock) GetAutomaticMembershipByMembershipID(ctx context.Context, 
 	panic("implement me")
 }
 
-func (m *storageMock) EvaluateMembershipByUserID(ctx context.Context, evalbody repo.EmailKeycloakAndUserIDBody, authHeader string) (repo.UserMembershipRes, error) {
+func (m *storageMock) EvaluateMembershipByUserID(ctx context.Context, evalbody repo.EmailKeycloakAndUserIDBody) (repo.UserMembershipRes, error) {
 	//TODO implement me
 	panic("implement me")
 }
@@ -188,6 +189,11 @@ func (m *storageMock) GetMultipleUserNotification(ctx context.Context, intSkip i
 	panic("implement me")
 }
 
+func (m *storageMock) GetActiveUserNotificationByUserID(ctx context.Context, userID string) ([]repo.UserNotification, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (m *storageMock) PatchUserNotification(ctx context.Context, noti repo.UserNotification, id int) (int, error) {
 	//TODO implement me
 	panic("implement me")
@@ -208,11 +214,19 @@ func (m *storageMock) RevertOperation(ctx context.Context, newEmail string, oldE
 	panic("implement me")
 }
 
-type keycloakMock struct {
+func MakeKeycloakAPIMockFactory(prepMock func(*keycloakAPIMock)) keycloak.KeycloakServiceFactory {
+	m := new(keycloakAPIMock)
+	prepMock(m)
+	return func() keycloak.KeycloakService {
+		return m
+	}
+}
+
+type keycloakAPIMock struct {
 	mock.Mock
 }
 
-func (m *keycloakMock) UpdateUser(authToken string, keycloakID string, firstName string, lastName string) error {
-	args := m.Called(authToken, keycloakID, firstName, lastName)
+func (m *keycloakAPIMock) UpdateUser(ctx context.Context, keycloakID string, firstName *string, lastName *string) error {
+	args := m.Called(ctx, keycloakID, firstName, lastName)
 	return args.Error(0)
 }
