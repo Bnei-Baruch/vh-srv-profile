@@ -11,8 +11,15 @@ type APIError struct {
 	Error string `json:"error"`
 }
 
+type Account struct {
+	ID      int    `json:"ID"`
+	Email   string `json:"Email"`
+	UserKey string `json:"UserKCID"`
+}
+
 type Order struct {
 	ID           int       `json:"ID"`
+	AccountID    int       `json:"AccountID"`
 	Status       string    `json:"Status"`
 	ProductType  string    `json:"ProductType"`
 	PaymentDate  time.Time `json:"PaymentDate"`
@@ -24,6 +31,7 @@ type Order struct {
 
 type Payment struct {
 	ID            int       `json:"ID"`
+	OrderID       int       `json:"OrderID"`
 	Amount        int       `json:"Amount"`
 	DebitCurrency string    `json:"DebitCurrency"`
 	CCNumber      string    `json:"CCNumber"`
@@ -45,6 +53,11 @@ type Status struct {
 	StatusName  string `json:"status_name"`
 	StatusColor string `json:"status_color"`
 	IsSpecial   bool   `json:"is_special"`
+}
+
+type AccountRes struct {
+	MessageAndSuccess
+	Data Account `json:"data"`
 }
 
 type SpecialRes struct {

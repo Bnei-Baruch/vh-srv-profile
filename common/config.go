@@ -14,6 +14,8 @@ type config struct {
 	PgPass   string
 	PgDbName string
 
+	NatsUrl string
+
 	KeycloakServerUrl    string
 	KeycloakRealm        string
 	KeycloakClientID     string
@@ -55,6 +57,9 @@ func LoadConfig() {
 	}
 	if val, ok := os.LookupEnv("DB_NAME"); ok {
 		Config.PgDbName = val
+	}
+	if val, ok := os.LookupEnv("NATS_URL"); ok {
+		Config.NatsUrl = val
 	}
 	if val, ok := os.LookupEnv("KEYCLOAK_SERVER_URL"); ok {
 		Config.KeycloakServerUrl = val

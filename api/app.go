@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"time"
 
@@ -10,13 +9,17 @@ import (
 
 	"gitlab.bbdev.team/vh/vh-srv-profile/api/middleware"
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
+	"gitlab.bbdev.team/vh/vh-srv-profile/membership"
+	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/orders"
 	"gitlab.bbdev.team/vh/vh-srv-profile/repo"
 )
 
 type App struct {
-	ProfileManager *ProfileManager
-	ProfileDB      *repo.ProfileDB
-	gEngine        *gin.Engine
+	profileManager          *ProfileManager
+	profileDB               *repo.ProfileDB
+	eventListener           *orders.EventListener
+	membershipEventsHandler *membership.EventsHandler
+	gEngine                 *gin.Engine
 }
 
 func NewApp() *App {
@@ -24,28 +27,49 @@ func NewApp() *App {
 }
 
 func (a *App) Initialize() {
+	a.initDB()
+	a.initEventListener()
+	a.profileManager = NewProfileManager(a.profileDB)
+	a.initGinEngine()
+}
+
+func (a *App) initDB() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	dbUrl := repo.MakeDBURL()
-	fmt.Println("trying to connect to db:", dbUrl)
+	log.Printf("Trying to connect to db: %s\n", dbUrl)
 
-	profileDB, err := repo.NewProfileDB(ctx, dbUrl)
+	var err error
+	a.profileDB, err = repo.NewProfileDB(ctx, dbUrl)
 	if err != nil {
-		log.Fatalf("Unable to initialize profile db: %s \n***\n %s \n ***", err, dbUrl)
+		log.Fatalf("Unable to initialize profile db: %v\n", err)
 	}
-	a.ProfileDB = profileDB
+	log.Println("Connected to profile db")
 
-	fmt.Println("Connected to profile db")
-
-	migErr := repo.SyncDBStructInsertionAndMigrations()
-	if migErr != nil {
-		log.Fatalf("Unable to migrate profile db: %s \n***\n %s \n ***", migErr, dbUrl)
+	if err = repo.SyncDBStructInsertionAndMigrations(); err != nil {
+		log.Fatalf("Unable to migrate profile db: %v\n", err)
 	}
-	fmt.Println("Migrated profile db")
+	log.Println("Migrated profile db")
+}
 
-	a.ProfileManager = NewProfileManager(a.ProfileDB)
-	a.initGinEngine()
+func (a *App) initEventListener() {
+	if common.Config.NatsUrl != "" {
+		log.Println("Initializing events listener")
+
+		var err error
+		a.eventListener, err = orders.NewEventListener()
+		if err != nil {
+			log.Fatalf("Error creating event listener: %s \n", err)
+		}
+
+		a.membershipEventsHandler = membership.NewEventsHandler(a.profileDB)
+		a.eventListener.RegisterHandler(a.membershipEventsHandler.HandleOrdersEvent)
+
+		if err = a.eventListener.Run(); err != nil {
+			log.Fatalf("Error running event listener: %s \n", err)
+		}
+	}
 }
 
 func (a *App) initGinEngine() {
@@ -56,62 +80,62 @@ func (a *App) initGinEngine() {
 	// Creating a group of routes that will be prefixed with `/v1`
 	baseV1Path := a.gEngine.Group("/v1")
 
-	a.gEngine.POST("/v1/profile", a.ProfileManager.create)
-	a.gEngine.GET("/v1/profiles", a.ProfileManager.getProfiles)
-	a.gEngine.GET("/v1/profile/:keycloak_id", a.ProfileManager.get)
-	a.gEngine.PATCH("/v1/profile/:keycloak_id", a.ProfileManager.update)
-	a.gEngine.DELETE("/v1/profile/:keycloak_id", a.ProfileManager.delete)
-	a.gEngine.DELETE("/admin/v1/profile/:keycloak_id", a.ProfileManager.hardDelete)
+	a.gEngine.POST("/v1/profile", a.profileManager.create)
+	a.gEngine.GET("/v1/profiles", a.profileManager.getProfiles)
+	a.gEngine.GET("/v1/profile/:keycloak_id", a.profileManager.get)
+	a.gEngine.PATCH("/v1/profile/:keycloak_id", a.profileManager.update)
+	a.gEngine.DELETE("/v1/profile/:keycloak_id", a.profileManager.delete)
+	a.gEngine.DELETE("/admin/v1/profile/:keycloak_id", a.profileManager.hardDelete)
 
-	a.gEngine.GET("/v1/requests", a.ProfileManager.getRequests)
-	a.gEngine.POST("/v1/request", a.ProfileManager.createRequest)
-	a.gEngine.PATCH("/v1/request/:id", a.ProfileManager.updateRequest)
-	a.gEngine.DELETE("/v1/request/:id", a.ProfileManager.deleteRequest)
+	a.gEngine.GET("/v1/requests", a.profileManager.getRequests)
+	a.gEngine.POST("/v1/request", a.profileManager.createRequest)
+	a.gEngine.PATCH("/v1/request/:id", a.profileManager.updateRequest)
+	a.gEngine.DELETE("/v1/request/:id", a.profileManager.deleteRequest)
 
 	grant := baseV1Path.Group("/grant")
 	{
-		grant.GET("/:id", a.ProfileManager.handleGrantFetchByID)
-		grant.POST("", a.ProfileManager.handleGrantCreate)
-		grant.PATCH("/:id", a.ProfileManager.handleGrantPatchByID)
-		grant.DELETE("/:id", a.ProfileManager.handleGrantSoftDeleteByID)
+		grant.GET("/:id", a.profileManager.handleGrantFetchByID)
+		grant.POST("", a.profileManager.handleGrantCreate)
+		grant.PATCH("/:id", a.profileManager.handleGrantPatchByID)
+		grant.DELETE("/:id", a.profileManager.handleGrantSoftDeleteByID)
 	}
-	baseV1Path.GET("/grants", a.ProfileManager.handleGrantFetchAll)
+	baseV1Path.GET("/grants", a.profileManager.handleGrantFetchAll)
 
-	membership := baseV1Path.Group("/membership")
+	membershipRoutes := baseV1Path.Group("/membership")
 	{
-		membership.GET("/user/:user_id", a.ProfileManager.handleMembershipFetchByUserID)
-		membership.GET("/kcid/:kcid", a.ProfileManager.handleMembershipFetchByKCID)
-		membership.GET("/id/:id", a.ProfileManager.handleMembershipFetchByID)
-		membership.POST("/evaluation", a.ProfileManager.handleMembershipEvaluationByUserID)
-		membership.PATCH("/:id", a.ProfileManager.handleMembershipPatchByID)
-		membership.DELETE("/:id", a.ProfileManager.handleMembershipSoftDeleteByID)
-		membership.POST("/cancellation", a.ProfileManager.handleMembershipCancellation)
+		membershipRoutes.GET("/user/:user_id", a.profileManager.handleMembershipFetchByUserID)
+		membershipRoutes.GET("/kcid/:kcid", a.profileManager.handleMembershipFetchByKCID)
+		membershipRoutes.GET("/id/:id", a.profileManager.handleMembershipFetchByID)
+		membershipRoutes.POST("/evaluation", a.profileManager.handleMembershipEvaluationByUserID)
+		membershipRoutes.PATCH("/:id", a.profileManager.handleMembershipPatchByID)
+		membershipRoutes.DELETE("/:id", a.profileManager.handleMembershipSoftDeleteByID)
+		membershipRoutes.POST("/cancellation", a.profileManager.handleMembershipCancellation)
 	}
-	baseV1Path.GET("/memberships", a.ProfileManager.handleMembershipFetchAll)
+	baseV1Path.GET("/memberships", a.profileManager.handleMembershipFetchAll)
 
 	// notification crud
 	notification := baseV1Path.Group("/notification")
 	{
-		notification.POST("", a.ProfileManager.handleNotificationCreate)
-		notification.GET("/:id", a.ProfileManager.handleNotificationFetchByID)
-		notification.PATCH("/:id", a.ProfileManager.handleNotificationPatchByID)
-		notification.DELETE("/:id", a.ProfileManager.handleNotificationSoftDeleteByID)
+		notification.POST("", a.profileManager.handleNotificationCreate)
+		notification.GET("/:id", a.profileManager.handleNotificationFetchByID)
+		notification.PATCH("/:id", a.profileManager.handleNotificationPatchByID)
+		notification.DELETE("/:id", a.profileManager.handleNotificationSoftDeleteByID)
 	}
-	baseV1Path.GET("/notifications", a.ProfileManager.handleNotificationFetchAll)
+	baseV1Path.GET("/notifications", a.profileManager.handleNotificationFetchAll)
 
 	userNotification := baseV1Path.Group("/user/notification")
 	{
-		userNotification.POST("", a.ProfileManager.handleUserNotificationCreate)
-		userNotification.GET("/:id", a.ProfileManager.handleUserNotificationFetchByID)
-		userNotification.PATCH("/:id", a.ProfileManager.handleUserNotificationPatchByID)
-		userNotification.DELETE("/:id", a.ProfileManager.handleUserNotificationSoftDeleteByID)
+		userNotification.POST("", a.profileManager.handleUserNotificationCreate)
+		userNotification.GET("/:id", a.profileManager.handleUserNotificationFetchByID)
+		userNotification.PATCH("/:id", a.profileManager.handleUserNotificationPatchByID)
+		userNotification.DELETE("/:id", a.profileManager.handleUserNotificationSoftDeleteByID)
 	}
-	baseV1Path.GET("/user/notifications", a.ProfileManager.handleUserNotificationFetchAll)
+	baseV1Path.GET("/user/notifications", a.profileManager.handleUserNotificationFetchAll)
 
 	operation := baseV1Path.Group("/operation")
 	{
-		operation.POST("/", a.ProfileManager.handleOperationCreate)
-		operation.POST("/revert", a.ProfileManager.handleOperationRevert)
+		operation.POST("/", a.profileManager.handleOperationCreate)
+		operation.POST("/revert", a.profileManager.handleOperationRevert)
 	}
 }
 
@@ -119,4 +143,9 @@ func (a *App) Run() {
 	if err := a.gEngine.Run(":" + common.Config.Port); err != nil {
 		log.Fatalf("server stopped: %s", err)
 	}
+}
+
+func (a *App) Shutdown() {
+	a.eventListener.Close()
+	a.profileDB.Close()
 }
