@@ -18,5 +18,6 @@ var serverCmd = &cobra.Command{
 func serverFn(cmd *cobra.Command, args []string) {
 	app := api.NewApp()
 	app.Initialize()
+	defer app.Shutdown()
 	app.Run()
 }

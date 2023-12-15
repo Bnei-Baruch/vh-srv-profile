@@ -61,9 +61,8 @@ func (c *KeycloakAPI) UpdateUser(ctx context.Context, keycloakID string, firstNa
 	user.FirstName = firstName
 	user.LastName = lastName
 
-	updaterErr := c.kc.UpdateUser(ctx, token, common.Config.KeycloakRealm, *user)
-	if updaterErr != nil {
-		return updaterErr
+	if err = c.kc.UpdateUser(ctx, token, common.Config.KeycloakRealm, *user); err != nil {
+		return fmt.Errorf("keycloak.UpdateUser(): %w", err)
 	}
 
 	return nil

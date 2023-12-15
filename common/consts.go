@@ -1,6 +1,8 @@
 package common
 
 const (
+	ServiceName = "vh-srv-profile"
+
 	CtxTokenSource = "TOKEN_SOURCE"
 
 	Mobile   = "mobile"

@@ -15,6 +15,7 @@ import (
 )
 
 type OrdersService interface {
+	GetAccountByID(ctx context.Context, accountID int) (*Account, error)
 	GetOrders(ctx context.Context,
 		email string,
 		productType string,
@@ -49,12 +50,34 @@ func NewOrdersAPI() *OrdersAPI {
 	client.SetBaseURL(common.Config.OrdersServiceUrl)
 	client.SetHeaders(map[string]string{
 		"Content-Type": "application/json",
-		"User-Agent":   "vh-srv-profile",
+		"User-Agent":   common.ServiceName, // important. This value is used in orders events stream as "actor"
 	})
 	client.SetError(APIError{})
 	//client.EnableTrace()
 
 	return &OrdersAPI{client: client}
+}
+
+func (api *OrdersAPI) GetAccountByID(ctx context.Context, accountID int) (*Account, error) {
+	req, err := api.baseRequest(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("baseRequest: %w", err)
+	}
+
+	resp, err := req.
+		SetPathParam("accountID", strconv.Itoa(accountID)).
+		SetResult(AccountRes{}).
+		Get("/v2/account/{accountID}")
+	if err != nil {
+		return nil, fmt.Errorf("req.Get: %w", err)
+	}
+
+	if err = respError(resp); err != nil {
+		return nil, err
+	}
+
+	account := resp.Result().(*AccountRes).Data
+	return &account, nil
 }
 
 func (api *OrdersAPI) GetOrders(ctx context.Context,
@@ -96,9 +119,8 @@ func (api *OrdersAPI) GetOrders(ctx context.Context,
 		return nil, fmt.Errorf("req.Get: %w", err)
 	}
 
-	if resp.IsError() {
-		apiErr := resp.Error().(*APIError)
-		return nil, errors.New(apiErr.Error)
+	if err = respError(resp); err != nil {
+		return nil, err
 	}
 
 	return resp.Result().(*OrdersRes).Data, nil
@@ -118,9 +140,8 @@ func (api *OrdersAPI) GetOrderByID(ctx context.Context, orderID int) (*Order, er
 		return nil, fmt.Errorf("req.Get: %w", err)
 	}
 
-	if resp.IsError() {
-		apiErr := resp.Error().(*APIError)
-		return nil, errors.New(apiErr.Error)
+	if err = respError(resp); err != nil {
+		return nil, err
 	}
 
 	order := resp.Result().(*OrderRes).Data
@@ -166,9 +187,8 @@ func (api *OrdersAPI) GetOrderPayments(ctx context.Context,
 		return nil, fmt.Errorf("req.Get: %w", err)
 	}
 
-	if resp.IsError() {
-		apiErr := resp.Error().(*APIError)
-		return nil, errors.New(apiErr.Error)
+	if err = respError(resp); err != nil {
+		return nil, err
 	}
 
 	return resp.Result().(*MultiplePaymentRes).Data, nil
@@ -188,9 +208,8 @@ func (api *OrdersAPI) GetPaymentByID(ctx context.Context, paymentID int) (*Payme
 		return nil, fmt.Errorf("req.Get: %w", err)
 	}
 
-	if resp.IsError() {
-		apiErr := resp.Error().(*APIError)
-		return nil, errors.New(apiErr.Error)
+	if err = respError(resp); err != nil {
+		return nil, err
 	}
 
 	payment := resp.Result().(*PaymentRes).Data
@@ -215,8 +234,7 @@ func (api *OrdersAPI) GetSpecial(ctx context.Context, email string) (*Special, e
 		if resp.StatusCode() == http.StatusNotFound {
 			return nil, nil
 		}
-		apiErr := resp.Error().(*APIError)
-		return nil, errors.New(apiErr.Error)
+		return nil, respError(resp)
 	}
 
 	special := resp.Result().(*SpecialRes).Data
@@ -236,9 +254,8 @@ func (api *OrdersAPI) DeleteSpecial(ctx context.Context, email string) error {
 		return fmt.Errorf("req.Delete: %w", err)
 	}
 
-	if resp.IsError() {
-		apiErr := resp.Error().(*APIError)
-		return errors.New(apiErr.Error)
+	if err = respError(resp); err != nil {
+		return err
 	}
 
 	return nil
@@ -262,8 +279,7 @@ func (api *OrdersAPI) StatusByEmail(ctx context.Context, email string) (*Status,
 		if resp.StatusCode() == http.StatusNotFound {
 			return nil, nil
 		}
-		apiErr := resp.Error().(*APIError)
-		return nil, errors.New(apiErr.Error)
+		return nil, respError(resp)
 	}
 
 	return resp.Result().(*Status), nil
@@ -283,9 +299,8 @@ func (api *OrdersAPI) patchOrder(ctx context.Context, orderID int, payload map[s
 		return fmt.Errorf("req.Patch: %w", err)
 	}
 
-	if resp.IsError() {
-		apiErr := resp.Error().(*APIError)
-		return errors.New(apiErr.Error)
+	if err = respError(resp); err != nil {
+		return err
 	}
 
 	return nil
@@ -303,4 +318,15 @@ func (api *OrdersAPI) baseRequest(ctx context.Context) (*resty.Request, error) {
 	r.SetAuthToken(token)
 
 	return r, nil
+}
+
+func respError(resp *resty.Response) error {
+	if resp.IsError() {
+		if apiErr, ok := resp.Error().(*APIError); ok {
+			return errors.New(apiErr.Error)
+		} else {
+			return fmt.Errorf("unexpected response: [%s] %s", resp.Status(), resp.String())
+		}
+	}
+	return nil
 }
