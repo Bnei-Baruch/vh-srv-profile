@@ -1,19 +1,18 @@
-FROM golang:1.19.0-buster AS base
-
-RUN apt-get update && apt-get upgrade -y
-
-RUN mkdir /app
-
-ADD . /app
+FROM golang:1.21 AS base
 
 WORKDIR /app
 
+# pre-copy/cache go.mod for pre-downloading dependencies and only redownloading them in subsequent builds if they change
+COPY go.mod go.sum ./
+RUN go mod download && go mod verify
+
+COPY . .
 RUN CGO_ENABLED=0 go build -o profile .
 
 FROM alpine:latest
 
+COPY db /db
 COPY --from=base /app/profile /
-COPY --from=base /app/db /db
 
 EXPOSE 7471
 
