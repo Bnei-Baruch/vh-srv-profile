@@ -21,6 +21,7 @@ type membershipInterface interface {
 	GetMembershipByUserID(ctx context.Context, userID string) (UserMembershipRes, error)
 	GetMembershipByKCID(ctx context.Context, kcID string) (UserMembershipRes, error)
 	GetMultipleMembership(ctx context.Context, intSkip int, intLimit int, month int, year int, userID string) ([]Membership, error)
+	GetExpiredMemberships(ctx context.Context, intSkip int, intLimit int) ([]Membership, error)
 	PatchMembershipByID(ctx context.Context, membership Membership, id int) (int, error)
 	SoftDeleteMembershipByID(ctx context.Context, id int) error
 	CancelMembership(ctx context.Context, body EmailKeycloakAndUserIDBody) error
@@ -1242,6 +1243,48 @@ func (db *ProfileDB) GetMultipleMembership(ctx context.Context, intSkip int, int
 		}
 
 		memberships = append(memberships, r)
+	}
+	if err = rows.Err(); err != nil {
+		return []Membership{}, fmt.Errorf("rows.Err: %w", err)
+	}
+
+	return memberships, nil
+}
+
+func (db *ProfileDB) GetExpiredMemberships(ctx context.Context, intSkip int, intLimit int) ([]Membership, error) {
+	rows, err := db.Query(ctx, `
+		SELECT 
+			id, active, user_id, type, month, year, expiry, created_at, updated_at, deleted_at
+		FROM membership 
+		WHERE active = true AND expiry IS NOT NULL AND expiry < $1
+		LIMIT $2 OFFSET $3`, time.Now().UTC(), intLimit, intSkip)
+	if err != nil {
+		return []Membership{}, fmt.Errorf("db.Query: %w", err)
+	}
+	defer rows.Close()
+
+	memberships := make([]Membership, 0)
+	for rows.Next() {
+		var r Membership
+		if err := rows.Scan(
+			&r.ID,
+			&r.Active,
+			&r.UserID,
+			&r.Type,
+			&r.Month,
+			&r.Year,
+			&r.Expiry,
+			&r.CreatedAt,
+			&r.UpdatedAt,
+			&r.DeletedAt,
+		); err != nil {
+			return []Membership{}, fmt.Errorf("rows.Scan: %w", err)
+		}
+
+		memberships = append(memberships, r)
+	}
+	if err = rows.Err(); err != nil {
+		return []Membership{}, fmt.Errorf("rows.Err: %w", err)
 	}
 
 	return memberships, nil

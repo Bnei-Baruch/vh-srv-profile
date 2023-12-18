@@ -3,11 +3,11 @@
 [V] QA rerun of migration
 
 Triggers to eval
-    - after monthly charge - only automatic orders
-    - new and updated payments - webhook
+    - [v] after monthly charge - only automatic orders
+    - [v] new and updated payments - webhook
     - daily cron to expire after 60 days grace
     - new users // (see emails mismatch below orders<->profile)
-  * avoid infinite webhook loop on cancel membership and update starting_date
+  * [v] avoid infinite webhook loop on cancel membership and update starting_date
 
 [v] Country Russia
     - [v] fix for order structure -> manual order, 1 month, offline payment

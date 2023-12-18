@@ -34,6 +34,7 @@ deploy_staging:
     DB_PASSWORD: "password"
     APP_PORT: "7471"
     APP_MODE: "debug"
+    SENDGRID_API_KEY: ${SENDGRID_API_KEY}
   image: gitlab.bbdev.team:5050/vh/buildutils/buildutil:0.7.0
   stage: deploy
   tags:
@@ -72,6 +73,7 @@ deploy_production:
     DB_NAME: ${PROD_PROFILE_DB_NAME}
     APP_PORT: "7471"
     APP_MODE: "release"
+    SENDGRID_API_KEY: ${SENDGRID_API_KEY}
   script:
     - for variable in "${!DYN_PROD@}"; do echo "${variable#DYN_PROD_}"="${!variable}"; export "${variable#DYN_PROD_}"="${!variable}"; done;
     - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY
