@@ -8,8 +8,10 @@ import (
 
 	uuid "github.com/satori/go.uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/orders"
 	_ "gitlab.bbdev.team/vh/vh-srv-profile/pkg/testutil"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/utils"
 )
@@ -43,6 +45,12 @@ func Test_ProfileDB_createUser_with_minimum_info_succeeds(t *testing.T) {
 	db := newTestProfileDB(t)
 	defer newTestProfileDB(t)
 
+	osMock := orderServiceMock{}
+	db.SetOrdersServiceFactory(func() orders.OrdersService { return &osMock })
+	osMock.On("GetOrders", mock.Anything, "someemail@email.email", "globalmembership", true, "desc",
+		mock.Anything, mock.Anything).Return([]orders.Order{}, nil)
+	osMock.On("GetSpecial", mock.Anything, "someemail@email.email").Return(nil, nil)
+
 	err := db.CreateProfile(context.Background(), UserInput{
 		KeycloakID:          utils.PointerUUID(uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000")),
 		FirstNameVernacular: utils.PointerString("first name"),
@@ -75,6 +83,12 @@ func Test_ProfileDB_createUser_with_language_info_succeeds(t *testing.T) {
 	checkIntegrationTest(t)
 	db := newTestProfileDB(t)
 	defer newTestProfileDB(t)
+
+	osMock := orderServiceMock{}
+	db.SetOrdersServiceFactory(func() orders.OrdersService { return &osMock })
+	osMock.On("GetOrders", mock.Anything, "someemail@email.email", "globalmembership", true, "desc",
+		mock.Anything, mock.Anything).Return([]orders.Order{}, nil)
+	osMock.On("GetSpecial", mock.Anything, "someemail@email.email").Return(nil, nil)
 
 	err := db.CreateProfile(context.Background(), UserInput{
 		KeycloakID:          utils.PointerUUID(uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000")),
@@ -133,6 +147,12 @@ func Test_ProfileDB_createUser_with_phone_number_succeeds(t *testing.T) {
 	checkIntegrationTest(t)
 	db := newTestProfileDB(t)
 	defer newTestProfileDB(t)
+
+	osMock := orderServiceMock{}
+	db.SetOrdersServiceFactory(func() orders.OrdersService { return &osMock })
+	osMock.On("GetOrders", mock.Anything, "someemail@email.email", "globalmembership", true, "desc",
+		mock.Anything, mock.Anything).Return([]orders.Order{}, nil)
+	osMock.On("GetSpecial", mock.Anything, "someemail@email.email").Return(nil, nil)
 
 	mobile := "0100000000"
 	whatsApp := "0200000000"

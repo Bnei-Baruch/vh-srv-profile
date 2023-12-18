@@ -2,12 +2,14 @@ package repo
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v4"
 	uuid "github.com/satori/go.uuid"
 
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
+	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/utils"
 )
 
 type createStorage interface {
@@ -178,11 +180,22 @@ func (db *ProfileDB) CreateProfile(ctx context.Context, user UserInput) error {
 		}
 	}
 
+	// TODO (edo): this is old. probably should remove
 	if err := insertUserMembershipStatus(tx, userID, user.Status.Membership, user.Status.MembershipType, user.Status.Ticket, user.Status.Convention, user.Status.Galaxy); err != nil {
 		return err
 	}
 
-	return tx.Commit(ctx)
+	if err = tx.Commit(ctx); err != nil {
+		return err
+	}
+
+	_, err = db.EvaluateMembershipByUserID(ctx,
+		EmailKeycloakAndUserIDBody{UserID: utils.PointerString(userID.String())})
+	if err != nil {
+		return fmt.Errorf("db.EvaluateMembershipByUserID: %w", err)
+	}
+
+	return nil
 }
 
 func insertPhone(tx pgx.Tx, userID uuid.UUID, number string, phoneType string) error {
