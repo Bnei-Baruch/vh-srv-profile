@@ -52,6 +52,10 @@ func NewProfileDB(ctx context.Context, databaseURL string) (*ProfileDB, error) {
 	}, nil
 }
 
+func (p *ProfileDB) SetOrdersServiceFactory(factory orders.OrdersServiceFactory) {
+	p.ordersServiceFactory = factory
+}
+
 func MakeDBURL() string {
 	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s",
 		url.QueryEscape(common.Config.PgUser),
