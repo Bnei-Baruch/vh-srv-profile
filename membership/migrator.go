@@ -3,13 +3,13 @@ package membership
 import (
 	"context"
 	"encoding/csv"
+	"fmt"
 	"log"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
 	uuid "github.com/satori/go.uuid"
 
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
@@ -31,7 +31,7 @@ func NewMigrator() *Migrator {
 
 func (m *Migrator) init() error {
 	if err := m.initProfileDB(); err != nil {
-		return errors.Wrap(err, "initProfileDB")
+		return fmt.Errorf("initProfileDB: %w", err)
 	}
 
 	m.kcTokenSource = keycloak.NewServiceClient()
@@ -44,7 +44,7 @@ func (m *Migrator) initProfileDB() error {
 	dbUrl := repo.MakeDBURL()
 	db, err := repo.NewProfileDB(context.TODO(), dbUrl)
 	if err != nil {
-		return errors.Wrapf(err, "repo.NewProfileDB %s", dbUrl)
+		return fmt.Errorf("repo.NewProfileDB %s: %w", dbUrl, err)
 	}
 	m.repo = db
 	return nil
@@ -53,7 +53,7 @@ func (m *Migrator) initProfileDB() error {
 func (m *Migrator) migrate() error {
 	users, err := m.getAllUsers()
 	if err != nil {
-		return errors.Wrap(err, "getAllUsers")
+		return fmt.Errorf("getAllUsers: %w", err)
 	}
 	log.Printf("Got %d users\n", len(users))
 
@@ -89,7 +89,7 @@ func (m *Migrator) getAllUsers() ([]repo.User, error) {
 			"", "", "", "",
 			"", "", "", "", "", "", "", "")
 		if err != nil {
-			return nil, errors.Wrap(err, "repo.GetMultipleProfiles")
+			return nil, fmt.Errorf("repo.GetMultipleProfiles: %w", err)
 		}
 
 		allUsers = append(allUsers, users...)
@@ -113,7 +113,7 @@ func (m *Migrator) evalUser(user repo.User) (repo.UserMembershipRes, error) {
 	ctx := context.WithValue(context.Background(), common.CtxTokenSource, m.kcTokenSource)
 	res, err := m.repo.EvaluateMembershipByUserID(ctx, ids)
 	if err != nil {
-		return repo.UserMembershipRes{}, errors.Wrap(err, "repo.EvaluateMembershipByUserID")
+		return repo.UserMembershipRes{}, fmt.Errorf("repo.EvaluateMembershipByUserID: %w", err)
 	}
 
 	return res, nil
@@ -122,7 +122,7 @@ func (m *Migrator) evalUser(user repo.User) (repo.UserMembershipRes, error) {
 func (m *Migrator) report(users []repo.User, evalResults map[*uuid.UUID]repo.UserMembershipRes) error {
 	file, err := os.Create("eval_results.csv")
 	if err != nil {
-		return errors.Wrap(err, "os.Create")
+		return fmt.Errorf("os.Create: %w", err)
 	}
 	defer file.Close()
 
@@ -158,7 +158,7 @@ func (m *Migrator) report(users []repo.User, evalResults map[*uuid.UUID]repo.Use
 		"notification_slugs",
 		"notification_count",
 	}); err != nil {
-		return errors.Wrap(err, "csv.Writer.Write header")
+		return fmt.Errorf("csv.Writer.Write header: %w", err)
 	}
 
 	ctxWithTokenSource := context.WithValue(context.Background(), common.CtxTokenSource, m.kcTokenSource)
@@ -300,7 +300,7 @@ func (m *Migrator) report(users []repo.User, evalResults map[*uuid.UUID]repo.Use
 
 		notifications, err := m.repo.GetActiveUserNotificationByUserID(context.TODO(), user.UserID.String())
 		if err != nil {
-			return errors.Wrap(err, "repo.GetMultipleUserNotification")
+			return fmt.Errorf("repo.GetMultipleUserNotification: %w", err)
 		}
 		slugs := make([]string, 0)
 		for _, n := range notifications {
@@ -309,7 +309,7 @@ func (m *Migrator) report(users []repo.User, evalResults map[*uuid.UUID]repo.Use
 		vals = append(vals, strings.Join(slugs, "|"), strconv.Itoa(len(slugs)))
 
 		if err := w.Write(vals); err != nil {
-			return errors.Wrap(err, "csv.Writer.Write")
+			return fmt.Errorf("csv.Writer.Write: %w", err)
 		}
 	}
 
