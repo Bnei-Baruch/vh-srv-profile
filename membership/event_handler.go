@@ -63,13 +63,10 @@ func (eh *EventsHandler) HandleOrdersEvent(event orders.Event) {
 		return
 	}
 
-	// TODO (edo): uncomment when we go live with v2
-	log.Printf("INFO: membership.EventsHandler.handleOrdersEvent would have eval membership for %s %s\n",
-		*userIDs.Email, *userIDs.KeycloakID)
-	//_, err = eh.repo.EvaluateMembershipByUserID(ctx, *userIDs)
-	//if err != nil {
-	//	log.Printf("ERROR: membership.EventsHandler.handleOrdersEvent repo.EvaluateMembershipByUserID: %v\n", err)
-	//}
+	_, err = eh.repo.EvaluateMembershipByUserID(ctx, *userIDs)
+	if err != nil {
+		log.Printf("ERROR: membership.EventsHandler.handleOrdersEvent repo.EvaluateMembershipByUserID: %v\n", err)
+	}
 }
 
 func (eh *EventsHandler) shouldSkip(event orders.Event) bool {
