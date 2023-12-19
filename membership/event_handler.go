@@ -63,6 +63,8 @@ func (eh *EventsHandler) HandleOrdersEvent(event orders.Event) {
 		return
 	}
 
+	log.Printf("INFO: membership.EventsHandler.handleOrdersEvent eval membership for %s %s\n",
+		*userIDs.Email, *userIDs.KeycloakID)
 	_, err = eh.repo.EvaluateMembershipByUserID(ctx, *userIDs)
 	if err != nil {
 		log.Printf("ERROR: membership.EventsHandler.handleOrdersEvent repo.EvaluateMembershipByUserID: %v\n", err)

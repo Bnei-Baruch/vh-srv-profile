@@ -1,5 +1,5 @@
 # vh-srv-profile cron tasks
 
 # invalidate expired memberships
-0 30 * * * root docker exec  vh-srv-profile ./invalidate_memberships.sh
+30 0 * * * root docker exec  vh-srv-profile ./invalidate_memberships.sh
 

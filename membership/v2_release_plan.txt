@@ -2,7 +2,7 @@
 
 [V] QA rerun of migration
 
-Triggers to eval
+[v] Triggers to eval
     - [v] after monthly charge - only automatic orders
     - [v] new and updated payments - webhook
     - [v] daily cron to expire after 60 days grace
@@ -26,13 +26,13 @@ amnon admin to limit 200 orders today it's only 10
 
 ---- actual release process
 
-Prod migration
+[v] Prod migration
     - [v] backup DBs
     - [v] reset all specials + carmiel
     - [v] reset relevant orders starting_date (update orders set starting_date = null where "ProductType" = 'globalmembership';)
     - [v] dry run migration on local
     - [v] run actual migration on prod
-    - merge pr for eval on new profile + uncomment actual eval in event handler + deploy
+    - [v] merge pr for eval on new profile + uncomment actual eval in event handler + deploy
 
 UI v2 flag to true
 

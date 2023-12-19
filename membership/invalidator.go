@@ -69,11 +69,12 @@ func (in *Invalidator) invalidate() error {
 
 	active := 0
 	inactive := 0
-	for _, v := range evalResults {
+	for k, v := range evalResults {
 		if *v.Active {
 			active++
 		} else {
 			inactive++
+			log.Printf("membership is now inactive, user_id: %s, type: %s expiry: %s\n", k, *v.Type, v.Expiry)
 		}
 	}
 	log.Printf("%d active, %d inactive\n", active, inactive)
@@ -103,7 +104,6 @@ func (in *Invalidator) getExpiredMemberships() ([]repo.Membership, error) {
 }
 
 func (in *Invalidator) evalUser(membership repo.Membership) (repo.UserMembershipRes, error) {
-	log.Printf("evalUser %s, type: %s expiry: %s\n", membership.UserID, *membership.Type, membership.Expiry)
 	ids := repo.EmailKeycloakAndUserIDBody{UserID: utils.PointerString(membership.UserID.String())}
 
 	ctx := context.WithValue(context.Background(), common.CtxTokenSource, in.kcTokenSource)
