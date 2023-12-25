@@ -33,7 +33,7 @@ deploy_staging:
     DB_NAME: "profile"
     DB_PASSWORD: "password"
     APP_PORT: "7471"
-    APP_MODE: "debug"
+    APP_MODE: "release"
     SENDGRID_API_KEY: ${SENDGRID_API_KEY}
   image: gitlab.bbdev.team:5050/vh/buildutils/buildutil:0.7.0
   stage: deploy
