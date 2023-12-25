@@ -52,8 +52,8 @@ func NewProfileDB(ctx context.Context, databaseURL string) (*ProfileDB, error) {
 	}, nil
 }
 
-func (p *ProfileDB) SetOrdersServiceFactory(factory orders.OrdersServiceFactory) {
-	p.ordersServiceFactory = factory
+func (db *ProfileDB) SetOrdersServiceFactory(factory orders.OrdersServiceFactory) {
+	db.ordersServiceFactory = factory
 }
 
 func MakeDBURL() string {

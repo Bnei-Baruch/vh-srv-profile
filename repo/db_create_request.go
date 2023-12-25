@@ -11,21 +11,23 @@ type createRequestStorage interface {
 }
 
 func (db *ProfileDB) CreateRequest(ctx context.Context, req NewRequest) error {
-
 	createString, numString, createQueryArgs := prepareRequestCreateQuery(req)
-
-	var ID int
-
-	if len(createQueryArgs) != 0 {
-		if err := db.QueryRow(ctx, fmt.Sprintf(`INSERT INTO request (%s) VALUES (%s) RETURNING id`, createString, numString),
-			createQueryArgs...).Scan(&ID); err != nil {
-			return fmt.Errorf("problem creating request: %w", err)
-		}
-
-		return nil
-	} else {
+	if len(createQueryArgs) == 0 {
 		return fmt.Errorf("invalid values")
 	}
+
+	_, err := db.Exec(ctx,
+		fmt.Sprintf(`INSERT INTO request (%s) VALUES (%s)`, createString, numString), createQueryArgs...)
+	if err != nil {
+		return fmt.Errorf("db.Exec: %w", err)
+	}
+
+	_, err = db.EvaluateMembershipByUserID(ctx, EmailKeycloakAndUserIDBody{KeycloakID: req.KeycloakId})
+	if err != nil {
+		return fmt.Errorf("db.EvaluateMembershipByUserID: %w", err)
+	}
+
+	return nil
 }
 
 func prepareRequestCreateQuery(req NewRequest) (string, string, []interface{}) {
