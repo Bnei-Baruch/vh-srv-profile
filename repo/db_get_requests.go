@@ -26,6 +26,7 @@ type NewRequest struct {
 	Status        *string `json:"status"`
 	EventSlug     *string `json:"event_slug"`
 	Type          *string `json:"type"`
+	Months        *int    `json:"nb_month"`
 	RequestNote   *string `json:"request_note,omitempty"`
 	RejectionNote *string `json:"rejection_note,omitempty"`
 }

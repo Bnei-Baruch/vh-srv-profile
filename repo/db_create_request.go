@@ -68,6 +68,11 @@ func prepareRequestCreateQuery(req NewRequest) (string, string, []interface{}) {
 		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
 		args = append(args, *req.Type)
 	}
+	if req.Months != nil {
+		createStrings = append(createStrings, "months")
+		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
+		args = append(args, *req.Months)
+	}
 
 	concatedCreateString := strings.Join(createStrings, ",")
 	concatedNumString := strings.Join(numString, ",")

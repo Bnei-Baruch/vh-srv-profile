@@ -1,0 +1,6 @@
+BEGIN;
+
+ALTER TABLE request
+    ADD COLUMN months INTEGER NULL;
+
+COMMIT;

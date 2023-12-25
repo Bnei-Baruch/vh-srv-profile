@@ -1,0 +1,6 @@
+BEGIN;
+
+ALTER TABLE request
+    DROP COLUMN months;
+
+COMMIT;
