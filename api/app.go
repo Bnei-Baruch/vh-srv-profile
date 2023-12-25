@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
 	"gitlab.bbdev.team/vh/vh-srv-profile/api/middleware"
@@ -76,6 +77,9 @@ func (a *App) initGinEngine() {
 	gin.SetMode(common.Config.Mode)
 	a.gEngine = gin.Default()
 	a.gEngine.Use(middleware.TokenSource())
+	if gin.IsDebugging() {
+		a.gEngine.Use(cors.Default())
+	}
 
 	// Creating a group of routes that will be prefixed with `/v1`
 	baseV1Path := a.gEngine.Group("/v1")
