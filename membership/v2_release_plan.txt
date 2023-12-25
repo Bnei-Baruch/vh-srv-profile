@@ -15,14 +15,19 @@
     - [v] cancel all skipru
     - [v] cron job
 
-help haver months in request
-Status new in UI
-payments v2 amount/currency issues + use v2 in dash payments
+[] help haver months in request
+[v] Status new in UI
+[] payments v2 amount/currency issues + use v2 in dash payments
 [v] don't set order starting_date in orders (globalmembership)
 possibly merge accounts (orderdb) ? yaakov ?
 Block transition to manual from active automatic
 amnon admin to limit 200 orders today it's only 10
+[] mb_expiration_notice and mb_has_expired_notice should be mutually exclusive
 
+i18n for:
+- [] mb_has_expired_notice_title
+- [v] mb_has_expired_notice_desc
+- [] membership_was_active_until
 
 ---- actual release process
 

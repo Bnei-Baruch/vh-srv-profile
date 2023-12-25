@@ -482,10 +482,12 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 		if time.Now().AddDate(0, 0, -60).After(*latestOrderPaymentDate) {
 			notificationSlugs = append(notificationSlugs, "mb_has_expired_notice")
 		}
-	} else if currentMembership == "manual" && time.Now().After(*membershipInsertData.Expiry) {
-		notificationSlugs = append(notificationSlugs, "mb_expiration_notice")
+	} else if (currentMembership == "manual" || currentMembership == "helphaver") &&
+		time.Now().After(*membershipInsertData.Expiry) {
 		if time.Now().AddDate(0, 0, -60).After(*membershipInsertData.Expiry) {
 			notificationSlugs = append(notificationSlugs, "mb_has_expired_notice")
+		} else {
+			notificationSlugs = append(notificationSlugs, "mb_expiration_notice")
 		}
 	} else if currentMembership == "cancelled" {
 		notificationSlugs = append(notificationSlugs, "mb_cancelled")
