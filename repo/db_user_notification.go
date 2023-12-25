@@ -142,6 +142,7 @@ func (db *ProfileDB) GetActiveUserNotificationByUserID(ctx context.Context, user
 		FROM user_notification
 		INNER JOIN notification ON notification.id = user_notification.notification_id
 		WHERE user_id = $1 AND active = true
+		ORDER by user_notification.updated_at desc, user_notification.created_at desc
 		`, userID)
 	if err != nil {
 		fmt.Println("--error-while-executing-query", err)
