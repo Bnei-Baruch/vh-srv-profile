@@ -33,7 +33,7 @@ type Payment struct {
 	ID            int       `json:"ID"`
 	OrderID       int       `json:"OrderID"`
 	Amount        int       `json:"Amount"`
-	DebitCurrency string    `json:"DebitCurrency"`
+	Currency      string    `json:"Currency"`
 	CCNumber      string    `json:"CCNumber"`
 	PaymentStatus string    `json:"PaymentStatus"`
 	PaymentType   string    `json:"PaymentType"`

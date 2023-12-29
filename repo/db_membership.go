@@ -890,7 +890,7 @@ func (db *ProfileDB) GetMembershipByUserID(ctx context.Context, userID string) (
 		}
 
 		membership.Details.Payment.Amount = &payment.Amount
-		membership.Details.Payment.Currency = &payment.DebitCurrency
+		membership.Details.Payment.Currency = &payment.Currency
 		membership.Details.Payment.Status = &payment.PaymentStatus
 		membership.Details.Payment.Date = &payment.CreatedAt
 		membership.Details.Payment.PaymentMethod = &payment.CCNumber
@@ -920,7 +920,7 @@ func (db *ProfileDB) GetMembershipByUserID(ctx context.Context, userID string) (
 		}
 
 		membership.Details.Payment.Amount = &payment.Amount
-		membership.Details.Payment.Currency = &payment.DebitCurrency
+		membership.Details.Payment.Currency = &payment.Currency
 		membership.Details.Payment.Status = &payment.PaymentStatus
 		membership.Details.Payment.Date = &payment.CreatedAt
 		membership.Details.Payment.PaymentMethod = &payment.CCNumber
