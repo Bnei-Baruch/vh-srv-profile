@@ -15,19 +15,17 @@
     - [v] cancel all skipru
     - [v] cron job
 
-[] help haver months in request
+[v] help haver months in request
 [v] Status new in UI
-[] payments v2 amount/currency issues + use v2 in dash payments
-[v] don't set order starting_date in orders (globalmembership)
-possibly merge accounts (orderdb) ? yaakov ?
-Block transition to manual from active automatic
-amnon admin to limit 200 orders today it's only 10
-[] mb_expiration_notice and mb_has_expired_notice should be mutually exclusive
 
+[v] don't set order starting_date in orders (globalmembership)
+[v] mb_expiration_notice and mb_has_expired_notice should be mutually exclusive
 i18n for:
-- [] mb_has_expired_notice_title
+- [v] mb_has_expired_notice_title
 - [v] mb_has_expired_notice_desc
-- [] membership_was_active_until
+- [v] membership_was_active_until
+
+[] payments v2 amount/currency issues + use in dash previous payments and v2 status, admin, (also for update payments flow)
 
 ---- actual release process
 
@@ -39,15 +37,21 @@ i18n for:
     - [v] run actual migration on prod
     - [v] merge pr for eval on new profile + uncomment actual eval in event handler + deploy
 
-UI v2 flag to true
-
-post production tests
+[] UI v2 flag to true
+[] post-production tests
 ----
 
 Admin v2 read flows
 Admin write flows
 Help haver admin
 Help haver grant rules in eval
+
+
+possibly merge accounts (orderdb) ? yaakov ?
+Block transition to manual from active automatic ? UX notice
+amnon admin to limit 200 orders today it's only 10
+get rid of useless steps in cancellation
+
 
 
 future
@@ -65,5 +69,49 @@ UPDATE orders SET userkey = accounts."UserKey" FROM accounts WHERE orders."Accou
 delete from specials where subcategory <> 'rav';
 ./vh-srv-orders import offline
 update orders set starting_date = null where "ProductType" = 'globalmembership';
+
+
+-- post-production tests
+
+status -> flow
+new -> activate automatic (success / failure)
+new -> activate manual (success / failure)
+new -> request help haver (status + request in db)
+
+automatic active - update amount/currency
+automatic active - switch to automatic
+automatic active - switch to manual
+automatic active - switch to help haver (* after approval)
+automatic active - cancel
+
+automatic inactive - can't update amount/currency
+automatic inactive - switch to automatic
+automatic inactive - switch to manual
+automatic inactive - switch to help haver (* after approval)
+automatic inactive - cancel ?
+
+automatic expiring - update amount/currency
+automatic expiring - switch to automatic
+automatic expiring - switch to manual
+automatic expiring - switch to help haver (* after approval)
+automatic expiring - cancel
+
+manual active - new payment + expiry date correct
+manual active - switch to automatic
+manual active - switch to manual equivalent to new payment
+manual active - switch to help haver (* after approval)
+manual active - cancel
+
+manual inactive - new payment + expiry date correct
+manual inactive - switch to automatic
+manual inactive - switch to manual equivalent to new payment
+manual inactive - switch to help haver (* after approval)
+manual inactive - cancel ?
+
+manual expiring - new payment + expiry date correct
+manual expiring - switch to automatic
+manual expiring - switch to manual equivalent to new payment
+manual expiring - switch to help haver (* after approval)
+manual expiring - cancel ?
 
 
