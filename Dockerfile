@@ -11,6 +11,8 @@ RUN CGO_ENABLED=0 go build -o profile .
 
 FROM alpine:latest
 
+RUN apk --no-cache add curl
+
 COPY misc/invalidate_memberships.sh ./
 COPY db /db
 COPY --from=base /app/profile /
