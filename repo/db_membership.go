@@ -1165,7 +1165,16 @@ func (db *ProfileDB) CancelMembership(ctx context.Context, membBody EmailKeycloa
 		return fmt.Errorf("error while updating grant: %w", err)
 	}
 
-	return tx.Commit(ctx)
+	if err = tx.Commit(ctx); err != nil {
+		return err
+	}
+
+	_, err = db.EvaluateMembershipByUserID(ctx, membBody)
+	if err != nil {
+		return fmt.Errorf("db.EvaluateMembershipByUserID: %w", err)
+	}
+
+	return nil
 }
 
 func (db *ProfileDB) SoftDeleteMembershipByID(ctx context.Context, id int) error {
