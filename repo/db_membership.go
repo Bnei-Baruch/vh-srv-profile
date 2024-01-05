@@ -513,13 +513,13 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 		}
 	}
 
-	// add user notification if slug is not empty
-	if len(notificationSlugs) != 0 {
-		updateAllUserNotificationToInactiveErr := db.updateAllUserNotificationToInactive(ctx, userID)
-		if updateAllUserNotificationToInactiveErr != nil {
-			return UserMembershipRes{}, fmt.Errorf("error updating all user notification to inactive: %w", updateAllUserNotificationToInactiveErr)
-		}
+	// Deactivate previous user notifications
+	updateAllUserNotificationToInactiveErr := db.updateAllUserNotificationToInactive(ctx, userID)
+	if updateAllUserNotificationToInactiveErr != nil {
+		return UserMembershipRes{}, fmt.Errorf("error updating all user notification to inactive: %w", updateAllUserNotificationToInactiveErr)
+	}
 
+	if len(notificationSlugs) != 0 {
 		// loop through all the slugs and add notification
 		for _, slug := range notificationSlugs {
 			parentNotificationData, parentNotificationErr := db.getNotificationBySlug(ctx, slug)
