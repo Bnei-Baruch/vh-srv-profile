@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v4"
 	uuid "github.com/satori/go.uuid"
@@ -36,23 +37,58 @@ type readMultipleProfileStorage interface {
 	FetchProfileBasedOnPhoneNumber(ctx context.Context, phoneNumber string) (User, error)
 }
 
-func (db *ProfileDB) GetMultipleProfiles(ctx context.Context, intSkip int, intLimit int, country string, email string, name string, tenGroupName string, language string, firstLanguage string, otherLanguageOne string, otherLanguageTwo string, otherLanguageThree string, otherLanguageFour string, updatedAt string, createdAt string, membership string, membershipType string, convention string, ticket string, galaxy string, gender string) ([]User, error) {
+func (db *ProfileDB) GetMultipleProfiles(ctx context.Context,
+	intSkip int,
+	intLimit int,
+	country string,
+	email string,
+	name string,
+	tenGroupName string,
+	language string,
+	firstLanguage string,
+	otherLanguageOne string,
+	otherLanguageTwo string,
+	otherLanguageThree string,
+	otherLanguageFour string,
+	updatedAt string,
+	createdAt string,
+	membership string,
+	membershipType string,
+	convention string,
+	ticket string,
+	galaxy string,
+	gender string) ([]User, error) {
+
 	var keycloakId string
 	users := []User{}
 
-	userDbWhereQuery, orderByQuery := buildAndGetWhereUserQuery(country, email, name, tenGroupName, language, firstLanguage, otherLanguageOne, otherLanguageTwo, otherLanguageThree, otherLanguageFour, updatedAt, createdAt, membership, membershipType, convention, ticket, galaxy, gender)
+	userDbWhereQuery, orderByQuery := buildAndGetWhereUserQuery(country,
+		email,
+		name,
+		tenGroupName,
+		language,
+		firstLanguage,
+		otherLanguageOne,
+		otherLanguageTwo,
+		otherLanguageThree,
+		otherLanguageFour,
+		updatedAt,
+		createdAt,
+		membership,
+		membershipType,
+		convention,
+		ticket,
+		galaxy,
+		gender)
 
 	rows, err := db.Query(ctx, `
 		SELECT users.user_id,
 		keycloak_id,
-		updated_at,
-		created_at,
+		users.updated_at,
+		users.created_at,
 		deleted,
-		status.membership,
-		status.membership_type,
-		status.ticket,
-		status.convention,
-		status.galaxy,
+		membership.active,
+		membership.type,
 		first_name_latin,
 		first_name_vernacular,
 		last_name_latin,
@@ -85,14 +121,16 @@ func (db *ProfileDB) GetMultipleProfiles(ctx context.Context, intSkip int, intLi
 		(SELECT phone_number FROM phone_numbers as p WHERE p.user_id = users.user_id and type='mobile' ) as mobile,
 		(SELECT phone_number FROM phone_numbers as p WHERE p.user_id = users.user_id and type='Telegram' ) as telegram  
 	FROM users
-	LEFT JOIN status ON users.user_id = status.user_id`+userDbWhereQuery+
+	LEFT JOIN membership ON users.user_id = membership.user_id AND membership.month=$3 AND membership.year=$4`+
+		userDbWhereQuery+
 		orderByQuery+
-		" LIMIT $1 OFFSET $2", intLimit, intSkip)
+		" LIMIT $1 OFFSET $2", intLimit, intSkip, time.Now().Month(), time.Now().Year())
 	if err != nil {
 		fmt.Println("--error-while-executing-query", err)
 		return []User{}, err
 	}
 	defer rows.Close()
+
 	for rows.Next() {
 		var profile User
 		if err := rows.Scan(
@@ -103,9 +141,6 @@ func (db *ProfileDB) GetMultipleProfiles(ctx context.Context, intSkip int, intLi
 			&profile.Deleted,
 			&profile.UserInput.Status.Membership,
 			&profile.UserInput.Status.MembershipType,
-			&profile.UserInput.Status.Ticket,
-			&profile.UserInput.Status.Convention,
-			&profile.UserInput.Status.Galaxy,
 			&profile.UserInput.FirstNameLatin,
 			&profile.UserInput.FirstNameVernacular,
 			&profile.UserInput.LastNameLatin,
@@ -143,11 +178,10 @@ func (db *ProfileDB) GetMultipleProfiles(ctx context.Context, intSkip int, intLi
 
 		// Add keycloakID and UserID to user struct
 		keyCloakUUID, err := uuid.FromString(keycloakId)
-		profile.UserInput.KeycloakID = &keyCloakUUID
-
 		if err != nil {
 			return []User{}, err
 		}
+		profile.UserInput.KeycloakID = &keyCloakUUID
 
 		users = append(users, profile)
 	}
