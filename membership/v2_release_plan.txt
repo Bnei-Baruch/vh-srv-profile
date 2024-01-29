@@ -38,31 +38,8 @@ i18n for:
     - [v] merge pr for eval on new profile + uncomment actual eval in event handler + deploy
 
 [v] UI v2 flag to true
-[] post-production tests
+[v] post-production tests
 ----
-
-Admin v2 read flows
-Admin write flows
-Help haver admin
-Help haver grant rules in eval
-
-
-Admin
----
-limit 200 orders today it's only 10
-search for edoshor+admin@gmail.com not working
-
-
-future
----
-possibly merge accounts (orderdb) ? yaakov ?
-Block transition to manual from active automatic ? UX notice
-get rid of useless steps in cancellation
-cleanup unused components of vi-payment (v1 cleanup)
-charge or skip specials with orders ?
-ui for user and admin to note that an order after help haver grant cancel the grant
-Public page explaining membership types and the transition between them
-reload membership status after payment (to refresh header in vh-payment)
 
 
 migration
@@ -121,12 +98,15 @@ manual expiring - cancel ?
 
 -- tx log
 time, email, amount, currency, card, comment
-[v] 03:41, edoshor+admin@gmail.com, 80, nis, 6223, manual
-[v] 04:01, edoshor+admin@gmail.com, 80, nis, 6223, automatic
+[v] 30.12.2023 03:41, edoshor+admin@gmail.com, 80, nis, 6223, manual
+[v] 30.12.2023 04:01, edoshor+admin@gmail.com, 80, nis, 6223, automatic
+
+[v] 31.12.2023 04:46, edoshor+admin@gmail.com, 80, nis, 6223, automatic
+[v] 31.12.2023 05:13, edoshor+admin@gmail.com, 80, nis, 6223, automatic
 
 
 -- tests notes / bugs
-POST https://api.kli.one/pay/orders/paid happens 3 times on new manual payment ?!
+[v] POST https://api.kli.one/pay/orders/paid happens 3 times on new manual payment ?!
 [v] Update payments
  - [v] changing currency does set new minimum
  - [v] in mobile I can reduce all the way to 0

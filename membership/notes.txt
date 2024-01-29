@@ -67,3 +67,20 @@ oldStatus isSpecial diff with membership type special
 
 cancelled membership type
 * looks good part for the bug with special
+
+
+
+
+active, type, buttons
+
+false, ?, activate
+false, automatic, update_payment + switch_cancel
+false, manual, new_payment + switch_cancel
+false, special, not a state
+false, help haver, switch_cancel
+
+true, ?, not a state
+true, automatic, update_payment + switch_cancel
+true, manual, new_payment + switch_cancel
+true, special, switch_cancel
+true, help haver, switch_cancel

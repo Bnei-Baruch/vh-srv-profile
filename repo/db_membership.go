@@ -20,7 +20,7 @@ type membershipInterface interface {
 	GetMembershipByID(ctx context.Context, id int) (Membership, error)
 	GetMembershipByUserID(ctx context.Context, userID string) (UserMembershipRes, error)
 	GetMembershipByKCID(ctx context.Context, kcID string) (UserMembershipRes, error)
-	GetMultipleMembership(ctx context.Context, intSkip int, intLimit int, month int, year int, userID string) ([]Membership, error)
+	GetMultipleMembership(ctx context.Context, intSkip int, intLimit int, userID string) ([]Membership, error)
 	GetExpiredMemberships(ctx context.Context, intSkip int, intLimit int) ([]Membership, error)
 	PatchMembershipByID(ctx context.Context, membership Membership, id int) (int, error)
 	SoftDeleteMembershipByID(ctx context.Context, id int) error
@@ -34,8 +34,6 @@ type Membership struct {
 	Active    *bool      `json:"active"`
 	UserID    *uuid.UUID `json:"user_id"`
 	Type      *string    `json:"type"`
-	Month     *int       `json:"month"`
-	Year      *int       `json:"year"`
 	Expiry    *time.Time `json:"expiry"`
 	CreatedAt *time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt *time.Time `json:"updated_at" db:"updated_at"`
@@ -168,12 +166,8 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 
 	var orderStartingDate time.Time
 	var orderQuantity int
-	currentMonth := int(time.Now().Month())
-	currentYear := time.Now().Year()
 	// default value of active is false
 	membershipInsertData.Active = utils.PointerBool(false)
-	membershipInsertData.Month = &currentMonth
-	membershipInsertData.Year = &currentYear
 
 	var userUUID uuid.UUID
 	userUUID, uuidErr = uuid.FromString(userID)
@@ -402,8 +396,8 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 	}
 	membershipInsertData.Type = &currentMembership
 
-	// check if user has an existing membership of the current month and year
-	userMemb, userMembErr := db.GetMultipleMembership(ctx, 0, 100, currentMonth, currentYear, userID)
+	// check if user has an existing membership
+	userMemb, userMembErr := db.GetMultipleMembership(ctx, 0, 100, userID)
 	if userMembErr != nil {
 		return UserMembershipRes{}, fmt.Errorf("error getting user membership: %w", userMembErr)
 	}
@@ -767,16 +761,6 @@ func prepareMembershipCreateQuery(req Membership) (string, string, []interface{}
 		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
 		args = append(args, *req.UserID)
 	}
-	if req.Month != nil {
-		createStrings = append(createStrings, "month")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.Month)
-	}
-	if req.Year != nil {
-		createStrings = append(createStrings, "year")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.Year)
-	}
 
 	concatedCreateString := strings.Join(createStrings, ",")
 	concatedNumString := strings.Join(numString, ",")
@@ -793,8 +777,6 @@ func (db *ProfileDB) GetMembershipByID(ctx context.Context, id int) (Membership,
 		active,
 		user_id,
 		type,
-		month,
-		year,
 		expiry,
 		created_at,
 		updated_at,
@@ -805,8 +787,6 @@ func (db *ProfileDB) GetMembershipByID(ctx context.Context, id int) (Membership,
 		&membership.Active,
 		&membership.UserID,
 		&membership.Type,
-		&membership.Month,
-		&membership.Year,
 		&membership.Expiry,
 		&membership.CreatedAt,
 		&membership.UpdatedAt,
@@ -837,31 +817,22 @@ func (db *ProfileDB) GetMembershipByKCID(ctx context.Context, kcID string) (User
 func (db *ProfileDB) GetMembershipByUserID(ctx context.Context, userID string) (UserMembershipRes, error) {
 	var membership UserMembershipRes
 
-	// fetch current month in int
-	currentMonth := time.Now().Month()
-	// fetch current year
-	currentYear := time.Now().Year()
-
 	if err := db.QueryRow(ctx, `
 		SELECT 
 		id,
 		active,
 		user_id,
 		type,
-		month,
-		year,
 		expiry,
 		created_at,
 		updated_at,
 		deleted_at
 		FROM membership 
-		WHERE user_id = $1 AND month = $2 AND year = $3`, userID, currentMonth, currentYear).Scan(
+		WHERE user_id = $1`, userID).Scan(
 		&membership.ID,
 		&membership.Active,
 		&membership.UserID,
 		&membership.Type,
-		&membership.Month,
-		&membership.Year,
 		&membership.Expiry,
 		&membership.CreatedAt,
 		&membership.UpdatedAt,
@@ -1211,10 +1182,10 @@ func (db *ProfileDB) deleteAllMembershipSubTableByMembershipID(ctx context.Conte
 	return nil
 }
 
-func (db *ProfileDB) GetMultipleMembership(ctx context.Context, intSkip int, intLimit int, month int, year int, userID string) ([]Membership, error) {
+func (db *ProfileDB) GetMultipleMembership(ctx context.Context, intSkip int, intLimit int, userID string) ([]Membership, error) {
 	memberships := []Membership{}
 
-	userDbWhereQuery, orderByQuery := buildAndGetWhereMembershipQuery(month, year, userID)
+	userDbWhereQuery, orderByQuery := buildAndGetWhereMembershipQuery(userID)
 
 	rows, err := db.Query(ctx, `
 		SELECT 
@@ -1222,8 +1193,6 @@ func (db *ProfileDB) GetMultipleMembership(ctx context.Context, intSkip int, int
 		active,
 		user_id,
 		type,
-		month,
-		year,
 		expiry,
 		created_at,
 		updated_at,
@@ -1243,8 +1212,6 @@ func (db *ProfileDB) GetMultipleMembership(ctx context.Context, intSkip int, int
 			&r.Active,
 			&r.UserID,
 			&r.Type,
-			&r.Month,
-			&r.Year,
 			&r.Expiry,
 			&r.CreatedAt,
 			&r.UpdatedAt,
@@ -1265,7 +1232,7 @@ func (db *ProfileDB) GetMultipleMembership(ctx context.Context, intSkip int, int
 func (db *ProfileDB) GetExpiredMemberships(ctx context.Context, intSkip int, intLimit int) ([]Membership, error) {
 	rows, err := db.Query(ctx, `
 		SELECT 
-			id, active, user_id, type, month, year, expiry, created_at, updated_at, deleted_at
+			id, active, user_id, type, expiry, created_at, updated_at, deleted_at
 		FROM membership 
 		WHERE active = true AND expiry IS NOT NULL AND expiry < $1
 		LIMIT $2 OFFSET $3`, time.Now().UTC(), intLimit, intSkip)
@@ -1282,8 +1249,6 @@ func (db *ProfileDB) GetExpiredMemberships(ctx context.Context, intSkip int, int
 			&r.Active,
 			&r.UserID,
 			&r.Type,
-			&r.Month,
-			&r.Year,
 			&r.Expiry,
 			&r.CreatedAt,
 			&r.UpdatedAt,
@@ -1301,29 +1266,13 @@ func (db *ProfileDB) GetExpiredMemberships(ctx context.Context, intSkip int, int
 	return memberships, nil
 }
 
-func buildAndGetWhereMembershipQuery(month int, year int, userID string) (string, string) {
+func buildAndGetWhereMembershipQuery(userID string) (string, string) {
 
 	var whereString strings.Builder
 	var orderBy strings.Builder
 	var whereCondition strings.Builder
 	whereString.WriteString(" WHERE")
 	whereCondition.WriteString("")
-
-	if month != 0 {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND month='%d'", month))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" month='%d'", month))
-		}
-	}
-
-	if year != 0 {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND year='%d'", year))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" year='%d'", year))
-		}
-	}
 
 	if userID != "" {
 		if whereCondition.String() != "" {
@@ -1355,16 +1304,6 @@ func prepareMembershipUpdateQuery(req Membership) (string, []interface{}) {
 	if req.Expiry != nil {
 		updateStrings = append(updateStrings, fmt.Sprintf("expiry=$%d", len(updateStrings)+1))
 		args = append(args, *req.Expiry)
-	}
-
-	if req.Month != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("month=$%d", len(updateStrings)+1))
-		args = append(args, *req.Month)
-	}
-
-	if req.Year != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("year=$%d", len(updateStrings)+1))
-		args = append(args, *req.Year)
 	}
 
 	if req.UserID != nil {
