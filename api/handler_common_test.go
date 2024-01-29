@@ -84,7 +84,7 @@ func (m *storageMock) GetMembershipByKCID(ctx context.Context, kcID string) (rep
 	panic("implement me")
 }
 
-func (m *storageMock) GetMultipleMembership(ctx context.Context, intSkip int, intLimit int, month int, year int, userID string) ([]repo.Membership, error) {
+func (m *storageMock) GetMultipleMembership(ctx context.Context, intSkip int, intLimit int, userID string) ([]repo.Membership, error) {
 	//TODO implement me
 	panic("implement me")
 }

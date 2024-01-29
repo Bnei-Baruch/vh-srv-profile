@@ -1,0 +1,41 @@
+Admin v2 read flows
+Admin write flows
+Help haver admin
+Help haver grant rules in eval
+
+Permissions (Backend, UI)
+monthly "stamp"
+fully automatic monthly charge
+redash dashboards
+robokasa events importer
+Idit "stars" import
+Specials with end date
+
+Admin
+---
+limit 200 orders today it's only 10
+search for edoshor+admin@gmail.com not working
+show payment id and order id (maybe nested relationship)
+
+
+future
+---
+possibly merge accounts (orderdb) ? yaakov ?
+transition to manual from active automatic ? UX notice
+get rid of useless steps in cancellation
+cleanup unused components of vh-payment (v1 cleanup)
+charge or skip specials with orders ?
+ui for user and admin to note that an order after help haver grant cancel the grant
+public page explaining membership types and the transition between them
+reload membership status after payment (to refresh header in vh-payment)
+
+
+
+
+
+- [edo] getProfiles to return correct new membership status (active / inactive)
+- [amnon] don't load all the DB at once. use pagination. Ask edo to implement missing filters
+- [amnon] replace  /pay/status with /profile/v1/membership/kcid/:keycloak_id
+- [amnon] user details page: remove "Status" section in the bottom. Instead have a big header saying Active / Inactive
+- [amnon] use "limit" parameters in /pay/v2/orders?email=...&limit=200
+- [edo] think about /pay/v2/payments instead of /pay/payments/all/:email (also activities)

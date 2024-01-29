@@ -214,32 +214,7 @@ func (p *ProfileManager) handleMembershipFetchAll(c *gin.Context) {
 
 	skip := c.Query("skip")
 	limit := c.Query("limit")
-	month := c.Query("month")
-	year := c.Query("year")
 	userID := c.Query("user_id")
-
-	var (
-		monthInt     int
-		yearInt      int
-		monthYearErr error
-	)
-
-	// month and year to int
-	if month != "" {
-		monthInt, monthYearErr = strconv.Atoi(month)
-		if monthYearErr != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid month"})
-			return
-		}
-	}
-
-	if year != "" {
-		yearInt, monthYearErr = strconv.Atoi(year)
-		if monthYearErr != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid year"})
-			return
-		}
-	}
 
 	if skip == "" {
 		skip = "0"
@@ -262,7 +237,7 @@ func (p *ProfileManager) handleMembershipFetchAll(c *gin.Context) {
 		return
 	}
 
-	res, err := p.repo.GetMultipleMembership(c.Request.Context(), intSkip, intLimit, monthInt, yearInt, userID)
+	res, err := p.repo.GetMultipleMembership(c.Request.Context(), intSkip, intLimit, userID)
 	if err != nil {
 		if errors.Is(err, common.ErrUserNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
