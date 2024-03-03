@@ -29,7 +29,7 @@ var Config = new(config)
 func LoadConfig() {
 	// defaults
 	Config.Port = "7471"
-	Config.Mode = "dev"
+	Config.Mode = "debug"
 	Config.PgHost = "localhost"
 	Config.PgPort = "5678"
 	Config.PgUser = "postgres"

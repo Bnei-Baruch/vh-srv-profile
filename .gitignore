@@ -3,3 +3,5 @@ vh-srv-profile
 .vscode
 .idea
 .env
+
+__debug*
