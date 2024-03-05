@@ -84,3 +84,31 @@ true, automatic, update_payment + switch_cancel
 true, manual, new_payment + switch_cancel
 true, special, switch_cancel
 true, help haver, switch_cancel
+
+
+
+help haver
+---
+
+create request:
+delete previous non concluded requests
+create request
+status REQUESTED type hhmembership
+create notification
+
+approve request:
+create grant & grant membership
+update request
+cancel automatic order if existing
+eval membership
+create notification
+
+reject request:
+update request status & note
+create notification
+
+
+- eval expiry dates
+- remove unused api endpoints
+- notifications registry
+- notifications not in eval 

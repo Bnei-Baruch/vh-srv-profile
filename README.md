@@ -29,6 +29,14 @@ createdb profiledb
 pg_restore -d profiledb /backup/<your dump file>.custom
 ```
 
+To create a fresh DB:
+```shell
+docker compose -f docker-compose.local.yml up -d profiledb
+```
+
+Make sure your .env has the correct DB_PORT (5432)
+
+
 ### NATS streaming
 This one comes from `vh-srv-orders`. You'll have to run its server once. Checkout readme over there.
 
