@@ -25,8 +25,6 @@ type ProfileRepository interface {
 	readMultipleProfileStorage
 	hardDeleteStorage
 	createRequestStorage
-	updateRequestStorage
-	deleteRequestStorage
 	readMultipleRequestStorage
 	membershipInterface
 	grantInterface
@@ -46,10 +44,16 @@ func NewProfileDB(ctx context.Context, databaseURL string) (*ProfileDB, error) {
 		return nil, fmt.Errorf("unable to connect to database: %w", err)
 	}
 
-	return &ProfileDB{
+	db := &ProfileDB{
 		Pool:                 pool,
 		ordersServiceFactory: orders.OrdersAPIFactory,
-	}, nil
+	}
+
+	if err := InitNotificationRegistry(db); err != nil {
+		return nil, fmt.Errorf("InitNotificationRegistry: %w", err)
+	}
+
+	return db, nil
 }
 
 func (db *ProfileDB) SetOrdersServiceFactory(factory orders.OrdersServiceFactory) {

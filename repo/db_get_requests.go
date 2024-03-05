@@ -2,12 +2,17 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v4"
+	"gitlab.bbdev.team/vh/vh-srv-profile/common"
 )
 
 type readMultipleRequestStorage interface {
+	GetRequestByID(ctx context.Context, id int) (*NewRequest, error)
 	GetMultipleRequest(ctx context.Context,
 		intSkip int,
 		intLimit int,
@@ -15,64 +20,96 @@ type readMultipleRequestStorage interface {
 		status string,
 		name string,
 		typeFilter string,
-		orderByCreatedAt string) ([]RequestResponse, error)
+		orderByCreatedAt string) ([]RequestAndGrant, error)
 }
 
 type NewRequest struct {
-	Grant
-	GrantMembership
-	RequestName   *string `json:"name"`
-	KeycloakId    *string `json:"keycloak_id"`
-	Status        *string `json:"status"`
-	EventSlug     *string `json:"event_slug"`
-	Type          *string `json:"type"`
-	Months        *int    `json:"nb_month"`
-	RequestNote   *string `json:"request_note,omitempty"`
-	RejectionNote *string `json:"rejection_note,omitempty"`
-}
-
-type RequestResponse struct {
 	ID            *int       `json:"id"`
-	RequestName   *string    `json:"name" db:"name"`
-	KeycloakID    *string    `json:"keycloak_id" db:"keycloak_id"`
-	Status        *string    `json:"status" db:"status"`
-	EventSlug     *string    `json:"event_slug" db:"event_slug"`
-	Type          *string    `json:"type" db:"type"`
-	RequestNote   *string    `json:"request_note" db:"request_note"`
-	RejectionNote *string    `json:"rejection_note" db:"rejection_note"`
-	CreatedAt     *time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt     *time.Time `json:"updated_at" db:"updated_at"`
+	RequestName   *string    `json:"name"`
+	KeycloakId    *string    `json:"keycloak_id"`
+	Status        *string    `json:"status"`
+	Type          *string    `json:"type"`
+	Months        *int       `json:"nb_month"`
+	RequestNote   *string    `json:"request_note,omitempty"`
+	RejectionNote *string    `json:"rejection_note,omitempty"`
+	CreatedAt     *time.Time `json:"created_at"`
+	UpdatedAt     *time.Time `json:"updated_at"`
 }
 
-func (db *ProfileDB) GetMultipleRequest(ctx context.Context, intSkip int, intLimit int, kcid string, status string, name string, typeFilter string, orderByCreatedAt string) ([]RequestResponse, error) {
-	requests := []RequestResponse{}
+type RequestAndGrant struct {
+	Request NewRequest
+	Grant   Grant
+}
+
+type RequestConclusion struct {
+	Approved      bool    `json:"approved"`
+	RejectionNote *string `json:"rejection_note"`
+	Months        *int    `json:"months"`
+}
+
+func (db *ProfileDB) GetRequestByID(ctx context.Context, id int) (*NewRequest, error) {
+	var request NewRequest
+
+	err := db.QueryRow(ctx, `SELECT name, keycloak_id, status, type, request_note, rejection_note, created_at, updated_at 
+	FROM request WHERE id=$1`, id).
+		Scan(&request.RequestName,
+			&request.KeycloakId,
+			&request.Status,
+			&request.Type,
+			&request.RequestNote,
+			&request.RejectionNote,
+			&request.CreatedAt,
+			&request.UpdatedAt,
+		)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, common.ErrNotFound
+		}
+	}
+
+	request.ID = &id
+
+	return &request, nil
+}
+
+func (db *ProfileDB) GetMultipleRequest(ctx context.Context, intSkip int, intLimit int, kcid string, status string, name string, typeFilter string, orderByCreatedAt string) ([]RequestAndGrant, error) {
+	requests := []RequestAndGrant{}
 
 	userDbWhereQuery, orderByQuery := buildAndGetWhereRequestQuery(kcid, status, name, typeFilter, orderByCreatedAt)
 
 	rows, err := db.Query(ctx, `
 		SELECT 
-		id,
-		name,
-		keycloak_id,
-		status,
-		event_slug,
-		type,
-		request_note,
-		rejection_note,
-		created_at,
-		updated_at 
-		FROM request `+userDbWhereQuery+
+		r.id, r.name, r.keycloak_id, r.status, r.type, r.request_note, r.rejection_note, r.created_at, r.updated_at,
+		g.id, g.user_id, g.request_id, g.type, g.created_at, g.updated_at, g.cancelled_at, g.properties
+		FROM request r LEFT JOIN "grant" g ON g.request_id=r.id`+userDbWhereQuery+
 		orderByQuery+
 		" LIMIT $1 OFFSET $2", intLimit, intSkip)
 	if err != nil {
 		fmt.Println("--error-while-executing-query", err)
-		return []RequestResponse{}, err
+		return []RequestAndGrant{}, err
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var r RequestResponse
-		if err := rows.Scan(&r.ID, &r.RequestName, &r.KeycloakID, &r.Status, &r.EventSlug, &r.Type, &r.RequestNote, &r.RejectionNote, &r.CreatedAt, &r.UpdatedAt); err != nil {
-			return []RequestResponse{}, err
+		var r RequestAndGrant
+		if err := rows.Scan(&r.Request.ID,
+			&r.Request.RequestName,
+			&r.Request.KeycloakId,
+			&r.Request.Status,
+			&r.Request.Type,
+			&r.Request.RequestNote,
+			&r.Request.RejectionNote,
+			&r.Request.CreatedAt,
+			&r.Request.UpdatedAt,
+			&r.Grant.ID,
+			&r.Grant.UserID,
+			&r.Grant.RequestID,
+			&r.Grant.Type,
+			&r.Grant.CreatedAt,
+			&r.Grant.UpdatedAt,
+			&r.Grant.CancelledAt,
+			&r.Grant.Properties,
+		); err != nil {
+			return []RequestAndGrant{}, err
 		}
 
 		requests = append(requests, r)
@@ -91,30 +128,30 @@ func buildAndGetWhereRequestQuery(kcid string, status string, name string, typeF
 
 	// WHERE query generation based on parameters
 	if kcid != "" {
-		whereCondition.WriteString(fmt.Sprintf(" keycloak_id='%s'", kcid))
+		whereCondition.WriteString(fmt.Sprintf(" r.keycloak_id='%s'", kcid))
 	}
 
 	if status != "" {
 		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND status='%s'", status))
+			whereCondition.WriteString(fmt.Sprintf(" AND r.status='%s'", status))
 		} else {
-			whereCondition.WriteString(fmt.Sprintf(" status='%s'", status))
+			whereCondition.WriteString(fmt.Sprintf(" r.status='%s'", status))
 		}
 	}
 
 	if name != "" {
 		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND name='%s'", name))
+			whereCondition.WriteString(fmt.Sprintf(" AND r.name='%s'", name))
 		} else {
-			whereCondition.WriteString(fmt.Sprintf(" name='%s'", name))
+			whereCondition.WriteString(fmt.Sprintf(" r.name='%s'", name))
 		}
 	}
 
 	if typeFilter != "" {
 		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND type='%s'", typeFilter))
+			whereCondition.WriteString(fmt.Sprintf(" AND r.type='%s'", typeFilter))
 		} else {
-			whereCondition.WriteString(fmt.Sprintf(" type='%s'", typeFilter))
+			whereCondition.WriteString(fmt.Sprintf(" r.type='%s'", typeFilter))
 		}
 	}
 
@@ -122,9 +159,9 @@ func buildAndGetWhereRequestQuery(kcid string, status string, name string, typeF
 		if strings.ToLower(orderByCreatedAt) != "desc" && strings.ToLower(orderByCreatedAt) != "asc" {
 			orderByCreatedAt = "asc"
 		}
-		orderBy.WriteString(fmt.Sprintf(" ORDER BY created_at %s", orderByCreatedAt))
+		orderBy.WriteString(fmt.Sprintf(" ORDER BY r.created_at %s", orderByCreatedAt))
 	} else {
-		orderBy.WriteString(fmt.Sprintf(" ORDER BY updated_at %s", "desc"))
+		orderBy.WriteString(fmt.Sprintf(" ORDER BY r.updated_at %s", "desc"))
 	}
 
 	if whereCondition.String() != "" {

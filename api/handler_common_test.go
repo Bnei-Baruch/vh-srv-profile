@@ -54,17 +54,17 @@ func (m *storageMock) CreateRequest(ctx context.Context, request repo.NewRequest
 	return args.Error(0)
 }
 
-func (m *storageMock) UpdateRequest(ctx context.Context, id int, request repo.NewRequest) (string, error) {
-	args := m.Called(ctx, id, request)
-	return args.Get(0).(string), args.Error(0)
-}
-
-func (m *storageMock) DeleteRequest(ctx context.Context, id int) error {
-	args := m.Called(ctx, id)
+func (m *storageMock) ConcludeRequest(ctx context.Context, reqID int, conclusion repo.RequestConclusion) error {
+	args := m.Called(ctx, reqID, conclusion)
 	return args.Error(0)
 }
 
-func (m *storageMock) GetMultipleRequest(ctx context.Context, intSkip int, intLimit int, kcid string, status string, name string, typeFilter string, orderByCreatedAt string) ([]repo.RequestResponse, error) {
+func (m *storageMock) GetRequestByID(ctx context.Context, id int) (*repo.NewRequest, error) {
+	args := m.Called(ctx, id)
+	return args.Get(0).(*repo.NewRequest), args.Error(1)
+}
+
+func (m *storageMock) GetMultipleRequest(ctx context.Context, intSkip int, intLimit int, kcid string, status string, name string, typeFilter string, orderByCreatedAt string) ([]repo.RequestAndGrant, error) {
 	//TODO implement me
 	panic("implement me")
 }
@@ -85,6 +85,11 @@ func (m *storageMock) GetMembershipByKCID(ctx context.Context, kcID string) (rep
 }
 
 func (m *storageMock) GetMultipleMembership(ctx context.Context, intSkip int, intLimit int, userID string) ([]repo.Membership, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *storageMock) GetExpiredMemberships(ctx context.Context, intSkip int, intLimit int) ([]repo.Membership, error) {
 	//TODO implement me
 	panic("implement me")
 }
@@ -114,37 +119,12 @@ func (m *storageMock) EvaluateMembershipByUserID(ctx context.Context, evalbody r
 	panic("implement me")
 }
 
-func (m *storageMock) GetGrantByIDAndUserID(ctx context.Context, id int, userID string) (repo.Grant, error) {
+func (m *storageMock) GetGrantByID(ctx context.Context, id int) (repo.Grant, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
 func (m *storageMock) GetMultipleGrant(ctx context.Context, intSkip int, intLimit int, boolCancelled *bool, userID string, grantType string, createdAt string) ([]repo.Grant, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m *storageMock) CreateGrant(ctx context.Context, grant repo.GrantAndGrantMembership) (int, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m *storageMock) PatchGrant(ctx context.Context, grant repo.Grant, id int, reqID int) (int, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m *storageMock) SoftDeleteGrantByID(ctx context.Context, id int) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m *storageMock) CreateGrantMembership(ctx context.Context, grant repo.GrantAndGrantMembership) (int, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m *storageMock) PatchGrantMembership(ctx context.Context, grant repo.GrantMembership, grantId int) (int, error) {
 	//TODO implement me
 	panic("implement me")
 }

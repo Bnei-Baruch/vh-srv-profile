@@ -93,15 +93,11 @@ func (a *App) initGinEngine() {
 
 	a.gEngine.GET("/v1/requests", a.profileManager.getRequests)
 	a.gEngine.POST("/v1/request", a.profileManager.createRequest)
-	a.gEngine.PATCH("/v1/request/:id", a.profileManager.updateRequest)
-	a.gEngine.DELETE("/v1/request/:id", a.profileManager.deleteRequest)
+	a.gEngine.POST("/v1/request/:id/conclude", a.profileManager.concludeRequest)
 
 	grant := baseV1Path.Group("/grant")
 	{
 		grant.GET("/:id", a.profileManager.handleGrantFetchByID)
-		grant.POST("", a.profileManager.handleGrantCreate)
-		grant.PATCH("/:id", a.profileManager.handleGrantPatchByID)
-		grant.DELETE("/:id", a.profileManager.handleGrantSoftDeleteByID)
 	}
 	baseV1Path.GET("/grants", a.profileManager.handleGrantFetchAll)
 

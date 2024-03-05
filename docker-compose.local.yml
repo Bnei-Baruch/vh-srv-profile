@@ -1,7 +1,7 @@
 version: '2.2'
 services:
   profiledb:
-    image: postgres:9.6
+    image: postgres:12
     container_name: profiledb
     environment:
       POSTGRES_USER: ${DB_USER}

@@ -112,8 +112,9 @@ type UserMembershipRes struct {
 }
 
 type UserMembershipNotification struct {
-	Slug    *string                 `json:"slug"`
-	Content *map[string]interface{} `json:"content,omitempty"`
+	Slug      *string                 `json:"slug"`
+	Content   *map[string]interface{} `json:"content,omitempty"`
+	CreatedAt *time.Time              `json:"created_at"`
 }
 
 type EmailKeycloakAndUserIDBody struct {
@@ -145,30 +146,24 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 		email = *evalBody.Email
 	}
 
-	var uuidErr error
+	var membershipInsertData = Membership{
+		Active: utils.PointerBool(false),
+	}
 
-	var membershipInsertData Membership
 	var currentMembership string
-	var latestGrantCreatedAt *time.Time
 	var latestOrderPaymentDate *time.Time
 	var latestOrderPaymentID *int
 	var latestOrderPaymentStatus string
-	var grantID *int
 	var latestOrder orders.Order
-	var grantMonthsGranted *int
 	var allOrderCancelled bool
-	var latestGrantCancelled bool
 	var userInSpecialTable bool
-	var latestRequest RequestResponse
-
-	const LIMIT = 200
-	// limit to string
-
 	var orderStartingDate time.Time
 	var orderQuantity int
-	// default value of active is false
-	membershipInsertData.Active = utils.PointerBool(false)
+	var lastApprovedRequest *RequestAndGrant
 
+	const LIMIT = 200
+
+	var uuidErr error
 	var userUUID uuid.UUID
 	userUUID, uuidErr = uuid.FromString(userID)
 	membershipInsertData.UserID = &userUUID
@@ -182,16 +177,6 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 		return UserMembershipRes{}, fmt.Errorf("no email found")
 	}
 
-	// check if user has any active request
-	userRequests, userRequestsErr := db.GetMultipleRequest(ctx, 0, LIMIT, userKeycloakID, "", "", "hhmembership", "desc")
-	if userRequestsErr != nil {
-		return UserMembershipRes{}, fmt.Errorf("problem getting user requests: %w", userRequestsErr)
-	}
-
-	if len(userRequests) != 0 {
-		latestRequest = userRequests[0]
-	}
-
 	// fetch all the order of the user ( limit 200 as of now )
 	ordersService := db.ordersServiceFactory()
 	userOrders, err := ordersService.GetOrders(ctx, email, "globalmembership", true, "desc", LIMIT, 0)
@@ -199,42 +184,16 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 		return UserMembershipRes{}, fmt.Errorf("ordersService.GetOrders: %w", err)
 	}
 
-	// fetch user grants if any
-	userGrant, userGrantErr := db.GetMultipleGrant(ctx, 0, LIMIT, nil, userID, "hhmembership", "desc")
-	if userGrantErr != nil {
-		if !errors.Is(userGrantErr, common.ErrUserNotFound) {
-			return UserMembershipRes{}, fmt.Errorf("db.GetMultipleGrant: %w", userGrantErr)
-		}
+	approvedRequests, err := db.GetMultipleRequest(ctx, 0, 1, userKeycloakID, common.RequestStatusApproved, "", common.RequestTypeHelpHaver, "desc")
+	if err != nil {
+		return UserMembershipRes{}, fmt.Errorf("db.GetMultipleRequest: %w", err)
 	}
-
-	if len(userGrant) != 0 {
-		// access the latest grant of the user
-		latestGrant := userGrant[0]
-		grantID = latestGrant.ID
-
-		// check if the latest grant is cancelled to check if the user membership is cancelled
-		if latestGrant.CancelledAt != nil {
-			latestGrantCancelled = true
-		}
-
-		// fetch grant membership based on grant ID
-		grantMemb, grantMembErr := db.getGrantMembershipByGrantID(ctx, *grantID)
-		if grantMembErr != nil {
-			if errors.Is(grantMembErr, common.ErrNotFound) {
-				fmt.Printf("no grant membership found for grant id: %d\n", *grantID)
-			} else {
-				return UserMembershipRes{}, fmt.Errorf("problem getting grant membership: %w", grantMembErr)
-			}
-		}
-
-		// set number of months granted to the user
-		grantMonthsGranted = grantMemb.Month
-
-		// created at value of the parent grant table
-		latestGrantCreatedAt = latestGrant.CreatedAt
+	if len(approvedRequests) > 0 {
+		lastApprovedRequest = &approvedRequests[0]
 	}
 
 	// Evaluation starts here
+
 	if len(userOrders) != 0 {
 
 		// count number of cancelled order in orderDetailsRes.Data
@@ -324,15 +283,16 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 		}
 	}
 
-	if latestGrantCreatedAt != nil {
+	if lastApprovedRequest != nil {
 		if latestOrderPaymentDate != nil {
-			if latestOrderPaymentDate.After(*latestGrantCreatedAt) {
-				// update user grant cancelled_at to now
-				_, grantUpdateErr := db.Exec(ctx, `UPDATE "grant" SET cancelled_at=$1 WHERE id=$2`, time.Now(), *grantID)
-				if grantUpdateErr != nil {
-					return UserMembershipRes{}, fmt.Errorf("problem updating grant [%d]: %w", *grantID, grantUpdateErr)
+			if latestOrderPaymentDate.After(*lastApprovedRequest.Grant.CreatedAt) {
+				// cancel grant
+				lastApprovedRequest.Grant.CancelledAt = utils.PointerTime(time.Now())
+				_, err := db.Exec(ctx, `UPDATE "grant" SET cancelled_at=$1 WHERE id=$2`,
+					*lastApprovedRequest.Grant.CancelledAt, *lastApprovedRequest.Grant.ID)
+				if err != nil {
+					return UserMembershipRes{}, fmt.Errorf("problem updating grant [%d]: %w", *lastApprovedRequest.Grant.ID, err)
 				}
-				latestGrantCancelled = true
 			} else {
 				currentMembership = "helphaver"
 			}
@@ -351,15 +311,28 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 			membershipInsertData.Active = utils.PointerBool(true)
 		}
 	} else if currentMembership == "helphaver" {
-		// TODO: add integration of extra manual payment after grant is over
-		userMonthsUsed, userMonthsUsedErr := db.getNumberOfGrantMonthsUsedByGrantID(ctx, *grantID)
-		if userMonthsUsedErr != nil {
-			return UserMembershipRes{}, fmt.Errorf("error while getting grant months used: %w", userMonthsUsedErr)
+		var props map[string]interface{}
+		if lastApprovedRequest.Grant.Properties.Valid {
+			if err := lastApprovedRequest.Grant.Properties.Unmarshal(&props); err != nil {
+				return UserMembershipRes{}, fmt.Errorf("json.Unmarshal grant properties [%d]: %w", *lastApprovedRequest.Grant.ID, err)
+			}
+		} else {
+			return UserMembershipRes{}, fmt.Errorf("empty grant properties [%d]", *lastApprovedRequest.Grant.ID)
 		}
 
-		userTotalMonthsLeft := *grantMonthsGranted - userMonthsUsed
-		var newExpiryDate = time.Now().AddDate(0, 0, 30*userTotalMonthsLeft)
-		membershipInsertData.Expiry = &newExpiryDate
+		if months, ok := props["months"]; ok {
+			if monthsVal, ok := months.(float64); ok {
+				membershipInsertData.Expiry = utils.PointerTime(lastApprovedRequest.Grant.CreatedAt.AddDate(0, 0, 30*int(monthsVal)))
+			} else {
+				return UserMembershipRes{}, fmt.Errorf("malformed grant property 'months' [%d]", *lastApprovedRequest.Grant.ID)
+			}
+		} else {
+			return UserMembershipRes{}, fmt.Errorf("missing grant property 'months' [%d]", *lastApprovedRequest.Grant.ID)
+		}
+
+		if time.Now().AddDate(0, 0, -60).Before(*membershipInsertData.Expiry) {
+			membershipInsertData.Active = utils.PointerBool(true)
+		}
 	}
 
 	if membershipInsertData.Expiry == nil || membershipInsertData.Expiry.Before(time.Now()) {
@@ -380,16 +353,15 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 	// check currentMembership is cancelled or new
 	if !userInSpecialTable {
 		// We expect all orders before a grant to be cancelled.
-		// TODO (edo): make sure it is when approving a grant
 		// Note that a grant is cancelled above if an order was payed after the grant
 
-		if len(userOrders) == 0 && len(userGrant) == 0 {
+		if len(userOrders) == 0 && lastApprovedRequest == nil {
 			// never had an order and never had a grant
 			currentMembership = "new"
-		} else if allOrderCancelled && (len(userGrant) == 0 || latestGrantCancelled) {
+		} else if allOrderCancelled && (lastApprovedRequest == nil || lastApprovedRequest.Grant.CancelledAt != nil) {
 			// all orders are cancelled and either never had a grant or last grant was cancelled
 			currentMembership = "cancelled"
-		} else if latestGrantCancelled && len(userOrders) == 0 {
+		} else if lastApprovedRequest.Grant.CancelledAt != nil && len(userOrders) == 0 {
 			// last grant was cancelled and never had an order
 			currentMembership = "cancelled"
 		}
@@ -452,7 +424,7 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 	} else if currentMembership == "helphaver" {
 		_, helphaverErr := db.createHelpHaverMembership(ctx, MembershipHelpHaver{
 			MembershipID: &membershipID,
-			GrantID:      grantID,
+			GrantID:      lastApprovedRequest.Grant.ID,
 		})
 
 		if helphaverErr != nil {
@@ -472,43 +444,25 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 	var notificationSlugs []string
 
 	if currentMembership == "automatic" && latestOrderPaymentStatus == "nosuccess" {
-		notificationSlugs = append(notificationSlugs, "mb_problem_previous_payment")
+		notificationSlugs = append(notificationSlugs, common.NotificationSlugMBProblemPreviousPayment)
 		if time.Now().AddDate(0, 0, -60).After(*latestOrderPaymentDate) {
-			notificationSlugs = append(notificationSlugs, "mb_has_expired_notice")
+			notificationSlugs = append(notificationSlugs, common.NotificationSlugMBHasExpiredNotice)
 		}
 	} else if (currentMembership == "manual" || currentMembership == "helphaver") &&
 		time.Now().After(*membershipInsertData.Expiry) {
 		if time.Now().AddDate(0, 0, -60).After(*membershipInsertData.Expiry) {
-			notificationSlugs = append(notificationSlugs, "mb_has_expired_notice")
+			notificationSlugs = append(notificationSlugs, common.NotificationSlugMBHasExpiredNotice)
 		} else {
-			notificationSlugs = append(notificationSlugs, "mb_expiration_notice")
+			notificationSlugs = append(notificationSlugs, common.NotificationSlugMBExpirationNotice)
 		}
 	} else if currentMembership == "cancelled" {
-		notificationSlugs = append(notificationSlugs, "mb_cancelled")
+		notificationSlugs = append(notificationSlugs, common.NotificationSlugMBCancelled)
 	} else if currentMembership == "new" {
-		notificationSlugs = append(notificationSlugs, "mb_new")
-	}
-
-	if len(userRequests) != 0 && latestRequest.ID != nil {
-		if *latestRequest.Status == "REQUESTED" {
-			notificationSlugs = append(notificationSlugs, "hh_request_received")
-		}
-
-		if latestGrantCreatedAt != nil {
-			// status approved and latestGrantCreatedAt is less than a week old
-			if *latestRequest.Status == "APPROVED" && latestGrantCreatedAt.After(time.Now().AddDate(0, 0, -7)) {
-				notificationSlugs = append(notificationSlugs, "hh_request_approved")
-			}
-
-			// status rejected and latestRequest.UpdatedAt is less than a week old
-			if *latestRequest.Status == "DENIED" && latestRequest.UpdatedAt.After(time.Now().AddDate(0, 0, -7)) {
-				notificationSlugs = append(notificationSlugs, "hh_request_refused")
-			}
-		}
+		notificationSlugs = append(notificationSlugs, common.NotificationSlugMBNew)
 	}
 
 	// Deactivate previous user notifications
-	updateAllUserNotificationToInactiveErr := db.updateAllUserNotificationToInactive(ctx, userID)
+	updateAllUserNotificationToInactiveErr := db.deactivateUserNotifications(ctx, userID, allMembershipNotifications...)
 	if updateAllUserNotificationToInactiveErr != nil {
 		return UserMembershipRes{}, fmt.Errorf("error updating all user notification to inactive: %w", updateAllUserNotificationToInactiveErr)
 	}
@@ -516,21 +470,15 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 	if len(notificationSlugs) != 0 {
 		// loop through all the slugs and add notification
 		for _, slug := range notificationSlugs {
-			parentNotificationData, parentNotificationErr := db.getNotificationBySlug(ctx, slug)
-			if parentNotificationErr != nil {
-				return UserMembershipRes{}, fmt.Errorf("error getting notification [%s]: %w", slug, parentNotificationErr)
-			}
-
-			boolTrue := true
-			userNotificationErr := db.CreateUserNotification(ctx, UserNotification{
+			err := db.CreateUserNotification(ctx, UserNotification{
 				UserID:         &userID,
-				NotificationID: parentNotificationData.ID,
-				Active:         &boolTrue,
+				NotificationID: NotificationsRegistry.BySlug[slug].ID,
+				Active:         utils.PointerBool(true),
 				SeenAt:         nil,
 			})
 
-			if userNotificationErr != nil {
-				return UserMembershipRes{}, fmt.Errorf("error creating notification: %w", userNotificationErr)
+			if err != nil {
+				return UserMembershipRes{}, fmt.Errorf("db.CreateUserNotification [%s]: %w", slug, err)
 			}
 		}
 	}
@@ -870,14 +818,14 @@ func (db *ProfileDB) GetMembershipByUserID(ctx context.Context, userID string) (
 	} else if *membership.Type == "helphaver" {
 		helphaverMembership, err := db.getHelphaverMembershipByMembershipID(ctx, *membership.ID)
 		if err != nil {
-			return UserMembershipRes{}, fmt.Errorf("error while getting automatic membership: %w", err)
+			return UserMembershipRes{}, fmt.Errorf("error while getting helphaver membership: %w", err)
 		}
 		membership.Details.HelpHaver.CreatedAt = helphaverMembership.CreatedAt
 		membership.Details.HelpHaver.NbMonths = helphaverMembership.NbMonths
 	} else if *membership.Type == "manual" {
 		manualMembership, err := db.getManualMembershipByMembershipID(ctx, *membership.ID)
 		if err != nil {
-			return UserMembershipRes{}, fmt.Errorf("error while getting automatic membership: %w", err)
+			return UserMembershipRes{}, fmt.Errorf("error while getting manual membership: %w", err)
 		}
 
 		membership.Details.Manual.OrderID = manualMembership.OrderID
@@ -929,6 +877,7 @@ func (db *ProfileDB) GetMembershipByUserID(ctx context.Context, userID string) (
 		var userNoti UserMembershipNotification
 		userNoti.Slug = noti.Slug
 		userNoti.Content = noti.Content
+		userNoti.CreatedAt = noti.CreatedAt
 		userNotiSlug = append(userNotiSlug, userNoti)
 	}
 
@@ -1033,15 +982,15 @@ func (db *ProfileDB) getHelphaverMembershipByMembershipID(ctx context.Context, m
 
 	if err := db.QueryRow(ctx, `
 		SELECT 
-		membership_helphaver.id,
-		membership_helphaver.grant_id,
-		membership_id,
-		grant_membership.nb_months,
-		membership_helphaver.created_at,
-		membership_helphaver.updated_at,
-		membership_helphaver.deleted_at 
-		from membership_helphaver LEFT JOIN grant_membership ON membership_helphaver.grant_id = grant_membership.grant_id 
-		WHERE membership_id = $1`, membershipID).Scan(
+		mh.id,
+		mh.grant_id,
+		mh.membership_id,
+		(g.properties->'months')::integer,
+		mh.created_at,
+		mh.updated_at,
+		mh.deleted_at 
+		from membership_helphaver mh LEFT JOIN "grant" g ON mh.grant_id = g.id 
+		WHERE mh.membership_id = $1`, membershipID).Scan(
 		&helphaverMembership.ID,
 		&helphaverMembership.GrantID,
 		&helphaverMembership.MembershipID,
@@ -1131,7 +1080,7 @@ func (db *ProfileDB) CancelMembership(ctx context.Context, membBody EmailKeycloa
 	}
 
 	// cancel grants
-	_, err = db.Exec(ctx, `UPDATE "grant" SET cancelled_at=$1 WHERE user_id=$2 AND type='membership' AND cancelled_at IS NULL`, time.Now(), user_id)
+	_, err = db.Exec(ctx, `UPDATE "grant" SET cancelled_at=$1 WHERE user_id=$2 AND type LIKE 'mb_%' AND cancelled_at IS NULL`, time.Now(), user_id)
 	if err != nil {
 		return fmt.Errorf("error while updating grant: %w", err)
 	}

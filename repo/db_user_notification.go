@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -208,6 +209,20 @@ func (db *ProfileDB) updateAllUserNotificationToInactive(ctx context.Context, us
 		`, userID)
 	if err != nil {
 		return fmt.Errorf("problem updating user notification: %w", err)
+	}
+
+	return nil
+}
+
+func (db *ProfileDB) deactivateUserNotifications(ctx context.Context, userID string, slugs ...string) error {
+	ids := make([]string, 0)
+	for _, slug := range slugs {
+		ids = append(ids, strconv.Itoa(*NotificationsRegistry.BySlug[slug].ID))
+	}
+
+	q := fmt.Sprintf("UPDATE user_notification SET active = false WHERE user_id = $1 AND notification_id IN (%s)", strings.Join(ids, ","))
+	if _, err := db.Exec(ctx, q, userID); err != nil {
+		return fmt.Errorf(" db.Exec: %w", err)
 	}
 
 	return nil
