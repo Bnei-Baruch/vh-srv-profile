@@ -361,7 +361,7 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 		} else if allOrderCancelled && (lastApprovedRequest == nil || lastApprovedRequest.Grant.CancelledAt != nil) {
 			// all orders are cancelled and either never had a grant or last grant was cancelled
 			currentMembership = "cancelled"
-		} else if lastApprovedRequest.Grant.CancelledAt != nil && len(userOrders) == 0 {
+		} else if lastApprovedRequest != nil && lastApprovedRequest.Grant.CancelledAt != nil && len(userOrders) == 0 {
 			// last grant was cancelled and never had an order
 			currentMembership = "cancelled"
 		}
