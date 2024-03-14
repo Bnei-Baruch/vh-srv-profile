@@ -13,44 +13,23 @@ import (
 	uuid "github.com/satori/go.uuid"
 
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
-	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/keycloak"
-	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/orders"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/utils"
 	"gitlab.bbdev.team/vh/vh-srv-profile/repo"
 )
 
 type Migrator struct {
-	repo          repo.ProfileRepository
-	kcTokenSource keycloak.TokenSource
-	ordersService orders.OrdersService
+	Evaluator
 }
 
 func NewMigrator() *Migrator {
 	return new(Migrator)
 }
 
-func (m *Migrator) init() error {
-	if err := m.initProfileDB(); err != nil {
-		return fmt.Errorf("initProfileDB: %w", err)
-	}
-
-	m.kcTokenSource = keycloak.NewServiceClient()
-	m.ordersService = orders.NewOrdersAPI()
-
-	return nil
+func (m *Migrator) String() string {
+	return "migrator"
 }
 
-func (m *Migrator) initProfileDB() error {
-	dbUrl := repo.MakeDBURL()
-	db, err := repo.NewProfileDB(context.TODO(), dbUrl)
-	if err != nil {
-		return fmt.Errorf("repo.NewProfileDB %s: %w", dbUrl, err)
-	}
-	m.repo = db
-	return nil
-}
-
-func (m *Migrator) migrate() error {
+func (m *Migrator) do() error {
 	users, err := m.getAllUsers()
 	if err != nil {
 		return fmt.Errorf("getAllUsers: %w", err)
@@ -110,13 +89,7 @@ func (m *Migrator) evalUser(user repo.User) (repo.UserMembershipRes, error) {
 		Email:      user.UserInput.Emails.Primary,
 	}
 
-	ctx := context.WithValue(context.Background(), common.CtxTokenSource, m.kcTokenSource)
-	res, err := m.repo.EvaluateMembershipByUserID(ctx, ids)
-	if err != nil {
-		return repo.UserMembershipRes{}, fmt.Errorf("repo.EvaluateMembershipByUserID: %w", err)
-	}
-
-	return res, nil
+	return m.Evaluator.eval(ids)
 }
 
 func (m *Migrator) report(users []repo.User, evalResults map[*uuid.UUID]repo.UserMembershipRes) error {

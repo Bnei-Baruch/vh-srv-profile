@@ -8,45 +8,22 @@ import (
 
 	uuid "github.com/satori/go.uuid"
 
-	"gitlab.bbdev.team/vh/vh-srv-profile/common"
-	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/keycloak"
-	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/orders"
-	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/utils"
 	"gitlab.bbdev.team/vh/vh-srv-profile/repo"
 )
 
 type Invalidator struct {
-	repo          repo.ProfileRepository
-	kcTokenSource keycloak.TokenSource
-	ordersService orders.OrdersService
+	Evaluator
 }
 
 func NewInvalidator() *Invalidator {
 	return new(Invalidator)
 }
 
-func (in *Invalidator) init() error {
-	if err := in.initProfileDB(); err != nil {
-		return fmt.Errorf("initProfileDB: %w", err)
-	}
-
-	in.kcTokenSource = keycloak.NewServiceClient()
-	in.ordersService = orders.NewOrdersAPI()
-
-	return nil
+func (in *Invalidator) String() string {
+	return "invalidator"
 }
 
-func (in *Invalidator) initProfileDB() error {
-	dbUrl := repo.MakeDBURL()
-	db, err := repo.NewProfileDB(context.TODO(), dbUrl)
-	if err != nil {
-		return fmt.Errorf("repo.NewProfileDB %s: %w", dbUrl, err)
-	}
-	in.repo = db
-	return nil
-}
-
-func (in *Invalidator) invalidate() error {
+func (in *Invalidator) do() error {
 	log.Printf("Invalidating memberships expiring before %s\n", time.Now().UTC())
 
 	memberships, err := in.getExpiredMemberships()
@@ -57,7 +34,7 @@ func (in *Invalidator) invalidate() error {
 
 	evalResults := make(map[*uuid.UUID]repo.UserMembershipRes)
 	for _, membership := range memberships {
-		res, err := in.evalUser(membership)
+		res, err := in.evalUserID(membership.UserID.String())
 		if err != nil {
 			log.Printf("ERROR: evalUser %s: %s\n", membership.UserID, err)
 		} else {
@@ -101,16 +78,4 @@ func (in *Invalidator) getExpiredMemberships() ([]repo.Membership, error) {
 	}
 
 	return expiredMemberships, nil
-}
-
-func (in *Invalidator) evalUser(membership repo.Membership) (repo.UserMembershipRes, error) {
-	ids := repo.EmailKeycloakAndUserIDBody{UserID: utils.PointerString(membership.UserID.String())}
-
-	ctx := context.WithValue(context.Background(), common.CtxTokenSource, in.kcTokenSource)
-	res, err := in.repo.EvaluateMembershipByUserID(ctx, ids)
-	if err != nil {
-		return repo.UserMembershipRes{}, fmt.Errorf("repo.EvaluateMembershipByUserID: %w", err)
-	}
-
-	return res, nil
 }
