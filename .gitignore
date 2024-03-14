@@ -3,5 +3,6 @@ vh-srv-profile
 .vscode
 .idea
 .env
+bulk_eval.csv
 
 __debug*

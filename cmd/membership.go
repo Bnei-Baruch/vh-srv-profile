@@ -26,8 +26,17 @@ var invalidateCmd = &cobra.Command{
 	},
 }
 
+var bulkEvalCmd = &cobra.Command{
+	Use:   "bulk_eval",
+	Short: "Evaluate membership in bulk",
+	Run: func(cmd *cobra.Command, args []string) {
+		membership.BulkEval()
+	},
+}
+
 func init() {
 	membershipCmd.AddCommand(migrateCmd)
 	membershipCmd.AddCommand(invalidateCmd)
+	membershipCmd.AddCommand(bulkEvalCmd)
 	rootCmd.AddCommand(membershipCmd)
 }
