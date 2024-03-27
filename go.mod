@@ -1,9 +1,10 @@
 module gitlab.bbdev.team/vh/vh-srv-profile
 
-go 1.19
+go 1.21
 
 require (
 	github.com/Nerzal/gocloak/v13 v13.8.0
+	github.com/getsentry/sentry-go v0.27.0
 	github.com/gin-contrib/cors v1.5.0
 	github.com/gin-gonic/gin v1.9.1
 	github.com/go-resty/resty/v2 v2.7.0
@@ -13,6 +14,7 @@ require (
 	github.com/joho/godotenv v1.3.0
 	github.com/lib/pq v1.10.0
 	github.com/nats-io/nats.go v1.31.0
+	github.com/nats-io/nuid v1.0.1
 	github.com/satori/go.uuid v1.2.0
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.8.4
@@ -49,7 +51,6 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/nats-io/nkeys v0.4.5 // indirect
-	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.1.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect

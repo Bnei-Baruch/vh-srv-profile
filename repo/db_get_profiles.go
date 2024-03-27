@@ -36,11 +36,16 @@ type readMultipleProfileStorage interface {
 	FetchProfileBasedOnPhoneNumber(ctx context.Context, phoneNumber string) (User, error)
 }
 
-func (db *ProfileDB) GetMultipleProfiles(ctx context.Context, intSkip int, intLimit int, country string, email string, name string, tenGroupName string, language string, firstLanguage string, otherLanguageOne string, otherLanguageTwo string, otherLanguageThree string, otherLanguageFour string, updatedAt string, createdAt string, membership string, membershipType string, convention string, ticket string, galaxy string, gender string) ([]User, error) {
+func (db *ProfileDB) GetMultipleProfiles(ctx context.Context, intSkip int, intLimit int, country string, email string,
+	name string, tenGroupName string, language string, firstLanguage string, otherLanguageOne string,
+	otherLanguageTwo string, otherLanguageThree string, otherLanguageFour string, updatedAt string, createdAt string,
+	membership string, membershipType string, convention string, ticket string, galaxy string, gender string) ([]User, error) {
 	var keycloakId string
 	users := []User{}
 
-	userDbWhereQuery, orderByQuery := buildAndGetWhereUserQuery(country, email, name, tenGroupName, language, firstLanguage, otherLanguageOne, otherLanguageTwo, otherLanguageThree, otherLanguageFour, updatedAt, createdAt, membership, membershipType, convention, ticket, galaxy, gender)
+	userDbWhereQuery, orderByQuery := buildAndGetWhereUserQuery(country, email, name, tenGroupName, language, firstLanguage,
+		otherLanguageOne, otherLanguageTwo, otherLanguageThree, otherLanguageFour, updatedAt, createdAt, membership,
+		membershipType, convention, ticket, galaxy, gender)
 
 	rows, err := db.Query(ctx, `
 		SELECT users.user_id,
@@ -89,8 +94,7 @@ func (db *ProfileDB) GetMultipleProfiles(ctx context.Context, intSkip int, intLi
 		orderByQuery+
 		" LIMIT $1 OFFSET $2", intLimit, intSkip)
 	if err != nil {
-		fmt.Println("--error-while-executing-query", err)
-		return []User{}, err
+		return []User{}, fmt.Errorf("db.Query: %w", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
@@ -138,7 +142,7 @@ func (db *ProfileDB) GetMultipleProfiles(ctx context.Context, intSkip int, intLi
 			&profile.UserInput.Phones.MobileNumber,
 			&profile.UserInput.Phones.TelegramNumber,
 		); err != nil {
-			return []User{}, err
+			return []User{}, fmt.Errorf("rows.Scan: %w", err)
 		}
 
 		// Add keycloakID and UserID to user struct
@@ -146,15 +150,13 @@ func (db *ProfileDB) GetMultipleProfiles(ctx context.Context, intSkip int, intLi
 		profile.UserInput.KeycloakID = &keyCloakUUID
 
 		if err != nil {
-			return []User{}, err
+			return []User{}, fmt.Errorf("uuid.FromString: %w", err)
 		}
 
 		users = append(users, profile)
 	}
-
-	// Manage if no user found
-	if len(users) == 0 {
-		return []User{}, fmt.Errorf("%w", common.ErrUserNotFound)
+	if err := rows.Err(); err != nil {
+		return []User{}, fmt.Errorf("rows.Err: %w", err)
 	}
 
 	return users, nil
@@ -163,7 +165,6 @@ func (db *ProfileDB) GetMultipleProfiles(ctx context.Context, intSkip int, intLi
 func (db *ProfileDB) FetchProfileBasedOnPhoneNumber(ctx context.Context, phoneNumber string) (User, error) {
 
 	var profile User
-	var userID uuid.UUID
 	var keycloakId string
 
 	type phone struct {
@@ -173,20 +174,12 @@ func (db *ProfileDB) FetchProfileBasedOnPhoneNumber(ctx context.Context, phoneNu
 	}
 
 	var phoneNum phone
-	if err := db.QueryRow(ctx, `
-	SELECT user_id,
-	phone_number, 
-		type 
-	FROM phone_numbers
-	WHERE phone_number=$1`, phoneNumber).Scan(
-		&phoneNum.userID,
-		&phoneNum.number,
-		&phoneNum.phoneType,
-	); err != nil {
+	if err := db.QueryRow(ctx, `SELECT user_id, phone_number, type FROM phone_numbers WHERE phone_number=$1`, phoneNumber).
+		Scan(&phoneNum.userID, &phoneNum.number, &phoneNum.phoneType); err != nil {
 		if err == pgx.ErrNoRows {
-			return User{}, fmt.Errorf("%w", common.ErrUserNotFound)
+			return User{}, common.ErrUserNotFound
 		}
-		return User{}, err
+		return User{}, fmt.Errorf("db.QueryRow [phone]: %w", err)
 	}
 
 	var mobileNumber, whatsAppNumber, telegramNumber *string
@@ -289,15 +282,14 @@ func (db *ProfileDB) FetchProfileBasedOnPhoneNumber(ctx context.Context, phoneNu
 		&profile.UserInput.Ten.NameOfGroup,
 	); err != nil {
 		if err == pgx.ErrNoRows {
-			return User{}, fmt.Errorf("%w: %q", common.ErrUserNotFound, userID)
+			return User{}, common.ErrUserNotFound
 		}
-		return User{}, err
+		return User{}, fmt.Errorf("db.QueryRow [user]: %w", err)
 	}
 
 	keyCloakUUID, err := uuid.FromString(keycloakId)
-
 	if err != nil {
-		return User{}, err
+		return User{}, fmt.Errorf("uuid.FromString: %w", err)
 	}
 
 	// Add keycloakID to the user
@@ -306,7 +298,10 @@ func (db *ProfileDB) FetchProfileBasedOnPhoneNumber(ctx context.Context, phoneNu
 	return profile, nil
 }
 
-func buildAndGetWhereUserQuery(country string, email string, name string, tenGroupName string, language string, firstLanguage string, otherLanguageOne string, otherLanguageTwo string, otherLanguageThree string, otherLanguageFour string, updatedAt string, createdAt string, membership string, membershipType string, convention string, ticket string, galaxy string, gender string) (string, string) {
+func buildAndGetWhereUserQuery(country string, email string, name string, tenGroupName string, language string,
+	firstLanguage string, otherLanguageOne string, otherLanguageTwo string, otherLanguageThree string,
+	otherLanguageFour string, updatedAt string, createdAt string, membership string, membershipType string,
+	convention string, ticket string, galaxy string, gender string) (string, string) {
 
 	var whereString strings.Builder
 	var orderBy strings.Builder

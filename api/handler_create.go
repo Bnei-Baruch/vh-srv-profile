@@ -15,22 +15,18 @@ func (p *ProfileManager) create(c *gin.Context) {
 
 	if err := c.ShouldBind(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		_ = c.Error(err)
 		return
 	}
 
 	if request.KeycloakID == nil || request.FirstNameVernacular == nil || request.LastNameVernacular == nil ||
 		request.PrimaryEmail == nil {
-		err := fmt.Errorf("missing a required field for provided request: %#v", request)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		_ = c.Error(err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing a required field"})
 		return
 	}
 
 	keycloakID, err := uuid.FromString(*request.KeycloakID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		_ = c.Error(err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("malformed keycloak_id: %v", err)})
 		return
 	}
 
@@ -87,7 +83,7 @@ func (p *ProfileManager) create(c *gin.Context) {
 		},
 	}); err != nil {
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while creating user %q: %w", *request.KeycloakID, err))
+		_ = c.Error(fmt.Errorf("repo.CreateProfile: %w", err))
 		return
 	}
 
@@ -98,7 +94,7 @@ func (p *ProfileManager) create(c *gin.Context) {
 
 	if updateErr != nil {
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while syncing user with keycloak %q: %w", *request.KeycloakID, updateErr))
+		_ = c.Error(fmt.Errorf("keycloakService.UpdateUser: %w", updateErr))
 		return
 	}
 

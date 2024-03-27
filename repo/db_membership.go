@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/jackc/pgx/v4"
 	uuid "github.com/satori/go.uuid"
 
@@ -131,20 +132,26 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 	// fetch email, userID and userKeycloakID from the database if not available in the request body
 	if evalBody.UserID != nil && *evalBody.UserID != "" {
 		if err := db.QueryRow(ctx, `SELECT primary_email, keycloak_id FROM users WHERE user_id=$1`, *evalBody.UserID).Scan(&email, &userKeycloakID); err != nil {
-			return UserMembershipRes{}, fmt.Errorf("problem getting email from user_id: %w", err)
+			return UserMembershipRes{}, fmt.Errorf("db.QueryRow [email from user_id]: %w", err)
 		}
 		userID = *evalBody.UserID
 	} else if evalBody.KeycloakID != nil && *evalBody.KeycloakID != "" {
 		if err := db.QueryRow(ctx, `SELECT primary_email, user_id FROM users WHERE keycloak_id=$1`, *evalBody.KeycloakID).Scan(&email, &userID); err != nil {
-			return UserMembershipRes{}, fmt.Errorf("problem getting email from keycloak_id: %w", err)
+			return UserMembershipRes{}, fmt.Errorf("db.QueryRow [email from keycloak_id]: %w", err)
 		}
 		userKeycloakID = *evalBody.KeycloakID
 	} else {
 		if err := db.QueryRow(ctx, `SELECT user_id, keycloak_id FROM users WHERE primary_email=$1`, *evalBody.Email).Scan(&userID, &userKeycloakID); err != nil {
-			return UserMembershipRes{}, fmt.Errorf("problem getting user_id from email: %w", err)
+			return UserMembershipRes{}, fmt.Errorf("db.QueryRow [user_id from email]: %w", err)
 		}
 		email = *evalBody.Email
 	}
+
+	utils.LogFor(ctx).Info("evaluating membership",
+		slog.String("user_id", userID),
+		slog.String("keycloak_id", userKeycloakID),
+		slog.String("email", email),
+	)
 
 	var membershipInsertData = Membership{
 		Active: utils.PointerBool(false),
@@ -169,7 +176,7 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 	membershipInsertData.UserID = &userUUID
 
 	if uuidErr != nil {
-		return UserMembershipRes{}, fmt.Errorf("problem converting userID to uuid: %w", uuidErr)
+		return UserMembershipRes{}, fmt.Errorf(" uuid.FromString [userID]: %w", uuidErr)
 	}
 
 	// if not email exit
@@ -225,8 +232,13 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 			}
 
 			if len(orderPayments) == 0 {
-				fmt.Printf("payment details not found for order id: %v", latestOrder.ID)
-				// set latestOrderPaymentID as -1
+				utils.LogFor(ctx).Warn("db_membership.Eval payment details not found for order", slog.Int("order_id", latestOrder.ID))
+				sentry.GetHubFromContext(ctx).
+					WithScope(func(scope *sentry.Scope) {
+						scope.SetExtra("order_id", latestOrder.ID)
+						sentry.CaptureMessage("payment details not found")
+					})
+
 				latestOrderPaymentID = utils.PointerInt(-1)
 				// TODO: analyse and set the latestOrderPaymentStatus as well
 			} else {
@@ -277,7 +289,7 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 				// update order starting date
 				if err := ordersService.SetOrderStartingDate(ctx, order.ID, orderStartingDate); err != nil {
 					return UserMembershipRes{},
-						fmt.Errorf("error updating order [%d] starting date: %w", order.ID, err)
+						fmt.Errorf("ordersService.SetOrderStartingDate [order_id %d]: %w", order.ID, err)
 				}
 			}
 		}
@@ -291,7 +303,7 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 				_, err := db.Exec(ctx, `UPDATE "grant" SET cancelled_at=$1 WHERE id=$2`,
 					*lastApprovedRequest.Grant.CancelledAt, *lastApprovedRequest.Grant.ID)
 				if err != nil {
-					return UserMembershipRes{}, fmt.Errorf("problem updating grant [%d]: %w", *lastApprovedRequest.Grant.ID, err)
+					return UserMembershipRes{}, fmt.Errorf("update grant [%d]: %w", *lastApprovedRequest.Grant.ID, err)
 				}
 			} else {
 				currentMembership = "helphaver"
@@ -371,7 +383,7 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 	// check if user has an existing membership
 	userMemb, userMembErr := db.GetMultipleMembership(ctx, 0, 100, userID)
 	if userMembErr != nil {
-		return UserMembershipRes{}, fmt.Errorf("error getting user membership: %w", userMembErr)
+		return UserMembershipRes{}, fmt.Errorf("db.GetMultipleMembership: %w", userMembErr)
 	}
 
 	var (
@@ -384,19 +396,19 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 		// insert membership
 		membershipID, insertMembErr = db.createMembership(ctx, membershipInsertData)
 		if insertMembErr != nil {
-			return UserMembershipRes{}, fmt.Errorf("error inserting membership: %w", insertMembErr)
+			return UserMembershipRes{}, fmt.Errorf("db.createMembership: %w", insertMembErr)
 		}
 	} else {
 		// update membership
 		membershipID, updateMembErr = db.PatchMembershipByID(ctx, membershipInsertData, *userMemb[0].ID)
 		if updateMembErr != nil {
-			return UserMembershipRes{}, fmt.Errorf("error updating membership: %w", updateMembErr)
+			return UserMembershipRes{}, fmt.Errorf("db.PatchMembershipByID: %w", updateMembErr)
 		}
 
 		// remove all the previous sub memberships entries as they'll be added again ( latest will be added )
 		deleteAllMembershipSubTableErr := db.deleteAllMembershipSubTableByMembershipID(ctx, membershipID)
 		if deleteAllMembershipSubTableErr != nil {
-			return UserMembershipRes{}, fmt.Errorf("error deleting membership sub tables: %w", deleteAllMembershipSubTableErr)
+			return UserMembershipRes{}, fmt.Errorf("db.deleteAllMembershipSubTableByMembershipID: %w", deleteAllMembershipSubTableErr)
 		}
 	}
 
@@ -408,7 +420,7 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 		})
 
 		if automaticErr != nil {
-			return UserMembershipRes{}, fmt.Errorf("error creating automatic membership [%d]: %w", membershipID, automaticErr)
+			return UserMembershipRes{}, fmt.Errorf("db.createAutomaticMembership [%d]: %w", membershipID, automaticErr)
 		}
 	} else if currentMembership == "manual" {
 		_, manualErr := db.createManualMembership(ctx, MembershipManual{
@@ -419,7 +431,7 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 		})
 
 		if manualErr != nil {
-			return UserMembershipRes{}, fmt.Errorf("error creating manual membership [%d]: %w", membershipID, manualErr)
+			return UserMembershipRes{}, fmt.Errorf("db.createManualMembership [%d]: %w", membershipID, manualErr)
 		}
 	} else if currentMembership == "helphaver" {
 		_, helphaverErr := db.createHelpHaverMembership(ctx, MembershipHelpHaver{
@@ -428,7 +440,7 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 		})
 
 		if helphaverErr != nil {
-			return UserMembershipRes{}, fmt.Errorf("error creating helphaver membership [%d]: %w", membershipID, helphaverErr)
+			return UserMembershipRes{}, fmt.Errorf("db.createHelpHaverMembership [%d]: %w", membershipID, helphaverErr)
 		}
 	} else if currentMembership == "special" {
 		_, specialErr := db.createSpecialMembership(ctx, MembershipSpecial{
@@ -436,7 +448,7 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 		})
 
 		if specialErr != nil {
-			return UserMembershipRes{}, fmt.Errorf("error creating special membership [%d]: %w", membershipID, specialErr)
+			return UserMembershipRes{}, fmt.Errorf("db.createSpecialMembership [%d]: %w", membershipID, specialErr)
 		}
 	}
 
@@ -464,7 +476,7 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 	// Deactivate previous user notifications
 	updateAllUserNotificationToInactiveErr := db.deactivateUserNotifications(ctx, userID, allMembershipNotifications...)
 	if updateAllUserNotificationToInactiveErr != nil {
-		return UserMembershipRes{}, fmt.Errorf("error updating all user notification to inactive: %w", updateAllUserNotificationToInactiveErr)
+		return UserMembershipRes{}, fmt.Errorf("db.deactivateUserNotifications: %w", updateAllUserNotificationToInactiveErr)
 	}
 
 	if len(notificationSlugs) != 0 {
@@ -485,7 +497,7 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 
 	userMembershipResponse, userMembershipResponseErr := db.GetMembershipByUserID(ctx, userID)
 	if userMembershipResponseErr != nil {
-		return UserMembershipRes{}, fmt.Errorf("error getting membership [%s]: %w", userID, userMembershipResponseErr)
+		return UserMembershipRes{}, fmt.Errorf("db.GetMembershipByUserID [%s]: %w", userID, userMembershipResponseErr)
 	}
 
 	return userMembershipResponse, nil
@@ -500,7 +512,7 @@ func (db *ProfileDB) createMembership(ctx context.Context, req Membership) (int,
 	if len(createQueryArgs) != 0 {
 		if err := db.QueryRow(ctx, fmt.Sprintf(`INSERT INTO membership (%s) VALUES (%s) RETURNING id`, createString, numString),
 			createQueryArgs...).Scan(&ID); err != nil {
-			return 0, fmt.Errorf("problem creating grant: %w", err)
+			return 0, err
 		}
 
 		return ID, nil
@@ -519,7 +531,7 @@ func (db *ProfileDB) createManualMembership(ctx context.Context, req MembershipM
 	if len(createQueryArgs) != 0 {
 		if err := db.QueryRow(ctx, fmt.Sprintf(`INSERT INTO membership_manual (%s) VALUES (%s) RETURNING id`, createString, numString),
 			createQueryArgs...).Scan(&ID); err != nil {
-			return 0, fmt.Errorf("problem creating grant: %w", err)
+			return 0, err
 		}
 
 		return ID, nil
@@ -538,7 +550,7 @@ func (db *ProfileDB) createAutomaticMembership(ctx context.Context, req Membersh
 	if len(createQueryArgs) != 0 {
 		if err := db.QueryRow(ctx, fmt.Sprintf(`INSERT INTO membership_automatic (%s) VALUES (%s) RETURNING id`, createString, numString),
 			createQueryArgs...).Scan(&ID); err != nil {
-			return 0, fmt.Errorf("problem creating grant: %w", err)
+			return 0, err
 		}
 
 		return ID, nil
@@ -557,7 +569,7 @@ func (db *ProfileDB) createSpecialMembership(ctx context.Context, req Membership
 	if len(createQueryArgs) != 0 {
 		if err := db.QueryRow(ctx, fmt.Sprintf(`INSERT INTO membership_special (%s) VALUES (%s) RETURNING id`, createString, numString),
 			createQueryArgs...).Scan(&ID); err != nil {
-			return 0, fmt.Errorf("problem creating grant: %w", err)
+			return 0, err
 		}
 
 		return ID, nil
@@ -576,7 +588,7 @@ func (db *ProfileDB) createHelpHaverMembership(ctx context.Context, req Membersh
 	if len(createQueryArgs) != 0 {
 		if err := db.QueryRow(ctx, fmt.Sprintf(`INSERT INTO membership_helphaver (%s) VALUES (%s) RETURNING id`, createString, numString),
 			createQueryArgs...).Scan(&ID); err != nil {
-			return 0, fmt.Errorf("problem creating grant: %w", err)
+			return 0, err
 		}
 
 		return ID, nil
@@ -743,7 +755,7 @@ func (db *ProfileDB) GetMembershipByID(ctx context.Context, id int) (Membership,
 		if err == pgx.ErrNoRows {
 			return Membership{}, common.ErrNotFound
 		}
-		return Membership{}, fmt.Errorf("error while getting membership: %w", err)
+		return Membership{}, err
 	}
 
 	return membership, nil
@@ -756,10 +768,15 @@ func (db *ProfileDB) GetMembershipByKCID(ctx context.Context, kcID string) (User
 		if errors.Is(err, pgx.ErrNoRows) {
 			return UserMembershipRes{}, common.ErrNotFound
 		}
-		return UserMembershipRes{}, fmt.Errorf("error while getting membership: %w", err)
+		return UserMembershipRes{}, fmt.Errorf("db.QueryRow: %w", err)
 	}
 
-	return db.GetMembershipByUserID(ctx, userID.String())
+	res, err := db.GetMembershipByUserID(ctx, userID.String())
+	if err != nil {
+		return UserMembershipRes{}, fmt.Errorf("db.GetMembershipByUserID: %w", err)
+	}
+
+	return res, nil
 }
 
 func (db *ProfileDB) GetMembershipByUserID(ctx context.Context, userID string) (UserMembershipRes, error) {
@@ -789,7 +806,7 @@ func (db *ProfileDB) GetMembershipByUserID(ctx context.Context, userID string) (
 		if err == pgx.ErrNoRows {
 			return UserMembershipRes{}, common.ErrNotFound
 		}
-		return UserMembershipRes{}, fmt.Errorf("error while getting membership: %w", err)
+		return UserMembershipRes{}, fmt.Errorf("db.QueryRow: %w", err)
 	}
 
 	ordersService := db.ordersServiceFactory()
@@ -797,7 +814,7 @@ func (db *ProfileDB) GetMembershipByUserID(ctx context.Context, userID string) (
 	if *membership.Type == "automatic" {
 		autoMembership, err := db.GetAutomaticMembershipByMembershipID(ctx, *membership.ID)
 		if err != nil {
-			return UserMembershipRes{}, fmt.Errorf("error while getting automatic membership: %w", err)
+			return UserMembershipRes{}, fmt.Errorf("db.GetAutomaticMembershipByMembershipID: %w", err)
 		}
 		membership.Details.Automatic.OrderID = autoMembership.OrderID
 		membership.Details.Automatic.PaymentID = autoMembership.PaymentID
@@ -818,14 +835,14 @@ func (db *ProfileDB) GetMembershipByUserID(ctx context.Context, userID string) (
 	} else if *membership.Type == "helphaver" {
 		helphaverMembership, err := db.getHelphaverMembershipByMembershipID(ctx, *membership.ID)
 		if err != nil {
-			return UserMembershipRes{}, fmt.Errorf("error while getting helphaver membership: %w", err)
+			return UserMembershipRes{}, fmt.Errorf("db.getHelphaverMembershipByMembershipID: %w", err)
 		}
 		membership.Details.HelpHaver.CreatedAt = helphaverMembership.CreatedAt
 		membership.Details.HelpHaver.NbMonths = helphaverMembership.NbMonths
 	} else if *membership.Type == "manual" {
 		manualMembership, err := db.getManualMembershipByMembershipID(ctx, *membership.ID)
 		if err != nil {
-			return UserMembershipRes{}, fmt.Errorf("error while getting manual membership: %w", err)
+			return UserMembershipRes{}, fmt.Errorf("db.getManualMembershipByMembershipID: %w", err)
 		}
 
 		membership.Details.Manual.OrderID = manualMembership.OrderID
@@ -848,7 +865,7 @@ func (db *ProfileDB) GetMembershipByUserID(ctx context.Context, userID string) (
 	} else if *membership.Type == "special" {
 		var email string
 		if err := db.QueryRow(ctx, `SELECT primary_email FROM users WHERE user_id=$1`, userID).Scan(&email); err != nil {
-			return UserMembershipRes{}, fmt.Errorf("error while getting User email: %w", err)
+			return UserMembershipRes{}, fmt.Errorf("db.QueryRow [special email]: %w", err)
 		}
 
 		special, err := ordersService.GetSpecial(ctx, email)
@@ -860,15 +877,19 @@ func (db *ProfileDB) GetMembershipByUserID(ctx context.Context, userID string) (
 			membership.Details.Special.ApprovedBy = &special.Category
 			membership.Details.Special.Type = &special.SubCategory
 		} else {
-			log.Printf("WARNING: user no longer in special table %s\n", email)
+			utils.LogFor(ctx).Warn("user no longer in special table", slog.String("user_id", userID))
+			sentry.GetHubFromContext(ctx).
+				WithScope(func(scope *sentry.Scope) {
+					scope.SetExtra("user_id", userID)
+					sentry.CaptureMessage("user no longer in special table")
+				})
 		}
 	}
 
 	// fetch active user notification
 	userActiveNotification, userNotiErr := db.GetActiveUserNotificationByUserID(ctx, userID)
-
 	if userNotiErr != nil {
-		return UserMembershipRes{}, fmt.Errorf("error while getting active user notification: %w", userNotiErr)
+		return UserMembershipRes{}, fmt.Errorf("db.GetActiveUserNotificationByUserID: %w", userNotiErr)
 	}
 
 	var userNotiSlug []UserMembershipNotification
@@ -911,7 +932,7 @@ func (db *ProfileDB) GetAutomaticMembershipByMembershipID(ctx context.Context, m
 		if err == pgx.ErrNoRows {
 			return MembershipAutomatic{}, common.ErrNotFound
 		}
-		return MembershipAutomatic{}, fmt.Errorf("error while getting membership: %w", err)
+		return MembershipAutomatic{}, fmt.Errorf("db.QueryRow: %w", err)
 	}
 
 	return autoMembership, nil
@@ -938,7 +959,7 @@ func (db *ProfileDB) getSpecialMembershipByMembershipID(ctx context.Context, mem
 		if err == pgx.ErrNoRows {
 			return MembershipSpecial{}, common.ErrNotFound
 		}
-		return MembershipSpecial{}, fmt.Errorf("error while getting membership: %w", err)
+		return MembershipSpecial{}, fmt.Errorf("db.QueryRow: %w", err)
 	}
 
 	return specialMembership, nil
@@ -971,7 +992,7 @@ func (db *ProfileDB) getManualMembershipByMembershipID(ctx context.Context, memb
 		if err == pgx.ErrNoRows {
 			return MembershipManual{}, common.ErrNotFound
 		}
-		return MembershipManual{}, fmt.Errorf("error while getting membership: %w", err)
+		return MembershipManual{}, fmt.Errorf("db.QueryRow: %w", err)
 	}
 
 	return manualMembership, nil
@@ -1002,7 +1023,7 @@ func (db *ProfileDB) getHelphaverMembershipByMembershipID(ctx context.Context, m
 		if err == pgx.ErrNoRows {
 			return MembershipHelpHaver{}, common.ErrNotFound
 		}
-		return MembershipHelpHaver{}, fmt.Errorf("error while getting membership: %w", err)
+		return MembershipHelpHaver{}, fmt.Errorf("db.QueryRow: %w", err)
 	}
 
 	return helphaverMembership, nil
@@ -1021,7 +1042,7 @@ func (db *ProfileDB) PatchMembershipByID(ctx context.Context, membership Members
 			if err == pgx.ErrNoRows {
 				return 0, common.ErrNotFound
 			}
-			return 0, fmt.Errorf("problem updating membership: %w", err)
+			return 0, err
 		}
 
 		return membershipID, nil
@@ -1036,26 +1057,31 @@ func (db *ProfileDB) CancelMembership(ctx context.Context, membBody EmailKeycloa
 
 	if membBody.UserID != nil && *membBody.UserID != "" {
 		if err := db.QueryRow(ctx, `SELECT primary_email FROM users WHERE user_id=$1`, *membBody.UserID).Scan(&email); err != nil {
-			return fmt.Errorf("error while getting user email: %w", err)
+			return fmt.Errorf("db.QueryRow [email from user_id]: %w", err)
 		}
 		user_id = *membBody.UserID
 	} else if membBody.KeycloakID != nil && *membBody.KeycloakID != "" {
 		if err := db.QueryRow(ctx, `SELECT primary_email, user_id FROM users WHERE keycloak_id=$1`, *membBody.KeycloakID).Scan(&email, &user_id); err != nil {
-			return fmt.Errorf("error while getting user email: %w", err)
+			return fmt.Errorf("db.QueryRow [email from keycloak_id]: %w", err)
 		}
 	} else {
 		if err := db.QueryRow(ctx, `SELECT user_id FROM users WHERE primary_email=$1`, *membBody.Email).Scan(&user_id); err != nil {
-			return fmt.Errorf("error while getting user id: %w", err)
+			return fmt.Errorf("db.QueryRow [user_id from email]: %w", err)
 		}
 		email = *membBody.Email
 	}
 
 	tx, txErr := db.Begin(ctx)
 	if txErr != nil {
-		return txErr
+		return fmt.Errorf("db.Begin: %w", txErr)
 	}
 
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer func() error {
+		if err := tx.Rollback(ctx); err != nil {
+			return fmt.Errorf("tx.Rollback: %w", txErr)
+		}
+		return nil
+	}()
 
 	ordersService := db.ordersServiceFactory()
 
@@ -1082,11 +1108,11 @@ func (db *ProfileDB) CancelMembership(ctx context.Context, membBody EmailKeycloa
 	// cancel grants
 	_, err = db.Exec(ctx, `UPDATE "grant" SET cancelled_at=$1 WHERE user_id=$2 AND type LIKE 'mb_%' AND cancelled_at IS NULL`, time.Now(), user_id)
 	if err != nil {
-		return fmt.Errorf("error while updating grant: %w", err)
+		return fmt.Errorf("db.Exec [cancel grant]: %w", err)
 	}
 
 	if err = tx.Commit(ctx); err != nil {
-		return err
+		return fmt.Errorf("tx.Commit: %w", txErr)
 	}
 
 	_, err = db.EvaluateMembershipByUserID(ctx, membBody)
@@ -1099,10 +1125,7 @@ func (db *ProfileDB) CancelMembership(ctx context.Context, membBody EmailKeycloa
 
 func (db *ProfileDB) SoftDeleteMembershipByID(ctx context.Context, id int) error {
 	_, err := db.Exec(ctx, `UPDATE membership SET deleted_at=$1 WHERE id=$2`, time.Now(), id)
-	if err != nil {
-		return fmt.Errorf("problem soft deleting membership: %w", err)
-	}
-	return nil
+	return err
 }
 
 func (db *ProfileDB) deleteAllMembershipSubTableByMembershipID(ctx context.Context, membershipID int) error {
@@ -1110,22 +1133,33 @@ func (db *ProfileDB) deleteAllMembershipSubTableByMembershipID(ctx context.Conte
 	// start transaction
 	tx, txErr := db.Begin(ctx)
 	if txErr != nil {
-		return fmt.Errorf("problem starting transaction: %w", txErr)
+		return fmt.Errorf("db.Begin: %w", txErr)
 	}
 
 	// run delete on all sub tables
-	_, membership_manualErr := tx.Exec(ctx, `DELETE FROM membership_manual WHERE membership_id=$1`, membershipID)
-	_, membership_specialErr := tx.Exec(ctx, `DELETE FROM membership_special WHERE membership_id=$1`, membershipID)
-	_, membership_automaticErr := tx.Exec(ctx, `DELETE FROM membership_automatic WHERE membership_id=$1`, membershipID)
-	_, membership_helphaverErr := tx.Exec(ctx, `DELETE FROM membership_helphaver WHERE membership_id=$1`, membershipID)
+	_, err := tx.Exec(ctx, `DELETE FROM membership_manual WHERE membership_id=$1`, membershipID)
+	if err != nil {
+		return fmt.Errorf("tx.Exec [manual]: %w", err)
+	}
 
-	if membership_manualErr != nil || membership_specialErr != nil || membership_automaticErr != nil || membership_helphaverErr != nil {
-		return fmt.Errorf("problem deleting membership sub table: %w", membership_manualErr)
+	_, err = tx.Exec(ctx, `DELETE FROM membership_special WHERE membership_id=$1`, membershipID)
+	if err != nil {
+		return fmt.Errorf("tx.Exec [special]: %w", err)
+	}
+
+	_, err = tx.Exec(ctx, `DELETE FROM membership_automatic WHERE membership_id=$1`, membershipID)
+	if err != nil {
+		return fmt.Errorf("tx.Exec [automatic]: %w", err)
+	}
+
+	_, err = tx.Exec(ctx, `DELETE FROM membership_helphaver WHERE membership_id=$1`, membershipID)
+	if err != nil {
+		return fmt.Errorf("tx.Exec [helphaver]: %w", err)
 	}
 
 	// commit transaction
 	if commitErr := tx.Commit(ctx); commitErr != nil {
-		return fmt.Errorf("problem committing transaction: %w", commitErr)
+		return fmt.Errorf("tx.Commit: %w", commitErr)
 	}
 
 	return nil
@@ -1150,8 +1184,7 @@ func (db *ProfileDB) GetMultipleMembership(ctx context.Context, intSkip int, int
 		orderByQuery+
 		" LIMIT $1 OFFSET $2", intLimit, intSkip)
 	if err != nil {
-		fmt.Println("--error-while-executing-query", err)
-		return []Membership{}, err
+		return []Membership{}, fmt.Errorf("db.Query: %w", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
@@ -1166,7 +1199,7 @@ func (db *ProfileDB) GetMultipleMembership(ctx context.Context, intSkip int, int
 			&r.UpdatedAt,
 			&r.DeletedAt,
 		); err != nil {
-			return []Membership{}, err
+			return []Membership{}, fmt.Errorf("rows.Scan: %w", err)
 		}
 
 		memberships = append(memberships, r)

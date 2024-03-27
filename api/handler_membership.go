@@ -14,26 +14,21 @@ import (
 )
 
 func (p *ProfileManager) handleMembershipFetchByID(c *gin.Context) {
-
 	id := c.Param("id")
-
-	// convert id to int
 	membershipID, err := strconv.Atoi(id)
-
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
 
 	res, dbErr := p.repo.GetMembershipByID(c.Request.Context(), membershipID)
-
 	if dbErr != nil {
 		if errors.Is(dbErr, common.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": dbErr.Error()})
+			c.Status(http.StatusNotFound)
 			return
 		}
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while getting users: %w", dbErr))
+		_ = c.Error(fmt.Errorf("repo.GetMembershipByID: %w", dbErr))
 		return
 	}
 
@@ -48,14 +43,13 @@ func (p *ProfileManager) handleMembershipFetchByKCID(c *gin.Context) {
 	}
 
 	res, dbErr := p.repo.GetMembershipByKCID(c.Request.Context(), kcID)
-
 	if dbErr != nil {
 		if errors.Is(dbErr, common.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": dbErr.Error()})
+			c.Status(http.StatusNotFound)
 			return
 		}
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while getting membership: %w", dbErr))
+		_ = c.Error(fmt.Errorf("repo.GetMembershipByKCID: %w", dbErr))
 		return
 	}
 
@@ -70,14 +64,13 @@ func (p *ProfileManager) handleMembershipFetchByUserID(c *gin.Context) {
 	}
 
 	res, dbErr := p.repo.GetMembershipByUserID(c.Request.Context(), userID)
-
 	if dbErr != nil {
 		if errors.Is(dbErr, common.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": dbErr.Error()})
+			c.Status(http.StatusNotFound)
 			return
 		}
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while getting membership: %w", dbErr))
+		_ = c.Error(fmt.Errorf("repo.GetMembershipByUserID: %w", dbErr))
 		return
 	}
 
@@ -85,12 +78,8 @@ func (p *ProfileManager) handleMembershipFetchByUserID(c *gin.Context) {
 }
 
 func (p *ProfileManager) handleMembershipPatchByID(c *gin.Context) {
-
 	id := c.Param("id")
-
-	// convert id to int
 	membershipID, err := strconv.Atoi(id)
-
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -104,10 +93,9 @@ func (p *ProfileManager) handleMembershipPatchByID(c *gin.Context) {
 	}
 
 	_, patchErr := p.repo.PatchMembershipByID(c.Request.Context(), membership, membershipID)
-
 	if patchErr != nil {
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while updating membership: %w", patchErr))
+		_ = c.Error(fmt.Errorf("repo.PatchMembershipByID: %w", patchErr))
 		return
 	}
 
@@ -130,8 +118,7 @@ func (p *ProfileManager) handleMembershipCancellation(c *gin.Context) {
 	if membCancel.KeycloakID != nil && *membCancel.KeycloakID != "" {
 		_, err := uuid.FromString(*membCancel.KeycloakID)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			_ = c.Error(err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("malformed keycloak_id: %v", err)})
 			return
 		}
 	}
@@ -139,8 +126,7 @@ func (p *ProfileManager) handleMembershipCancellation(c *gin.Context) {
 	if membCancel.UserID != nil && *membCancel.UserID != "" {
 		_, userIDErr := uuid.FromString(*membCancel.UserID)
 		if userIDErr != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": userIDErr.Error()})
-			_ = c.Error(userIDErr)
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("malformed user_id: %v", userIDErr)})
 			return
 		}
 	}
@@ -148,7 +134,7 @@ func (p *ProfileManager) handleMembershipCancellation(c *gin.Context) {
 	err := p.repo.CancelMembership(c.Request.Context(), membCancel)
 	if err != nil {
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while updating membership: %w", err))
+		_ = c.Error(fmt.Errorf("repo.CancelMembership: %w", err))
 		return
 	}
 
@@ -156,7 +142,6 @@ func (p *ProfileManager) handleMembershipCancellation(c *gin.Context) {
 }
 
 func (p *ProfileManager) handleMembershipEvaluationByUserID(c *gin.Context) {
-
 	var evalbody repo.EmailKeycloakAndUserIDBody
 
 	if err := c.ShouldBindJSON(&evalbody); err != nil {
@@ -170,10 +155,9 @@ func (p *ProfileManager) handleMembershipEvaluationByUserID(c *gin.Context) {
 	}
 
 	userMembershipRes, evaluateErr := p.repo.EvaluateMembershipByUserID(c.Request.Context(), evalbody)
-
 	if evaluateErr != nil {
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while evaluating membership: %w", evaluateErr))
+		_ = c.Error(fmt.Errorf("repo.EvaluateMembershipByUserID: %w", evaluateErr))
 		return
 	}
 
@@ -181,12 +165,8 @@ func (p *ProfileManager) handleMembershipEvaluationByUserID(c *gin.Context) {
 }
 
 func (p *ProfileManager) handleMembershipSoftDeleteByID(c *gin.Context) {
-
 	id := c.Param("id")
-
-	// convert id to int
 	membershipID, err := strconv.Atoi(id)
-
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -200,10 +180,9 @@ func (p *ProfileManager) handleMembershipSoftDeleteByID(c *gin.Context) {
 	}
 
 	patchErr := p.repo.SoftDeleteMembershipByID(c.Request.Context(), membershipID)
-
 	if patchErr != nil {
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while creating membership: %w", patchErr))
+		_ = c.Error(fmt.Errorf("repo.SoftDeleteMembershipByID: %w", patchErr))
 		return
 	}
 
@@ -239,12 +218,8 @@ func (p *ProfileManager) handleMembershipFetchAll(c *gin.Context) {
 
 	res, err := p.repo.GetMultipleMembership(c.Request.Context(), intSkip, intLimit, userID)
 	if err != nil {
-		if errors.Is(err, common.ErrUserNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-			return
-		}
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while getting users: %w", err))
+		_ = c.Error(fmt.Errorf("repo.GetMultipleMembership(: %w", err))
 		return
 	}
 

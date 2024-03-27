@@ -177,7 +177,6 @@ func Test_profileHandler_get_returns_404_when_storage_returns_errProfileNotFound
 	g.ServeHTTP(w, r)
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
-	assert.JSONEq(t, `{"error":"no profile found for keycloak id: \"example string\""}`, w.Body.String())
 }
 
 func Test_profileHandler_get_returns_500_when_storage_returns_error(t *testing.T) {

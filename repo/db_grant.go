@@ -15,7 +15,8 @@ import (
 
 type grantInterface interface {
 	GetGrantByID(ctx context.Context, id int) (Grant, error)
-	GetMultipleGrant(ctx context.Context, intSkip int, intLimit int, boolCancelled *bool, userID string, grantType string, createdAt string) ([]Grant, error)
+	GetMultipleGrant(ctx context.Context, intSkip int, intLimit int, boolCancelled *bool, userID string, grantType string,
+		createdAt string) ([]Grant, error)
 }
 
 type Grant struct {
@@ -46,13 +47,14 @@ func (db *ProfileDB) GetGrantByID(ctx context.Context, id int) (Grant, error) {
 		if err == pgx.ErrNoRows {
 			return Grant{}, common.ErrNotFound
 		}
-		return Grant{}, fmt.Errorf("error while getting grant: %w", err)
+		return Grant{}, err
 	}
 
 	return grant, nil
 }
 
-func (db *ProfileDB) GetMultipleGrant(ctx context.Context, intSkip int, intLimit int, cancelled *bool, userID string, grantType string, createdAt string) ([]Grant, error) {
+func (db *ProfileDB) GetMultipleGrant(ctx context.Context, intSkip int, intLimit int, cancelled *bool, userID string, grantType string,
+	createdAt string) ([]Grant, error) {
 	grants := []Grant{}
 
 	userDbWhereQuery, orderByQuery := buildAndGetWhereGrantQuery(cancelled, userID, grantType, createdAt)
@@ -69,8 +71,7 @@ func (db *ProfileDB) GetMultipleGrant(ctx context.Context, intSkip int, intLimit
 		cancelled_at
 		FROM "grant" `+userDbWhereQuery+orderByQuery+" LIMIT $1 OFFSET $2", intLimit, intSkip)
 	if err != nil {
-		fmt.Println("--error-while-executing-query", err)
-		return []Grant{}, err
+		return []Grant{}, fmt.Errorf("db.Query: %w", err)
 	}
 
 	defer rows.Close()
@@ -86,10 +87,14 @@ func (db *ProfileDB) GetMultipleGrant(ctx context.Context, intSkip int, intLimit
 			&r.UpdatedAt,
 			&r.CancelledAt,
 		); err != nil {
-			return []Grant{}, err
+			return []Grant{}, fmt.Errorf("rows.Scan: %w", err)
 		}
 
 		grants = append(grants, r)
+	}
+
+	if err := rows.Err(); err != nil {
+		return grants, fmt.Errorf("rows.Err: %w", err)
 	}
 
 	return grants, nil
@@ -104,7 +109,7 @@ func (db *ProfileDB) createGrant(ctx context.Context, req Grant) (int, error) {
 	var ID int
 	if err := db.QueryRow(ctx, fmt.Sprintf(`INSERT INTO "grant" (%s) VALUES (%s) RETURNING id`, createString, numString),
 		createQueryArgs...).Scan(&ID); err != nil {
-		return 0, fmt.Errorf("problem creating grant: %w", err)
+		return 0, err
 	}
 
 	return ID, nil

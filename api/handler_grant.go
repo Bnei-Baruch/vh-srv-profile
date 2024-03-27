@@ -18,18 +18,18 @@ func (p *ProfileManager) handleGrantFetchByID(c *gin.Context) {
 	// convert id to int
 	grantID, err := strconv.Atoi(id)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("malformed id: %v", err)})
 		return
 	}
 
 	res, dbErr := p.repo.GetGrantByID(c.Request.Context(), grantID)
 	if dbErr != nil {
 		if errors.Is(dbErr, common.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": dbErr.Error()})
+			c.Status(http.StatusNotFound)
 			return
 		}
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while getting users: %w", dbErr))
+		_ = c.Error(fmt.Errorf("repo.GetGrantByID: %w", dbErr))
 		return
 	}
 
@@ -50,7 +50,7 @@ func (p *ProfileManager) handleGrantFetchAll(c *gin.Context) {
 	if cancelled != "" {
 		val, err := strconv.ParseBool(cancelled)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid parameter [cancelled]"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("malformed parameter [cancelled]: %v", err)})
 			return
 		}
 		boolCancelled = utils.PointerBool(val)
@@ -79,12 +79,8 @@ func (p *ProfileManager) handleGrantFetchAll(c *gin.Context) {
 
 	res, err := p.repo.GetMultipleGrant(c.Request.Context(), intSkip, intLimit, boolCancelled, userID, grantType, createdAt)
 	if err != nil {
-		if errors.Is(err, common.ErrUserNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-			return
-		}
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while getting users: %w", err))
+		_ = c.Error(fmt.Errorf("repo.GetMultipleGrant: %w", err))
 		return
 	}
 

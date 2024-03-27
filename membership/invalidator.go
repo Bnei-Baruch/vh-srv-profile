@@ -3,9 +3,10 @@ package membership
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
+	"github.com/getsentry/sentry-go"
 	uuid "github.com/satori/go.uuid"
 
 	"gitlab.bbdev.team/vh/vh-srv-profile/repo"
@@ -24,25 +25,26 @@ func (in *Invalidator) String() string {
 }
 
 func (in *Invalidator) do() error {
-	log.Printf("Invalidating memberships expiring before %s\n", time.Now().UTC())
+	slog.Info("invalidating memberships about to expire", slog.Time("before", time.Now().UTC()))
 
 	memberships, err := in.getExpiredMemberships()
 	if err != nil {
 		return fmt.Errorf("getExpiredMemberships: %w", err)
 	}
-	log.Printf("Got %d memberships to invalidate \n", len(memberships))
+	slog.Info("memberships to invalidate", slog.Int("count", len(memberships)))
 
 	evalResults := make(map[*uuid.UUID]repo.UserMembershipRes)
 	for _, membership := range memberships {
 		res, err := in.evalUserID(membership.UserID.String())
 		if err != nil {
-			log.Printf("ERROR: evalUser %s: %s\n", membership.UserID, err)
+			slog.Error("evalUser", slog.String("user_id", membership.UserID.String()), slog.Any("err", err))
+			sentry.CaptureException(err)
 		} else {
 			evalResults[membership.UserID] = res
 		}
 	}
 
-	log.Printf("%d eval results\n", len(evalResults))
+	slog.Info("eval results", slog.Int("count", len(evalResults)))
 
 	active := 0
 	inactive := 0
@@ -51,10 +53,11 @@ func (in *Invalidator) do() error {
 			active++
 		} else {
 			inactive++
-			log.Printf("membership is now inactive, user_id: %s, type: %s expiry: %s\n", k, *v.Type, v.Expiry)
+			slog.Info("membership is now inactive",
+				slog.String("user_id", k.String()), slog.String("type", *v.Type), slog.Time("expiry", *v.Expiry))
 		}
 	}
-	log.Printf("%d active, %d inactive\n", active, inactive)
+	slog.Info("results", slog.Int("active", active), slog.Int("inactive", inactive))
 
 	return nil
 }

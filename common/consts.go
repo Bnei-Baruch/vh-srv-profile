@@ -4,6 +4,8 @@ const (
 	ServiceName = "vh-srv-profile"
 
 	CtxTokenSource = "TOKEN_SOURCE"
+	CtxRequestID   = "REQUEST_ID"
+	CtxLogger      = "LOGGER"
 
 	RequestTypeHelpHaver   = "hhmembership"
 	RequestStatusRequested = "REQUESTED"
@@ -25,3 +27,6 @@ const (
 	WhatsApp = "WhatsApp"
 	Telegram = "Telegram"
 )
+
+// This gets set at build time via `-ldflags "-X ..."`
+var GitSHA string = "local"

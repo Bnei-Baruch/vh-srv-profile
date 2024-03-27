@@ -16,17 +16,28 @@ type deleteStorage interface {
 func (db *ProfileDB) DeleteProfile(ctx context.Context, keycloakID uuid.UUID) error {
 	tx, err := db.Begin(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("db.Begin: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+
+	defer func() error {
+		err := tx.Rollback(ctx)
+		if err != nil {
+			return fmt.Errorf("tx.Rollback: %w", err)
+		}
+		return nil
+	}()
 
 	tag, err := tx.Exec(ctx, `UPDATE users SET deleted=true WHERE keycloak_id=$1`, keycloakID)
 	if err != nil {
-		return fmt.Errorf("problem deleting user for keycloak id %q: %w", keycloakID, err)
+		return fmt.Errorf("tx.Exec: %w", err)
 	}
 	if tag.RowsAffected() != 1 {
-		return fmt.Errorf("%w: %q", common.ErrProfileNotFound, keycloakID)
+		return common.ErrProfileNotFound
 	}
 
-	return tx.Commit(ctx)
+	err = tx.Commit(ctx)
+	if err != nil {
+		return fmt.Errorf("tx.Commit: %w", err)
+	}
+	return nil
 }

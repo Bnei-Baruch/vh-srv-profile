@@ -17,20 +17,17 @@ func (p *ProfileManager) createRequest(c *gin.Context) {
 
 	if err := c.ShouldBind(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		_ = c.Error(err)
 		return
 	}
 
 	if request.KeycloakId == nil || request.RequestName == nil {
-		err := fmt.Errorf("missing a required field in provided request: %#v", request)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		_ = c.Error(err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing required field, keycloak_id and name are mandatory"})
 		return
 	}
 
 	if err := p.repo.CreateRequest(c.Request.Context(), request); err != nil {
-		_ = c.Error(fmt.Errorf("error while creating request %q: %w", *request.KeycloakId, err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.Status(http.StatusInternalServerError)
+		_ = c.Error(fmt.Errorf("repo.CreateRequest: %w", err))
 		return
 	}
 
@@ -42,14 +39,12 @@ func (p *ProfileManager) concludeRequest(c *gin.Context) {
 
 	if err := c.ShouldBind(&conclusion); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		_ = c.Error(err)
 		return
 	}
 
 	reqID, err := strconv.Atoi(c.Params.ByName("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprint("malformed request id: ", err.Error())})
-		_ = c.Error(err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("malformed request id: %v", err.Error())})
 		return
 	}
 
@@ -57,8 +52,8 @@ func (p *ProfileManager) concludeRequest(c *gin.Context) {
 		if errors.Is(err, common.ErrNotFound) {
 			c.Status(http.StatusNotFound)
 		} else {
-			_ = c.Error(fmt.Errorf("error concluding request %d: %w", reqID, err))
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			c.Status(http.StatusInternalServerError)
+			_ = c.Error(fmt.Errorf("repo.ConcludeRequest: %w", err))
 		}
 
 		return
