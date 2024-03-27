@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
+
+	"github.com/getsentry/sentry-go"
 
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/keycloak"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/orders"
+	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/utils"
 	"gitlab.bbdev.team/vh/vh-srv-profile/repo"
 )
 
@@ -43,32 +46,47 @@ func NewEventsHandler(repo repo.ProfileRepository) *EventsHandler {
 }
 
 func (eh *EventsHandler) HandleOrdersEvent(event orders.Event) {
+	ctx := eh.newContext(event)
+
 	if eh.shouldSkip(event) {
 		return
 	}
 
-	ctx := context.WithValue(context.Background(), common.CtxTokenSource, eh.kcTokenSource)
-
 	userIDs, err := eh.getUserIDs(ctx, event)
 	if err != nil {
 		if !errors.Is(err, errSkip) {
-			log.Printf("ERROR: membership.EventsHandler.handleOrdersEvent getUserIDs: %v\n", err)
+			utils.LogFor(ctx).Error("membership.EventsHandler.HandleOrdersEvent getUserIDs", slog.Any("err", err))
+			sentry.CaptureException(err)
 		}
 		return
 	}
 
 	if userIDs == nil {
-		log.Printf("WARNING: membership.EventsHandler.handleOrdersEvent no user IDs: %s %+v\n",
-			event.Type, event.Payload)
+		utils.LogFor(ctx).Warn("membership.EventsHandler.HandleOrdersEvent no user IDs",
+			slog.String("event_type", event.Type), slog.Any("event_payload", event.Payload))
+		sentry.CaptureMessage("membership.EventsHandler.HandleOrdersEvent no user IDs")
 		return
 	}
 
-	log.Printf("INFO: membership.EventsHandler.handleOrdersEvent eval membership for %s %s\n",
-		*userIDs.Email, *userIDs.KeycloakID)
 	_, err = eh.repo.EvaluateMembershipByUserID(ctx, *userIDs)
 	if err != nil {
-		log.Printf("ERROR: membership.EventsHandler.handleOrdersEvent repo.EvaluateMembershipByUserID: %v\n", err)
+		utils.LogFor(ctx).Error("membership.EventsHandler.HandleOrdersEvent repo.EvaluateMembershipByUserID", slog.Any("err", err))
+		sentry.CaptureException(err)
 	}
+}
+
+func (eh *EventsHandler) newContext(event orders.Event) context.Context {
+	logger := slog.Default().With(slog.String("nats_nuid", event.ID))
+	ctx := context.WithValue(context.Background(), common.CtxLogger, logger)
+	ctx = context.WithValue(ctx, common.CtxTokenSource, eh.kcTokenSource)
+
+	hub := sentry.CurrentHub().Clone()
+	hub.ConfigureScope(func(scope *sentry.Scope) {
+		scope.SetTag("nats_nuid", event.ID)
+	})
+	ctx = sentry.SetHubOnContext(ctx, hub)
+
+	return ctx
 }
 
 func (eh *EventsHandler) shouldSkip(event orders.Event) bool {

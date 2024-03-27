@@ -18,23 +18,28 @@ type updateStorage interface {
 func (db *ProfileDB) UpdateProfile(ctx context.Context, keycloakID uuid.UUID, user UserInput) error {
 	tx, err := db.Begin(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("db.Begin: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer func() error {
+		if err := tx.Rollback(ctx); err != nil {
+			return fmt.Errorf("tx.Rollback: %w", err)
+		}
+		return nil
+	}()
 
 	var userID uuid.UUID
 	if err = tx.QueryRow(ctx, `SELECT user_id FROM users WHERE keycloak_id=$1 AND deleted=false`, keycloakID).Scan(&userID); err != nil {
 		if err == pgx.ErrNoRows {
-			return fmt.Errorf("%w: %q", common.ErrProfileNotFound, keycloakID)
+			return common.ErrProfileNotFound
 		}
-		return fmt.Errorf("problem finding profile for keycloak id %q: %w", keycloakID, err)
+		return fmt.Errorf("tx.QueryRow: %w", err)
 	}
 
 	usersToUpdate, usersArgs := prepareUserUpdate(user)
 	if len(usersArgs) != 0 {
 		if _, err = tx.Exec(ctx, fmt.Sprintf(`UPDATE users SET %s WHERE user_id='%s'`, usersToUpdate, userID),
 			usersArgs...); err != nil {
-			return fmt.Errorf("problem updating users: %w", err)
+			return fmt.Errorf("tx.Exec [user]: %w", err)
 		}
 	}
 
@@ -47,7 +52,7 @@ func (db *ProfileDB) UpdateProfile(ctx context.Context, keycloakID uuid.UUID, us
 		DO 
 			UPDATE SET phone_number=EXCLUDED.phone_number`, phonesToUpdate),
 			phoneArgs...); err != nil {
-			return err
+			return fmt.Errorf("tx.Exec [phone]: %w", err)
 		}
 	}
 
@@ -58,18 +63,22 @@ func (db *ProfileDB) UpdateProfile(ctx context.Context, keycloakID uuid.UUID, us
 		updateRes, err := tx.Exec(ctx, fmt.Sprintf(`UPDATE status SET %s WHERE user_id='%s'`, userStatusToUpdate, userID),
 			userStatusArgs...)
 		if err != nil {
-			return fmt.Errorf("problem updating users status: %w", err)
+			return fmt.Errorf("tx.Exec [status]: %w", err)
 		}
 
 		/* Add new status row for the user if 0 rows are affected i.e. user status is not present in status table */
 		if updateRes.RowsAffected() == 0 {
-			if err := insertUserMembershipStatus(tx, userID, user.Status.Membership, user.Status.MembershipType, user.Status.Ticket, user.Status.Convention, user.Status.Galaxy); err != nil {
-				return err
+			if err := insertUserMembershipStatus(ctx, tx, userID, user.Status.Membership, user.Status.MembershipType, user.Status.Ticket, user.Status.Convention, user.Status.Galaxy); err != nil {
+				return fmt.Errorf("insertUserMembershipStatus: %w", err)
 			}
 		}
 	}
 
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("tx.Commit: %w", err)
+	}
+
+	return nil
 }
 
 func prepareUserUpdate(user UserInput) (string, []interface{}) {

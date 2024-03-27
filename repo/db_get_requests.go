@@ -65,6 +65,7 @@ func (db *ProfileDB) GetRequestByID(ctx context.Context, id int) (*NewRequest, e
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, common.ErrNotFound
 		}
+		return nil, fmt.Errorf("db.QueryRow: %w", err)
 	}
 
 	request.ID = &id
@@ -85,8 +86,7 @@ func (db *ProfileDB) GetMultipleRequest(ctx context.Context, intSkip int, intLim
 		orderByQuery+
 		" LIMIT $1 OFFSET $2", intLimit, intSkip)
 	if err != nil {
-		fmt.Println("--error-while-executing-query", err)
-		return []RequestAndGrant{}, err
+		return []RequestAndGrant{}, fmt.Errorf("db.Query: %w", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
@@ -109,10 +109,14 @@ func (db *ProfileDB) GetMultipleRequest(ctx context.Context, intSkip int, intLim
 			&r.Grant.CancelledAt,
 			&r.Grant.Properties,
 		); err != nil {
-			return []RequestAndGrant{}, err
+			return []RequestAndGrant{}, fmt.Errorf("rows.Scan: %w", err)
 		}
 
 		requests = append(requests, r)
+	}
+
+	if err := rows.Err(); err != nil {
+		return []RequestAndGrant{}, fmt.Errorf("rows.Err: %w", err)
 	}
 
 	return requests, nil

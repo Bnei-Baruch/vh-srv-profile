@@ -15,19 +15,18 @@ import (
 func (p *ProfileManager) update(c *gin.Context) {
 	keycloakIDString, ok := c.Params.Get("keycloak_id")
 	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "keycloak ID missing"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing keycloak_id path param"})
 		return
 	}
 	keycloakID, err := uuid.FromString(keycloakIDString)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("malformed keycloak_id: %v", err)})
 		return
 	}
 
 	var request profileRequest
 	if err := c.Bind(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		_ = c.Error(err)
 		return
 	}
 
@@ -82,11 +81,11 @@ func (p *ProfileManager) update(c *gin.Context) {
 		},
 	}); err != nil {
 		if errors.Is(err, common.ErrProfileNotFound) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			c.Status(http.StatusNotFound)
 			return
 		}
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while updating user %q: %w", keycloakID, err))
+		_ = c.Error(fmt.Errorf("repo.UpdateProfile: %w", err))
 		return
 	}
 
@@ -96,7 +95,7 @@ func (p *ProfileManager) update(c *gin.Context) {
 
 	if updateErr != nil {
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while syncing user with keycloak %s: %w", keycloakID, updateErr))
+		_ = c.Error(fmt.Errorf("keycloakService.UpdateUser: %w", updateErr))
 		return
 	}
 

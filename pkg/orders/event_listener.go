@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"runtime/debug"
 	"time"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 
@@ -93,12 +94,15 @@ func (el *EventListener) Run() error {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				log.Printf("ERROR: EventListener runner goroutine panic: %v\n", r)
+				slog.Error("EventListener.Run panic", slog.Any("err", err))
+				sentry.CurrentHub().Recover(r)
 				debug.PrintStack()
 
 				el.consumerCtx.Stop()
 				if err := el.Run(); err != nil {
-					log.Fatalf("EventListener runner goroutine error re-run after panic: %v\n", err)
+					slog.Error("EventListener.Run error re-run after panic", slog.Any("err", err))
+					sentry.CaptureException(err)
+					panic(r)
 				}
 			}
 		}()
@@ -108,7 +112,7 @@ func (el *EventListener) Run() error {
 				handler(event)
 			}
 		}
-		log.Println("DEBUG: EventListener runner goroutine exit")
+		slog.Debug("EventListener runner goroutine exit")
 	}()
 
 	return nil
@@ -125,11 +129,12 @@ func (el *EventListener) RegisterHandler(handler EventHandler) {
 }
 
 func (el *EventListener) handleMessage(msg jetstream.Msg) {
-	log.Printf("DEBUG: EventListener.handleMessage: %s\n", msg.Data())
+	slog.Debug("EventListener.handleMessage", slog.Any("data", msg.Data()))
 
 	var event Event
 	if err := json.Unmarshal(msg.Data(), &event); err != nil {
-		log.Printf("ERROR: EventListener.handleMessage json.Unmarshal: %v \n", err)
+		slog.Error("EventListener.handleMessage json.Unmarshal", slog.Any("err", err))
+		sentry.CaptureException(err)
 	}
 
 	el.queue <- event

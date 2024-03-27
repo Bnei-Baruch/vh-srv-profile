@@ -19,18 +19,19 @@ func (p *ProfileManager) delete(c *gin.Context) {
 	}
 	keycloakID, err := uuid.FromString(keycloakIDString)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		_ = c.Error(err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("malformed keycloak_id: %v", err)})
 		return
 	}
 
 	if err := p.repo.DeleteProfile(c.Request.Context(), keycloakID); err != nil {
 		if errors.Is(err, common.ErrProfileNotFound) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			c.Status(http.StatusNotFound)
 			return
 		}
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while getting user %q: %w", keycloakIDString, err))
+		_ = c.Error(fmt.Errorf("repo.DeleteProfile: %w", err))
 		return
 	}
+
+	c.Status(http.StatusOK)
 }

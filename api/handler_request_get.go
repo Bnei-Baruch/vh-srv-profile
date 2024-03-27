@@ -51,12 +51,12 @@ func (p *ProfileManager) getRequests(c *gin.Context) {
 
 	res, err := p.repo.GetMultipleRequest(c.Request.Context(), intSkip, intLimit, kcid, status, name, typeFilter, orderByCreatedAt)
 	if err != nil {
-		if errors.Is(err, common.ErrUserNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		if errors.Is(err, common.ErrNotFound) {
+			c.Status(http.StatusNotFound)
 			return
 		}
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while getting users: %w", err))
+		_ = c.Error(fmt.Errorf("repo.GetMultipleRequest: %w", err))
 		return
 	}
 

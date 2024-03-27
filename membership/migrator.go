@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -34,24 +34,24 @@ func (m *Migrator) do() error {
 	if err != nil {
 		return fmt.Errorf("getAllUsers: %w", err)
 	}
-	log.Printf("Got %d users\n", len(users))
+	slog.Info("getAllUsers", slog.Int("count", len(users)))
 
 	evalResults := make(map[*uuid.UUID]repo.UserMembershipRes)
 	for i, user := range users {
 		if i%100 == 0 {
-			log.Printf("evalUser: %d / %d\n", i, len(users))
+			slog.Debug("evalUser", slog.Int("position", i), slog.Int("total", len(users)))
 		}
 		res, err := m.evalUser(user)
 		if err != nil {
-			log.Printf("Error: evalUser %s: %s\n", user.UserID, err)
+			slog.Error("evalUser", slog.String("user_id", user.UserID.String()), slog.Any("err", err))
 		} else {
 			evalResults[user.UserID] = res
 		}
 	}
-	log.Printf("%d eval results\n", len(evalResults))
+	slog.Info("eval results", slog.Int("count", len(evalResults)))
 
 	if err := m.report(users, evalResults); err != nil {
-		log.Fatalf("Error generating report: %s\n", err)
+		utils.LogFatal("Migrator.report", slog.Any("err", err))
 	}
 
 	return nil
@@ -82,7 +82,11 @@ func (m *Migrator) getAllUsers() ([]repo.User, error) {
 }
 
 func (m *Migrator) evalUser(user repo.User) (repo.UserMembershipRes, error) {
-	log.Printf("evalUser %s %s %s\n", user.UserID, user.UserInput.KeycloakID, *user.UserInput.Emails.Primary)
+	slog.Debug("evalUser",
+		slog.String("user_id", user.UserID.String()),
+		slog.String("kc_id", user.UserInput.KeycloakID.String()),
+		slog.String("email", *user.UserInput.Emails.Primary))
+
 	ids := repo.EmailKeycloakAndUserIDBody{
 		UserID:     utils.PointerString(user.UserID.String()),
 		KeycloakID: utils.PointerString(user.UserInput.KeycloakID.String()),
@@ -138,12 +142,12 @@ func (m *Migrator) report(users []repo.User, evalResults map[*uuid.UUID]repo.Use
 
 	for i, user := range users {
 		if i%100 == 0 {
-			log.Printf("report: %d / %d\n", i, len(users))
+			slog.Debug("report", slog.Int("position", i), slog.Int("total", len(users)))
 		}
 
 		evalRes, ok := evalResults[user.UserID]
 		if !ok {
-			log.Printf("Error user has no eval result: %s\n", user.UserID)
+			slog.Error("user has no eval result", slog.String("user_id", user.UserID.String()))
 			continue
 		}
 
@@ -163,7 +167,7 @@ func (m *Migrator) report(users []repo.User, evalResults map[*uuid.UUID]repo.Use
 
 		oldStatus, err := m.ordersService.StatusByEmail(ctxWithTokenSource, *user.UserInput.Emails.Primary)
 		if err != nil {
-			log.Printf("Error getting old status %s: %s\n", user.UserID, err)
+			slog.Error("getting old status", slog.String("user_id", user.UserID.String()), slog.Any("err", err))
 			vals = append(vals, "error", "error", "error", "error", "error")
 		} else {
 			vals = append(vals,
@@ -252,14 +256,15 @@ func (m *Migrator) report(users []repo.User, evalResults map[*uuid.UUID]repo.Use
 		} else if *evalRes.Type == "new" || *evalRes.Type == "cancelled" {
 			vals = append(vals, "", "", "", "", "")
 		} else {
-			log.Printf("Error unexpected membership type %s: %s\n", *evalRes.Type, user.UserID)
+			slog.Error("unexpected membership type", slog.String("user_id", user.UserID.String()), slog.String("type", *evalRes.Type))
 			vals = append(vals, "error", "error", "error", "error", "error")
 		}
 
 		if orderID > 0 {
 			order, err := m.ordersService.GetOrderByID(ctxWithTokenSource, orderID)
 			if err != nil {
-				log.Printf("Error getting order extras %s %d: %s\n", user.UserID, *evalRes.Details.Automatic.OrderID, err)
+				slog.Error("getting order extras", slog.String("user_id", user.UserID.String()),
+					slog.Int("order_id", *evalRes.Details.Automatic.OrderID), slog.Any("err", err))
 				vals = append(vals, "error", "error")
 			} else {
 				vals = append(vals, order.Flag)

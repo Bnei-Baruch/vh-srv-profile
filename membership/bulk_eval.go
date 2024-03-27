@@ -4,7 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"os"
 
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/utils"
@@ -28,11 +28,11 @@ func (be *BulkEvaluator) do() error {
 	if err != nil {
 		return fmt.Errorf("readIDs: %w", err)
 	}
-	log.Printf("Got %d ids to eval\n", len(ids))
+	slog.Info("readIDs", slog.Int("count", len(ids)))
 
 	for i := range ids {
 		if _, err := be.eval(*ids[i]); err != nil {
-			log.Printf("ERROR: evaluator.eval [line %d]: %s\n", i+1, err)
+			slog.Error("evaluator.eval", slog.Int("line", i+1), slog.Any("err", err))
 		}
 	}
 

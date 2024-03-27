@@ -121,11 +121,11 @@ func (p *ProfileManager) getProfiles(c *gin.Context) {
 		profile, err := p.repo.FetchProfileBasedOnPhoneNumber(c.Request.Context(), phoneNumber)
 		if err != nil {
 			if errors.Is(err, common.ErrUserNotFound) {
-				c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+				c.Status(http.StatusNotFound)
 				return
 			}
 			c.Status(http.StatusInternalServerError)
-			_ = c.Error(fmt.Errorf("error while getting the user with phone number %q: %w", phoneNumber, err))
+			_ = c.Error(fmt.Errorf("repo.FetchProfileBasedOnPhoneNumber: %w", err))
 			return
 		}
 
@@ -209,11 +209,11 @@ func (p *ProfileManager) getProfiles(c *gin.Context) {
 		profiles, err := p.repo.GetMultipleProfiles(c.Request.Context(), intSkip, intLimit, country, email, name, tenGroupName, language, firstLanguage, otherLanguageOne, otherLanguageTwo, otherLanguageThree, otherLanguageFour, updatedAt, createdAt, membership, membershipType, convention, ticket, galaxy, gender)
 		if err != nil {
 			if errors.Is(err, common.ErrUserNotFound) {
-				c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+				c.Status(http.StatusNotFound)
 				return
 			}
 			c.Status(http.StatusInternalServerError)
-			_ = c.Error(fmt.Errorf("error while getting users: %w", err))
+			_ = c.Error(fmt.Errorf("repo.GetMultipleProfiles: %w", err))
 			return
 		}
 
@@ -286,19 +286,18 @@ func (p *ProfileManager) get(c *gin.Context) {
 	}
 	keycloakID, err := uuid.FromString(keycloakIDString)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		_ = c.Error(err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("malformed keycloak_id: %v", err)})
 		return
 	}
 
 	profile, err := p.repo.GetProfile(c.Request.Context(), keycloakID)
 	if err != nil {
 		if errors.Is(err, common.ErrProfileNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			c.Status(http.StatusNotFound)
 			return
 		}
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while getting user %q: %w", keycloakIDString, err))
+		_ = c.Error(fmt.Errorf("repo.GetProfile: %w", err))
 		return
 	}
 

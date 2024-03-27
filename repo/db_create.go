@@ -92,9 +92,16 @@ type Ten struct {
 func (db *ProfileDB) CreateProfile(ctx context.Context, user UserInput) error {
 	tx, err := db.Begin(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("db.Begin: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+
+	defer func() error {
+		err := tx.Rollback(ctx)
+		if err != nil {
+			return fmt.Errorf("tx.Rollback: %w", err)
+		}
+		return nil
+	}()
 
 	var userID uuid.UUID
 	if err := db.QueryRow(ctx, `
@@ -159,34 +166,35 @@ func (db *ProfileDB) CreateProfile(ctx context.Context, user UserInput) error {
 		user.Ten.HasGroup,
 		user.Ten.WantsGroup,
 		user.Ten.NameOfGroup).Scan(&userID); err != nil {
-		return err
+		return fmt.Errorf("db.QueryRow: %w", err)
 	}
 
 	if user.Phones.MobileNumber != nil {
-		if err := insertPhone(tx, userID, *user.Phones.MobileNumber, common.Mobile); err != nil {
-			return err
+		if err := insertPhone(ctx, tx, userID, *user.Phones.MobileNumber, common.Mobile); err != nil {
+			return fmt.Errorf("insertPhone [mobile]: %w", err)
 		}
 	}
 
 	if user.Phones.WhatsAppNumber != nil {
-		if err := insertPhone(tx, userID, *user.Phones.WhatsAppNumber, common.WhatsApp); err != nil {
-			return err
+		if err := insertPhone(ctx, tx, userID, *user.Phones.WhatsAppNumber, common.WhatsApp); err != nil {
+			return fmt.Errorf("insertPhone [whatsapp]: %w", err)
 		}
 	}
 
 	if user.Phones.TelegramNumber != nil {
-		if err := insertPhone(tx, userID, *user.Phones.TelegramNumber, common.Telegram); err != nil {
-			return err
+		if err := insertPhone(ctx, tx, userID, *user.Phones.TelegramNumber, common.Telegram); err != nil {
+			return fmt.Errorf("insertPhone [telegram]: %w", err)
 		}
 	}
 
 	// TODO (edo): this is old. probably should remove
-	if err := insertUserMembershipStatus(tx, userID, user.Status.Membership, user.Status.MembershipType, user.Status.Ticket, user.Status.Convention, user.Status.Galaxy); err != nil {
-		return err
+	if err := insertUserMembershipStatus(ctx, tx, userID, user.Status.Membership, user.Status.MembershipType,
+		user.Status.Ticket, user.Status.Convention, user.Status.Galaxy); err != nil {
+		return fmt.Errorf("insertUserMembershipStatus: %w", err)
 	}
 
 	if err = tx.Commit(ctx); err != nil {
-		return err
+		return fmt.Errorf("tx.commit: %w", err)
 	}
 
 	_, err = db.EvaluateMembershipByUserID(ctx,
@@ -198,14 +206,15 @@ func (db *ProfileDB) CreateProfile(ctx context.Context, user UserInput) error {
 	return nil
 }
 
-func insertPhone(tx pgx.Tx, userID uuid.UUID, number string, phoneType string) error {
-	_, err := tx.Exec(context.Background(), `INSERT INTO phone_numbers (user_id, phone_number, type) VALUES ($1, $2, $3)`,
+func insertPhone(ctx context.Context, tx pgx.Tx, userID uuid.UUID, number string, phoneType string) error {
+	_, err := tx.Exec(ctx, `INSERT INTO phone_numbers (user_id, phone_number, type) VALUES ($1, $2, $3)`,
 		userID, number, phoneType)
 	return err
 }
 
 /* Function to insert status of user if provided else will insert default values */
-func insertUserMembershipStatus(tx pgx.Tx, userID uuid.UUID, membership *bool, membershipType *string, ticket *bool, convention *bool, galaxy *bool) error {
+func insertUserMembershipStatus(ctx context.Context, tx pgx.Tx, userID uuid.UUID, membership *bool,
+	membershipType *string, ticket *bool, convention *bool, galaxy *bool) error {
 
 	/* Setting default values */
 	boolMembership := false
@@ -235,7 +244,7 @@ func insertUserMembershipStatus(tx pgx.Tx, userID uuid.UUID, membership *bool, m
 		boolGalaxy = *galaxy
 	}
 
-	_, err := tx.Exec(context.Background(), `INSERT INTO status (user_id, membership, membership_type, ticket, convention, galaxy) VALUES ($1, $2, $3, $4, $5, $6)`,
+	_, err := tx.Exec(ctx, `INSERT INTO status (user_id, membership, membership_type, ticket, convention, galaxy) VALUES ($1, $2, $3, $4, $5, $6)`,
 		userID, boolMembership, strMembershipType, boolTicket, boolConvention, boolGalaxy)
 	return err
 }

@@ -88,8 +88,7 @@ func (db *ProfileDB) GetMultipleNotification(ctx context.Context, intSkip int, i
 		LIMIT $1 OFFSET $2
 		`, intLimit, intSkip)
 	if err != nil {
-		fmt.Println("--error-while-executing-query", err)
-		return []Notification{}, err
+		return []Notification{}, fmt.Errorf("db.Query: %w", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
@@ -102,7 +101,7 @@ func (db *ProfileDB) GetMultipleNotification(ctx context.Context, intSkip int, i
 			&r.UpdatedAt,
 			&r.DeletedAt,
 		); err != nil {
-			return []Notification{}, err
+			return []Notification{}, fmt.Errorf("rows.Scan: %w", err)
 		}
 
 		notifRes = append(notifRes, r)
@@ -121,7 +120,7 @@ func (db *ProfileDB) PatchNotification(ctx context.Context, noti Notification, i
 		if err := db.QueryRow(ctx, fmt.Sprintf(`UPDATE notification SET %s WHERE id='%d' RETURNING id`, toUpdate, id),
 			toUpdateArgs...).
 			Scan(&ID); err != nil {
-			return 0, fmt.Errorf("problem updating notification: %w", err)
+			return 0, err
 		}
 
 		return ID, nil
@@ -131,16 +130,8 @@ func (db *ProfileDB) PatchNotification(ctx context.Context, noti Notification, i
 }
 
 func (db *ProfileDB) SoftDeleteNotification(ctx context.Context, id int) error {
-	_, err := db.Exec(ctx, `
-		UPDATE notification
-		SET deleted_at = $1
-		WHERE id = $2
-		`, time.Now(), id)
-	if err != nil {
-		return fmt.Errorf("problem deleting notification: %w", err)
-	}
-
-	return nil
+	_, err := db.Exec(ctx, `UPDATE notification SET deleted_at = $1 WHERE id = $2`, time.Now(), id)
+	return err
 }
 
 // fetch user notification id by slug

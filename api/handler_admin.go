@@ -26,11 +26,11 @@ func (p *ProfileManager) hardDelete(c *gin.Context) {
 
 	if err := p.repo.HardDeleteProfile(c.Request.Context(), keycloakID); err != nil {
 		if errors.Is(err, common.ErrProfileNotFound) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			c.Status(http.StatusBadRequest)
 			return
 		}
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while getting user %q: %w", keycloakIDString, err))
+		_ = c.Error(fmt.Errorf("repo.HardDeleteProfile: %w", err))
 		return
 	}
 

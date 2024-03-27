@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -10,8 +12,9 @@ import (
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "vh-srv-profile",
-	Short: "Virtual home profile management",
+	Use:     "vh-srv-profile",
+	Short:   "Virtual home profile management",
+	Version: "x",
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -25,4 +28,7 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(common.LoadConfig)
+	rootCmd.SetVersionTemplate(fmt.Sprintf("%s -- %s", common.ServiceName, common.GitSHA))
+
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, nil)))
 }

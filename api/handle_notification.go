@@ -28,11 +28,11 @@ func (p *ProfileManager) handleNotificationFetchByID(c *gin.Context) {
 
 	if dbErr != nil {
 		if errors.Is(dbErr, common.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": dbErr.Error()})
+			c.Status(http.StatusNotFound)
 			return
 		}
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while getting users: %w", dbErr))
+		_ = c.Error(fmt.Errorf("repo.GetNotificationByID: %w", dbErr))
 		return
 	}
 
@@ -56,7 +56,7 @@ func (p *ProfileManager) handleNotificationCreate(c *gin.Context) {
 
 	if dbErr != nil {
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while creating notification: %w", dbErr))
+		_ = c.Error(fmt.Errorf("repo.CreateNotification: %w", dbErr))
 		return
 	}
 
@@ -86,7 +86,7 @@ func (p *ProfileManager) handleNotificationPatchByID(c *gin.Context) {
 
 	if patchErr != nil {
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while patching notification: %w", patchErr))
+		_ = c.Error(fmt.Errorf("repo.PatchNotification: %w", patchErr))
 		return
 	}
 
@@ -109,7 +109,7 @@ func (p *ProfileManager) handleNotificationSoftDeleteByID(c *gin.Context) {
 
 	if softDelErr != nil {
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while soft deleting notification: %w", softDelErr))
+		_ = c.Error(fmt.Errorf("repo.SoftDeleteNotification: %w", softDelErr))
 		return
 	}
 
@@ -144,12 +144,8 @@ func (p *ProfileManager) handleNotificationFetchAll(c *gin.Context) {
 
 	res, err := p.repo.GetMultipleNotification(c.Request.Context(), intSkip, intLimit)
 	if err != nil {
-		if errors.Is(err, common.ErrUserNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-			return
-		}
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while getting users: %w", err))
+		_ = c.Error(fmt.Errorf("repo.GetMultipleNotification: %w", err))
 		return
 	}
 

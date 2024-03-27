@@ -2,7 +2,6 @@ package repo
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/jackc/pgx/v4"
 	uuid "github.com/satori/go.uuid"
@@ -104,7 +103,7 @@ func (db *ProfileDB) GetProfile(ctx context.Context, keycloakID uuid.UUID) (User
 		&profile.UserInput.Phones.TelegramNumber,
 	); err != nil {
 		if err == pgx.ErrNoRows {
-			return User{}, fmt.Errorf("%w: %q", common.ErrProfileNotFound, keycloakID)
+			return User{}, common.ErrProfileNotFound
 		}
 		return User{}, err
 	}

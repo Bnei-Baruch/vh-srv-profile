@@ -58,7 +58,6 @@ func (db *ProfileDB) GetUserNotificationByID(ctx context.Context, id int) (UserN
 		&r.DeletedAt,
 	)
 	if err != nil {
-		fmt.Println("--error-while-executing-query", err)
 		return UserNotification{}, err
 	}
 
@@ -67,15 +66,10 @@ func (db *ProfileDB) GetUserNotificationByID(ctx context.Context, id int) (UserN
 
 func (db *ProfileDB) CreateUserNotification(ctx context.Context, req UserNotification) error {
 	createString, numString, createQueryArgs := prepareUserNotificationCreateQuery(req)
-
 	if len(createQueryArgs) != 0 {
 		_, err := db.Exec(ctx, fmt.Sprintf(`INSERT INTO user_notification (%s) VALUES (%s)`, createString, numString),
 			createQueryArgs...)
-		if err != nil {
-			return fmt.Errorf("problem creating request: %w", err)
-		}
-
-		return nil
+		return err
 	} else {
 		return fmt.Errorf("invalid values")
 	}
@@ -101,7 +95,7 @@ func (db *ProfileDB) GetMultipleUserNotification(ctx context.Context, intSkip in
 		LIMIT $1 OFFSET $2
 		`, intLimit, intSkip)
 	if err != nil {
-		return nil, fmt.Errorf("problem getting multiple user notifications: %w", err)
+		return nil, fmt.Errorf("db.Query: %w", err)
 	}
 
 	for rows.Next() {
@@ -117,9 +111,12 @@ func (db *ProfileDB) GetMultipleUserNotification(ctx context.Context, intSkip in
 			&res.UpdatedAt,
 			&res.DeletedAt,
 		); err != nil {
-			return nil, fmt.Errorf("problem scanning rows: %w", err)
+			return nil, fmt.Errorf("rows.Scan: %w", err)
 		}
 		r = append(r, res)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows.Err: %w", err)
 	}
 
 	return r, nil
@@ -146,10 +143,10 @@ func (db *ProfileDB) GetActiveUserNotificationByUserID(ctx context.Context, user
 		ORDER by user_notification.updated_at desc, user_notification.created_at desc
 		`, userID)
 	if err != nil {
-		fmt.Println("--error-while-executing-query", err)
-		return []UserNotification{}, err
+		return []UserNotification{}, fmt.Errorf("db.Query: %w", err)
 	}
 	defer rows.Close()
+
 	for rows.Next() {
 		var r UserNotification
 		if err := rows.Scan(
@@ -164,10 +161,13 @@ func (db *ProfileDB) GetActiveUserNotificationByUserID(ctx context.Context, user
 			&r.UpdatedAt,
 			&r.DeletedAt,
 		); err != nil {
-			return []UserNotification{}, err
+			return []UserNotification{}, fmt.Errorf("rows.Scan: %w", err)
 		}
 
 		userNotiRes = append(userNotiRes, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows.Err: %w", err)
 	}
 
 	return userNotiRes, nil
@@ -177,11 +177,11 @@ func (db *ProfileDB) PatchUserNotification(ctx context.Context, noti UserNotific
 	var ID int
 
 	toUpdate, toUpdateArgs := prepareUserNotificationUpdate(noti)
-
 	if len(toUpdateArgs) != 0 {
-		err := db.QueryRow(ctx, fmt.Sprintf(`UPDATE user_notification SET %s WHERE id = $%d RETURNING id`, toUpdate, len(toUpdateArgs)+1), append(toUpdateArgs, id)...).Scan(&ID)
+		err := db.QueryRow(ctx, fmt.Sprintf(`UPDATE user_notification SET %s WHERE id = $%d RETURNING id`, toUpdate,
+			len(toUpdateArgs)+1), append(toUpdateArgs, id)...).Scan(&ID)
 		if err != nil {
-			return 0, fmt.Errorf("problem updating user notification: %w", err)
+			return 0, err
 		}
 	}
 
@@ -189,29 +189,13 @@ func (db *ProfileDB) PatchUserNotification(ctx context.Context, noti UserNotific
 }
 
 func (db *ProfileDB) SoftDeleteUserNotification(ctx context.Context, id int) error {
-	_, err := db.Exec(ctx, `
-		UPDATE user_notification
-		SET active = false
-		WHERE id = $1
-		`, id)
-	if err != nil {
-		return fmt.Errorf("problem updating user notification: %w", err)
-	}
-
-	return nil
+	_, err := db.Exec(ctx, `UPDATE user_notification SET active = false WHERE id = $1`, id)
+	return err
 }
 
 func (db *ProfileDB) updateAllUserNotificationToInactive(ctx context.Context, userID string) error {
-	_, err := db.Exec(ctx, `
-		UPDATE user_notification
-		SET active = false
-		WHERE user_id = $1
-		`, userID)
-	if err != nil {
-		return fmt.Errorf("problem updating user notification: %w", err)
-	}
-
-	return nil
+	_, err := db.Exec(ctx, `UPDATE user_notification SET active = false WHERE user_id = $1`, userID)
+	return err
 }
 
 func (db *ProfileDB) deactivateUserNotifications(ctx context.Context, userID string, slugs ...string) error {
@@ -220,12 +204,10 @@ func (db *ProfileDB) deactivateUserNotifications(ctx context.Context, userID str
 		ids = append(ids, strconv.Itoa(*NotificationsRegistry.BySlug[slug].ID))
 	}
 
-	q := fmt.Sprintf("UPDATE user_notification SET active = false WHERE user_id = $1 AND notification_id IN (%s)", strings.Join(ids, ","))
-	if _, err := db.Exec(ctx, q, userID); err != nil {
-		return fmt.Errorf(" db.Exec: %w", err)
-	}
-
-	return nil
+	q := fmt.Sprintf("UPDATE user_notification SET active = false WHERE user_id = $1 AND notification_id IN (%s)",
+		strings.Join(ids, ","))
+	_, err := db.Exec(ctx, q, userID)
+	return err
 }
 
 func prepareUserNotificationCreateQuery(req UserNotification) (string, string, []interface{}) {

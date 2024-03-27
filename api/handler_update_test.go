@@ -47,7 +47,7 @@ func Test_profileHandler_update_succeeds(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-func Test_profileHandler_update_returns_400_when_storage_returns_errProfileNotFound(t *testing.T) {
+func Test_profileHandler_update_returns_404_when_storage_returns_errProfileNotFound(t *testing.T) {
 	sm := storageMock{}
 	sm.On("UpdateProfile", mock.Anything, mock.Anything, mock.Anything).Return(fmt.Errorf("%w: %q",
 		common.ErrProfileNotFound, "example string"))
@@ -64,8 +64,7 @@ func Test_profileHandler_update_returns_400_when_storage_returns_errProfileNotFo
 	w := httptest.NewRecorder()
 	g.ServeHTTP(w, r)
 
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.JSONEq(t, `{"error":"no profile found for keycloak id: \"example string\""}`, w.Body.String())
+	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
 func Test_profileHandler_update_returns_500_when_storage_returns_error(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 type config struct {
 	Port string
 	Mode string
+	Env  string
 
 	PgHost   string
 	PgPort   string
@@ -30,6 +31,7 @@ func LoadConfig() {
 	// defaults
 	Config.Port = "7471"
 	Config.Mode = "debug"
+	Config.Env = "dev"
 	Config.PgHost = "localhost"
 	Config.PgPort = "5678"
 	Config.PgUser = "postgres"
@@ -42,6 +44,9 @@ func LoadConfig() {
 	}
 	if val, ok := os.LookupEnv("APP_MODE"); ok {
 		Config.Mode = val
+	}
+	if val, ok := os.LookupEnv("APP_ENV"); ok {
+		Config.Env = val
 	}
 	if val, ok := os.LookupEnv("DB_HOST"); ok {
 		Config.PgHost = val

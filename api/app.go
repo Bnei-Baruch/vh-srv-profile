@@ -2,9 +2,11 @@ package api
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"time"
 
+	"github.com/getsentry/sentry-go"
+	sentrygin "github.com/getsentry/sentry-go/gin"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
@@ -12,6 +14,7 @@ import (
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
 	"gitlab.bbdev.team/vh/vh-srv-profile/membership"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/orders"
+	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/utils"
 	"gitlab.bbdev.team/vh/vh-srv-profile/repo"
 )
 
@@ -28,6 +31,7 @@ func NewApp() *App {
 }
 
 func (a *App) Initialize() {
+	a.initSentry()
 	a.initDB()
 	a.initEventListener()
 	a.profileManager = NewProfileManager(a.profileDB)
@@ -38,50 +42,66 @@ func (a *App) initDB() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	dbUrl := repo.MakeDBURL()
-	log.Printf("Trying to connect to db: %s\n", dbUrl)
-
 	var err error
-	a.profileDB, err = repo.NewProfileDB(ctx, dbUrl)
+	a.profileDB, err = repo.NewProfileDB(ctx, repo.MakeDBURL())
 	if err != nil {
-		log.Fatalf("Unable to initialize profile db: %v\n", err)
+		utils.LogFatal("connect to db", slog.Any("err", err))
 	}
-	log.Println("Connected to profile db")
 
 	if err = repo.SyncDBStructInsertionAndMigrations(); err != nil {
-		log.Fatalf("Unable to migrate profile db: %v\n", err)
+		utils.LogFatal("db migrations", slog.Any("err", err))
 	}
-	log.Println("Migrated profile db")
+
+	slog.Info("db connected and migrated")
 }
 
 func (a *App) initEventListener() {
 	if common.Config.NatsUrl != "" {
-		log.Println("Initializing events listener")
+		slog.Info("initializing events listener")
 
 		var err error
 		a.eventListener, err = orders.NewEventListener()
 		if err != nil {
-			log.Fatalf("Error creating event listener: %s \n", err)
+			utils.LogFatal("orders.NewEventListener", slog.Any("err", err))
 		}
 
 		a.membershipEventsHandler = membership.NewEventsHandler(a.profileDB)
 		a.eventListener.RegisterHandler(a.membershipEventsHandler.HandleOrdersEvent)
 
 		if err = a.eventListener.Run(); err != nil {
-			log.Fatalf("Error running event listener: %s \n", err)
+			utils.LogFatal("eventListener.Run", slog.Any("err", err))
 		}
+	}
+}
+
+func (a *App) initSentry() {
+	err := sentry.Init(sentry.ClientOptions{
+		Release:          common.GitSHA,
+		Environment:      common.Config.Env,
+		AttachStacktrace: true,
+	})
+	if err != nil {
+		utils.LogFatal("sentry.Init", slog.Any("err", err))
 	}
 }
 
 func (a *App) initGinEngine() {
 	gin.SetMode(common.Config.Mode)
-	a.gEngine = gin.Default()
-	a.gEngine.Use(middleware.TokenSource())
+	a.gEngine = gin.New()
+
+	// middleware
+	a.gEngine.Use(
+		middleware.Logging(),
+		middleware.Recovery(),
+		sentrygin.New(sentrygin.Options{Repanic: true}),
+		middleware.Sentry(),
+		middleware.TokenSource(),
+	)
 	if gin.IsDebugging() {
 		a.gEngine.Use(cors.Default())
 	}
 
-	// Creating a group of routes that will be prefixed with `/v1`
+	// routes
 	baseV1Path := a.gEngine.Group("/v1")
 
 	a.gEngine.POST("/v1/profile", a.profileManager.create)
@@ -113,7 +133,6 @@ func (a *App) initGinEngine() {
 	}
 	baseV1Path.GET("/memberships", a.profileManager.handleMembershipFetchAll)
 
-	// notification crud
 	notification := baseV1Path.Group("/notification")
 	{
 		notification.POST("", a.profileManager.handleNotificationCreate)
@@ -141,11 +160,12 @@ func (a *App) initGinEngine() {
 
 func (a *App) Run() {
 	if err := a.gEngine.Run(":" + common.Config.Port); err != nil {
-		log.Fatalf("server stopped: %s", err)
+		utils.LogFatal("gin.Run", slog.Any("err", err))
 	}
 }
 
 func (a *App) Shutdown() {
 	a.eventListener.Close()
 	a.profileDB.Close()
+	sentry.Flush(2 * time.Second)
 }

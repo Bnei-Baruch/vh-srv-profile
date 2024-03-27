@@ -14,11 +14,11 @@ cleanup() {
 cd ${BASE_DIR} &&
   ./profile membership invalidate >>"${LOG_FILE}" 2>&1
 
-WARNINGS="$(grep -Eic "warning|error:" ${LOG_FILE})"
+WARNINGS="$(grep -Eic "warning|error" ${LOG_FILE})"
 if [ "$WARNINGS" = "0" ]; then
   echo "No warnings"
-#  cleanup
-#  exit 0
+  cleanup
+  exit 0
 fi
 
 curl --request POST \
@@ -28,5 +28,4 @@ curl --request POST \
   --data '{"personalizations": [{"to": [{"email": "edoshor@gmail.com"}]}],"from": {"email": "vh-srv-profile@kli.one"},"subject":"ERROR: VH profile - invalidate memberships","content": [{"type": "text/html","value": "Hey,<br>Please see attached log file."}], "attachments": [{"content": "'$(base64 -w 0 ${LOG_FILE})'", "type": "text/plain", "filename": "invalidator.log"}]}'
 
 cleanup
-exit 0
-#exit 1
+exit 1

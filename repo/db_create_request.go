@@ -10,6 +10,7 @@ import (
 
 	uuid "github.com/satori/go.uuid"
 	"github.com/volatiletech/null/v9"
+
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/utils"
 )
@@ -25,7 +26,7 @@ func (db *ProfileDB) CreateRequest(ctx context.Context, req NewRequest) error {
 
 	createString, numString, createQueryArgs := prepareRequestCreateQuery(req)
 	if len(createQueryArgs) == 0 {
-		return fmt.Errorf("invalid values")
+		return errors.New("invalid values")
 	}
 
 	// get user
@@ -65,11 +66,11 @@ func (db *ProfileDB) ConcludeRequest(ctx context.Context, reqID int, conclusion 
 	// get request
 	req, err := db.GetRequestByID(ctx, reqID)
 	if err != nil {
-		return err
+		return fmt.Errorf("db.GetRequestByID: %w", err)
 	}
 
 	if *req.Status != common.RequestStatusRequested {
-		return fmt.Errorf("request already concluded")
+		return errors.New("request already concluded")
 	}
 
 	// get user

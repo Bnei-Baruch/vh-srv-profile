@@ -13,26 +13,21 @@ import (
 )
 
 func (p *ProfileManager) handleUserNotificationFetchByID(c *gin.Context) {
-
 	id := c.Param("id")
-
-	// convert id to int
 	userNotificationId, err := strconv.Atoi(id)
-
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
 
 	res, dbErr := p.repo.GetUserNotificationByID(c.Request.Context(), userNotificationId)
-
 	if dbErr != nil {
 		if errors.Is(dbErr, common.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": dbErr.Error()})
+			c.Status(http.StatusNotFound)
 			return
 		}
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while getting users: %w", dbErr))
+		_ = c.Error(fmt.Errorf("repo.GetUserNotificationByID: %w", dbErr))
 		return
 	}
 
@@ -40,7 +35,6 @@ func (p *ProfileManager) handleUserNotificationFetchByID(c *gin.Context) {
 }
 
 func (p *ProfileManager) handleUserNotificationCreate(c *gin.Context) {
-
 	var noti repo.UserNotification
 
 	if err := c.ShouldBindJSON(&noti); err != nil {
@@ -54,10 +48,9 @@ func (p *ProfileManager) handleUserNotificationCreate(c *gin.Context) {
 	}
 
 	dbErr := p.repo.CreateUserNotification(c.Request.Context(), noti)
-
 	if dbErr != nil {
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while creating userNotification: %w", dbErr))
+		_ = c.Error(fmt.Errorf("repo.CreateUserNotification: %w", dbErr))
 		return
 	}
 
@@ -65,29 +58,23 @@ func (p *ProfileManager) handleUserNotificationCreate(c *gin.Context) {
 }
 
 func (p *ProfileManager) handleUserNotificationPatchByID(c *gin.Context) {
-
 	id := c.Param("id")
-
-	// convert id to int
 	userNotificationId, err := strconv.Atoi(id)
-
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
 
 	var noti repo.UserNotification
-
 	if err := c.ShouldBindJSON(&noti); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	_, patchErr := p.repo.PatchUserNotification(c.Request.Context(), noti, userNotificationId)
-
 	if patchErr != nil {
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while patching userNotification: %w", patchErr))
+		_ = c.Error(fmt.Errorf("repo.PatchUserNotification: %w", patchErr))
 		return
 	}
 
@@ -95,22 +82,17 @@ func (p *ProfileManager) handleUserNotificationPatchByID(c *gin.Context) {
 }
 
 func (p *ProfileManager) handleUserNotificationSoftDeleteByID(c *gin.Context) {
-
 	id := c.Param("id")
-
-	// convert id to int
 	userNotificationId, err := strconv.Atoi(id)
-
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
 
 	softDelErr := p.repo.SoftDeleteUserNotification(c.Request.Context(), userNotificationId)
-
 	if softDelErr != nil {
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while soft deleting userNotification: %w", softDelErr))
+		_ = c.Error(fmt.Errorf("repo.SoftDeleteUserNotification: %w", softDelErr))
 		return
 	}
 
@@ -118,7 +100,6 @@ func (p *ProfileManager) handleUserNotificationSoftDeleteByID(c *gin.Context) {
 }
 
 func (p *ProfileManager) handleUserNotificationFetchAll(c *gin.Context) {
-
 	skip := c.Query("skip")
 	limit := c.Query("limit")
 
@@ -145,12 +126,8 @@ func (p *ProfileManager) handleUserNotificationFetchAll(c *gin.Context) {
 
 	res, err := p.repo.GetMultipleUserNotification(c.Request.Context(), intSkip, intLimit)
 	if err != nil {
-		if errors.Is(err, common.ErrUserNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-			return
-		}
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("error while getting users: %w", err))
+		_ = c.Error(fmt.Errorf("repo.GetMultipleUserNotification: %w", err))
 		return
 	}
 
