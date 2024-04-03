@@ -16,7 +16,7 @@ case $1 in
 	"dbup")
 		docker network create vh
 		sudo [ ! -d /opt/srv-profile-db ] && mkdir /opt/srv-profile-db
-		sudo cp -f db/initial.sql /opt/srv-profile-db/initial.sql 
+		sudo cp -f db/temp/initial.sql /opt/srv-profile-db/initial.sql 
 		docker-compose -f docker-compose.local.yml up -d
 		;;
 	"dbdown")
