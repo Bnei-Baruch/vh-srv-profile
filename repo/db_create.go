@@ -31,7 +31,9 @@ type UserInput struct {
 	LastNameLatin       *string
 	LastNameVernacular  *string
 	Address             Address
-	Status              UserStatus
+	Status              UserStatus // Deprecated: V1 membership status info.
+	MembershipActive    *bool
+	MembershipType      *string
 	Gender              *string
 	MaritalStatus       *string
 	DateOfBirth         *time.Time

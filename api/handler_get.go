@@ -29,6 +29,8 @@ type userResponse struct {
 	CreatedAt           time.Time  `json:"created_at"`
 	Deleted             bool       `json:"deleted"`
 	Status              status     `json:"status"`
+	MembershipActive    *bool      `json:"membership_active"`
+	MembershipType      *string    `json:"membership_type"`
 	FirstNameLatin      *string    `json:"first_name_latin,omitempty"`
 	FirstNameVernacular *string    `json:"first_name_vernacular" `
 	LastNameLatin       *string    `json:"last_name_latin,omitempty"`
@@ -142,6 +144,8 @@ func (p *ProfileManager) getProfiles(c *gin.Context) {
 				Convention:     profile.UserInput.Status.Convention,
 				Galaxy:         profile.UserInput.Status.Galaxy,
 			},
+			MembershipActive:    profile.UserInput.MembershipActive,
+			MembershipType:      profile.UserInput.MembershipType,
 			FirstNameLatin:      profile.UserInput.FirstNameLatin,
 			FirstNameVernacular: profile.UserInput.FirstNameVernacular,
 			LastNameLatin:       profile.UserInput.LastNameLatin,
@@ -233,6 +237,8 @@ func (p *ProfileManager) getProfiles(c *gin.Context) {
 					Convention:     profile.UserInput.Status.Convention,
 					Galaxy:         profile.UserInput.Status.Galaxy,
 				},
+				MembershipActive:    profile.UserInput.MembershipActive,
+				MembershipType:      profile.UserInput.MembershipType,
 				FirstNameLatin:      profile.UserInput.FirstNameLatin,
 				FirstNameVernacular: profile.UserInput.FirstNameVernacular,
 				LastNameLatin:       profile.UserInput.LastNameLatin,
@@ -314,6 +320,8 @@ func (p *ProfileManager) get(c *gin.Context) {
 			Convention:     profile.UserInput.Status.Convention,
 			Galaxy:         profile.UserInput.Status.Galaxy,
 		},
+		MembershipActive:    profile.UserInput.MembershipActive,
+		MembershipType:      profile.UserInput.MembershipType,
 		FirstNameLatin:      profile.UserInput.FirstNameLatin,
 		FirstNameVernacular: profile.UserInput.FirstNameVernacular,
 		LastNameLatin:       profile.UserInput.LastNameLatin,

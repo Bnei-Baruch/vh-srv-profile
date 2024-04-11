@@ -50,14 +50,11 @@ func (db *ProfileDB) GetMultipleProfiles(ctx context.Context, intSkip int, intLi
 	rows, err := db.Query(ctx, `
 		SELECT users.user_id,
 		keycloak_id,
-		updated_at,
-		created_at,
+		users.updated_at,
+		users.created_at,
 		deleted,
-		status.membership,
-		status.membership_type,
-		status.ticket,
-		status.convention,
-		status.galaxy,
+		membership.active,
+		membership.type,
 		first_name_latin,
 		first_name_vernacular,
 		last_name_latin,
@@ -90,7 +87,7 @@ func (db *ProfileDB) GetMultipleProfiles(ctx context.Context, intSkip int, intLi
 		(SELECT phone_number FROM phone_numbers as p WHERE p.user_id = users.user_id and type='mobile' ) as mobile,
 		(SELECT phone_number FROM phone_numbers as p WHERE p.user_id = users.user_id and type='Telegram' ) as telegram  
 	FROM users
-	LEFT JOIN status ON users.user_id = status.user_id`+userDbWhereQuery+
+	LEFT JOIN membership ON users.user_id = membership.user_id`+userDbWhereQuery+
 		orderByQuery+
 		" LIMIT $1 OFFSET $2", intLimit, intSkip)
 	if err != nil {
@@ -105,11 +102,8 @@ func (db *ProfileDB) GetMultipleProfiles(ctx context.Context, intSkip int, intLi
 			&profile.UpdatedAt,
 			&profile.CreatedAt,
 			&profile.Deleted,
-			&profile.UserInput.Status.Membership,
-			&profile.UserInput.Status.MembershipType,
-			&profile.UserInput.Status.Ticket,
-			&profile.UserInput.Status.Convention,
-			&profile.UserInput.Status.Galaxy,
+			&profile.UserInput.MembershipActive,
+			&profile.UserInput.MembershipType,
 			&profile.UserInput.FirstNameLatin,
 			&profile.UserInput.FirstNameVernacular,
 			&profile.UserInput.LastNameLatin,
@@ -202,14 +196,11 @@ func (db *ProfileDB) FetchProfileBasedOnPhoneNumber(ctx context.Context, phoneNu
 	if err := db.QueryRow(ctx, `
 		SELECT users.user_id,
 		keycloak_id,
-		updated_at,
-		created_at,
+		users.updated_at,
+		users.created_at,
 		deleted,
-		status.membership,
-		status.membership_type,
-		status.ticket,
-		status.convention,
-		status.galaxy,
+		membership.active,
+		membership.type,
 		first_name_latin,
 		first_name_vernacular,
 		last_name_latin,
@@ -239,7 +230,7 @@ func (db *ProfileDB) FetchProfileBasedOnPhoneNumber(ctx context.Context, phoneNu
 		wants_ten_group,
 		name_of_ten_group
 		FROM users
-		LEFT JOIN status ON users.user_id = status.user_id
+		LEFT JOIN membership ON users.user_id = membership.user_id
 		WHERE users.user_id = $1
 		AND deleted = false`, phoneNum.userID).Scan(
 		&profile.UserID,
@@ -247,11 +238,8 @@ func (db *ProfileDB) FetchProfileBasedOnPhoneNumber(ctx context.Context, phoneNu
 		&profile.UpdatedAt,
 		&profile.CreatedAt,
 		&profile.Deleted,
-		&profile.UserInput.Status.Membership,
-		&profile.UserInput.Status.MembershipType,
-		&profile.UserInput.Status.Ticket,
-		&profile.UserInput.Status.Convention,
-		&profile.UserInput.Status.Galaxy,
+		&profile.UserInput.MembershipActive,
+		&profile.UserInput.MembershipType,
 		&profile.UserInput.FirstNameLatin,
 		&profile.UserInput.FirstNameVernacular,
 		&profile.UserInput.LastNameLatin,
