@@ -34,6 +34,8 @@ func Test_profileHandler_get_succeeds(t *testing.T) {
 				FirstNameVernacular: utils.PointerString("first name"),
 				LastNameVernacular:  utils.PointerString("last name"),
 				Emails:              repo.Emails{Primary: utils.PointerString("someemail@email.com")},
+				MembershipActive:    utils.PointerBool(true),
+				MembershipType:      utils.PointerString("automatic"),
 			},
 		}, nil)
 	profile := NewProfileManager(&sm)
@@ -55,6 +57,8 @@ func Test_profileHandler_get_succeeds(t *testing.T) {
 	   	"first_name_vernacular":"first name",
 	   	"last_name_vernacular":"last name",
 	   	"primary_email":"someemail@email.com",
+		"membership_active":true,
+		"membership_type":"automatic",
 		"status":{}
 	}`, w.Body.String())
 }
@@ -112,6 +116,8 @@ func Test_profileHandler_get_full_succeeds(t *testing.T) {
 					WantsGroup:  utils.PointerBool(true),
 					NameOfGroup: utils.PointerString("some name"),
 				},
+				MembershipActive: utils.PointerBool(true),
+				MembershipType:   utils.PointerString("automatic"),
 			}}, nil)
 	profile := NewProfileManager(&sm)
 	g := gin.New()
@@ -160,6 +166,8 @@ func Test_profileHandler_get_full_succeeds(t *testing.T) {
 	   	"has_ten_group":true,
 	   	"wants_ten_group":true,
 	   	"name_ten_group":"some name",
+		"membership_active": true,
+		"membership_type": "automatic",
 		"status":{}
 	}`, w.Body.String())
 }
