@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/getsentry/sentry-go"
+
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/keycloak"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/orders"
@@ -48,6 +50,8 @@ func (e *Evaluator) evalUserID(userID string) (repo.UserMembershipRes, error) {
 
 func (e *Evaluator) eval(ids repo.EmailKeycloakAndUserIDBody) (repo.UserMembershipRes, error) {
 	ctx := context.WithValue(context.Background(), common.CtxTokenSource, e.kcTokenSource)
+	ctx = sentry.SetHubOnContext(ctx, sentry.CurrentHub())
+
 	res, err := e.repo.EvaluateMembershipByUserID(ctx, ids)
 	if err != nil {
 		return repo.UserMembershipRes{}, fmt.Errorf("repo.EvaluateMembershipByUserID: %w", err)

@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/getsentry/sentry-go"
+
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
 )
 
@@ -20,4 +22,11 @@ func LogFor(ctx context.Context) *slog.Logger {
 		}
 	}
 	return slog.Default()
+}
+
+func SentryFor(ctx context.Context) *sentry.Hub {
+	if val := sentry.GetHubFromContext(ctx); val != nil {
+		return val
+	}
+	return sentry.CurrentHub()
 }
