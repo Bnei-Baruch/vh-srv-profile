@@ -32,6 +32,7 @@ type OrdersService interface {
 	GetPaymentByID(ctx context.Context, paymentID int) (*Payment, error)
 	GetSpecial(ctx context.Context, email string) (*Special, error)
 	DeleteSpecial(ctx context.Context, email string) error
+	DeleteSpecialIfExist(ctx context.Context, email string) error
 	StatusByEmail(ctx context.Context, email string) (*Status, error)
 }
 
@@ -252,6 +253,30 @@ func (api *OrdersAPI) DeleteSpecial(ctx context.Context, email string) error {
 		Delete("/v2/special/{email}")
 	if err != nil {
 		return fmt.Errorf("req.Delete: %w", err)
+	}
+
+	if err = respError(resp); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (api *OrdersAPI) DeleteSpecialIfExist(ctx context.Context, email string) error {
+	req, err := api.baseRequest(ctx)
+	if err != nil {
+		return fmt.Errorf("baseRequest: %w", err)
+	}
+
+	resp, err := req.
+		SetPathParam("email", email).
+		Delete("/v2/special/{email}")
+	if err != nil {
+		return fmt.Errorf("req.Delete: %w", err)
+	}
+
+	if resp.StatusCode() == http.StatusNotFound {
+		return nil
 	}
 
 	if err = respError(resp); err != nil {

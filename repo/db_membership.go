@@ -1100,9 +1100,9 @@ func (db *ProfileDB) CancelMembership(ctx context.Context, membBody EmailKeycloa
 		}
 	}
 
-	// delete special
-	if err = ordersService.DeleteSpecial(ctx, email); err != nil {
-		return fmt.Errorf("ordersService.DeleteSpecial : %w", err)
+	// Remove from the 'special' table if it exists.
+	if err = ordersService.DeleteSpecialIfExist(ctx, email); err != nil {
+		return fmt.Errorf("ordersService.DeleteSpecialIfExist : %w", err)
 	}
 
 	// cancel grants
