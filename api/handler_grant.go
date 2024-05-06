@@ -14,11 +14,13 @@ import (
 
 func (p *ProfileManager) handleGrantFetchByID(c *gin.Context) {
 	id := c.Param("id")
-
-	// convert id to int
 	grantID, err := strconv.Atoi(id)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("malformed id: %v", err)})
+		return
+	}
+
+	if !p.HasAnyRole(c, common.RoleAnyAdmin...) {
 		return
 	}
 
@@ -37,7 +39,6 @@ func (p *ProfileManager) handleGrantFetchByID(c *gin.Context) {
 }
 
 func (p *ProfileManager) handleGrantFetchAll(c *gin.Context) {
-
 	skip := c.Query("skip")
 	limit := c.Query("limit")
 	cancelled := c.Query("cancelled")
@@ -63,17 +64,19 @@ func (p *ProfileManager) handleGrantFetchAll(c *gin.Context) {
 		limit = "10"
 	}
 
-	// String conversion to int
 	intSkip, serr := strconv.Atoi(skip)
 	if serr != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid skip value! Accepted value is INTEGER"})
 		return
 	}
 
-	// String conversion to int
 	intLimit, lerr := strconv.Atoi(limit)
 	if lerr != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid limit value! Accepted value is INTEGER"})
+		return
+	}
+
+	if !p.HasAnyRole(c, common.RoleAnyAdmin...) {
 		return
 	}
 

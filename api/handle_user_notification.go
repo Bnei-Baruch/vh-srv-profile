@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v4"
 
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
 	"gitlab.bbdev.team/vh/vh-srv-profile/repo"
@@ -20,14 +21,22 @@ func (p *ProfileManager) handleUserNotificationFetchByID(c *gin.Context) {
 		return
 	}
 
+	if !p.HasAnyRole(c, common.RoleRoot, common.RoleAdmin) {
+		return
+	}
+
 	res, dbErr := p.repo.GetUserNotificationByID(c.Request.Context(), userNotificationId)
 	if dbErr != nil {
 		if errors.Is(dbErr, common.ErrNotFound) {
 			c.Status(http.StatusNotFound)
-			return
+		} else {
+			c.Status(http.StatusInternalServerError)
+			_ = c.Error(fmt.Errorf("repo.GetUserNotificationByID: %w", dbErr))
 		}
-		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("repo.GetUserNotificationByID: %w", dbErr))
+		return
+	}
+
+	if !p.isUserOrHasAnyRole(c, *res.UserID, common.RoleAnyAdmin...) {
 		return
 	}
 
@@ -36,7 +45,6 @@ func (p *ProfileManager) handleUserNotificationFetchByID(c *gin.Context) {
 
 func (p *ProfileManager) handleUserNotificationCreate(c *gin.Context) {
 	var noti repo.UserNotification
-
 	if err := c.ShouldBindJSON(&noti); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -44,6 +52,10 @@ func (p *ProfileManager) handleUserNotificationCreate(c *gin.Context) {
 
 	if noti.UserID == nil || noti.NotificationID == nil || noti.Active == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id, notification_id and active are required"})
+		return
+	}
+
+	if !p.isUserOrHasAnyRole(c, *noti.UserID, common.RoleAnyAdmin...) {
 		return
 	}
 
@@ -71,10 +83,25 @@ func (p *ProfileManager) handleUserNotificationPatchByID(c *gin.Context) {
 		return
 	}
 
-	_, patchErr := p.repo.PatchUserNotification(c.Request.Context(), noti, userNotificationId)
-	if patchErr != nil {
+	notification, err := p.repo.GetUserNotificationByID(c.Request.Context(), userNotificationId)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			c.Status(http.StatusNotFound)
+		} else {
+			c.Status(http.StatusInternalServerError)
+			_ = c.Error(fmt.Errorf("repo.GetUserNotificationByID: %w", err))
+		}
+		return
+	}
+
+	if !p.isUserOrHasAnyRole(c, *notification.UserID, common.RoleRoot, common.RoleAdmin) {
+		return
+	}
+
+	_, err = p.repo.PatchUserNotification(c.Request.Context(), noti, userNotificationId)
+	if err != nil {
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("repo.PatchUserNotification: %w", patchErr))
+		_ = c.Error(fmt.Errorf("repo.PatchUserNotification: %w", err))
 		return
 	}
 
@@ -86,6 +113,21 @@ func (p *ProfileManager) handleUserNotificationSoftDeleteByID(c *gin.Context) {
 	userNotificationId, err := strconv.Atoi(id)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+
+	notification, err := p.repo.GetUserNotificationByID(c.Request.Context(), userNotificationId)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			c.Status(http.StatusNotFound)
+		} else {
+			c.Status(http.StatusInternalServerError)
+			_ = c.Error(fmt.Errorf("repo.GetUserNotificationByID: %w", err))
+		}
+		return
+	}
+
+	if !p.isUserOrHasAnyRole(c, *notification.UserID, common.RoleRoot, common.RoleAdmin) {
 		return
 	}
 
@@ -110,17 +152,19 @@ func (p *ProfileManager) handleUserNotificationFetchAll(c *gin.Context) {
 		limit = "10"
 	}
 
-	// String conversion to int
 	intSkip, serr := strconv.Atoi(skip)
 	if serr != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid skip value! Accepted value is INTEGER"})
 		return
 	}
 
-	// String conversion to int
 	intLimit, lerr := strconv.Atoi(limit)
 	if lerr != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid limit value! Accepted value is INTEGER"})
+		return
+	}
+
+	if !p.HasAnyRole(c, common.RoleRoot, common.RoleAdmin) {
 		return
 	}
 

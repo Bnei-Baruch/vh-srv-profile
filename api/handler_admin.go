@@ -17,10 +17,15 @@ func (p *ProfileManager) hardDelete(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "keycloak ID missing"})
 		return
 	}
+
 	keycloakID, err := uuid.FromString(keycloakIDString)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		_ = c.Error(err)
+		return
+	}
+
+	if !p.HasAnyRole(c, common.RoleRoot, common.RoleAdmin) {
 		return
 	}
 

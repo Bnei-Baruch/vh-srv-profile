@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -90,12 +91,19 @@ func (a *App) initGinEngine() {
 	a.gEngine = gin.New()
 
 	// middleware
+	issuerUrl := fmt.Sprintf("%s/auth/realms/%s", common.Config.KeycloakServerUrl, common.Config.KeycloakRealm)
+	tokenVerifier, err := middleware.NewFailoverOIDCTokenVerifier(issuerUrl)
+	if err != nil {
+		utils.LogFatal("middleware.NewFailoverOIDCTokenVerifier", slog.Any("err", err))
+	}
+
 	a.gEngine.Use(
 		middleware.Logging(),
 		middleware.Recovery(),
 		sentrygin.New(sentrygin.Options{Repanic: true}),
 		middleware.Sentry(),
 		middleware.TokenSource(),
+		middleware.Authentication(tokenVerifier),
 	)
 	if gin.IsDebugging() {
 		a.gEngine.Use(cors.Default())

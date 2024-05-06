@@ -26,7 +26,6 @@ func (p *ProfileManager) getRequests(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid value for o_created_at"})
 		return
 	}
-	// fetch all the users based on parameters provided
 
 	if skip == "" {
 		skip = "0"
@@ -35,17 +34,19 @@ func (p *ProfileManager) getRequests(c *gin.Context) {
 		limit = "10"
 	}
 
-	// String conversion to int
 	intSkip, serr := strconv.Atoi(skip)
 	if serr != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid skip value! Accepted value is INTEGER"})
 		return
 	}
 
-	// String conversion to int
 	intLimit, lerr := strconv.Atoi(limit)
 	if lerr != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid limit value! Accepted value is INTEGER"})
+		return
+	}
+
+	if !p.HasAnyRole(c, common.RoleAnyAdmin...) {
 		return
 	}
 

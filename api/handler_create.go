@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	uuid "github.com/satori/go.uuid"
 
+	"gitlab.bbdev.team/vh/vh-srv-profile/common"
 	"gitlab.bbdev.team/vh/vh-srv-profile/repo"
 )
 
@@ -27,6 +28,10 @@ func (p *ProfileManager) create(c *gin.Context) {
 	keycloakID, err := uuid.FromString(*request.KeycloakID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("malformed keycloak_id: %v", err)})
+		return
+	}
+
+	if !p.isSubjectOrHasAnyRole(c, *request.KeycloakID, common.RoleRoot, common.RoleAdmin) {
 		return
 	}
 
