@@ -25,6 +25,10 @@ func (p *ProfileManager) createRequest(c *gin.Context) {
 		return
 	}
 
+	if !p.isSubjectOrHasAnyRole(c, *request.KeycloakId, common.RoleAnyAdmin...) {
+		return
+	}
+
 	if err := p.repo.CreateRequest(c.Request.Context(), request); err != nil {
 		c.Status(http.StatusInternalServerError)
 		_ = c.Error(fmt.Errorf("repo.CreateRequest: %w", err))
@@ -45,6 +49,10 @@ func (p *ProfileManager) concludeRequest(c *gin.Context) {
 	reqID, err := strconv.Atoi(c.Params.ByName("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("malformed request id: %v", err.Error())})
+		return
+	}
+
+	if !p.HasAnyRole(c, common.RoleRoot, common.RoleHelpHaverAdmin) {
 		return
 	}
 

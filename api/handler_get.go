@@ -118,6 +118,10 @@ func (p *ProfileManager) getProfiles(c *gin.Context) {
 		return
 	}
 
+	if !p.HasAnyRole(c, common.RoleAnyAdmin...) {
+		return
+	}
+
 	// To fetch single user based on mobile number
 	if phoneNumber != "" {
 		profile, err := p.repo.FetchProfileBasedOnPhoneNumber(c.Request.Context(), phoneNumber)
@@ -293,6 +297,10 @@ func (p *ProfileManager) get(c *gin.Context) {
 	keycloakID, err := uuid.FromString(keycloakIDString)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("malformed keycloak_id: %v", err)})
+		return
+	}
+
+	if !p.isSubjectOrHasAnyRole(c, keycloakIDString, common.RoleAnyAdmin...) {
 		return
 	}
 

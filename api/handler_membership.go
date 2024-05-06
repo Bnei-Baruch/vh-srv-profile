@@ -21,6 +21,10 @@ func (p *ProfileManager) handleMembershipFetchByID(c *gin.Context) {
 		return
 	}
 
+	if !p.HasAnyRole(c, common.RoleAnyAdmin...) {
+		return
+	}
+
 	res, dbErr := p.repo.GetMembershipByID(c.Request.Context(), membershipID)
 	if dbErr != nil {
 		if errors.Is(dbErr, common.ErrNotFound) {
@@ -42,6 +46,10 @@ func (p *ProfileManager) handleMembershipFetchByKCID(c *gin.Context) {
 		return
 	}
 
+	if !p.isSubjectOrHasAnyRole(c, kcID, common.RoleAnyAdmin...) {
+		return
+	}
+
 	res, dbErr := p.repo.GetMembershipByKCID(c.Request.Context(), kcID)
 	if dbErr != nil {
 		if errors.Is(dbErr, common.ErrNotFound) {
@@ -60,6 +68,10 @@ func (p *ProfileManager) handleMembershipFetchByUserID(c *gin.Context) {
 	userID := c.Param("user_id")
 	if userID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user_id"})
+		return
+	}
+
+	if !p.isUserOrHasAnyRole(c, userID, common.RoleAnyAdmin...) {
 		return
 	}
 
@@ -86,9 +98,12 @@ func (p *ProfileManager) handleMembershipPatchByID(c *gin.Context) {
 	}
 
 	var membership repo.Membership
-
 	if err := c.ShouldBindJSON(&membership); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if !p.HasAnyRole(c, common.RoleRoot, common.RoleAdmin) {
 		return
 	}
 
@@ -104,14 +119,13 @@ func (p *ProfileManager) handleMembershipPatchByID(c *gin.Context) {
 
 func (p *ProfileManager) handleMembershipCancellation(c *gin.Context) {
 	var membCancel repo.EmailKeycloakAndUserIDBody
-
 	if err := c.ShouldBindJSON(&membCancel); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if membCancel.Email == nil && membCancel.KeycloakID == nil && membCancel.UserID == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body ( at least one of email, keycloak_id or user_id is required )"})
+	if membCancel.KeycloakID == nil && membCancel.UserID == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body (at least one of keycloak_id or user_id is required)"})
 		return
 	}
 
@@ -121,12 +135,20 @@ func (p *ProfileManager) handleMembershipCancellation(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("malformed keycloak_id: %v", err)})
 			return
 		}
+
+		if !p.isSubjectOrHasAnyRole(c, *membCancel.KeycloakID, common.RoleRoot, common.RoleAdmin) {
+			return
+		}
 	}
 
 	if membCancel.UserID != nil && *membCancel.UserID != "" {
 		_, userIDErr := uuid.FromString(*membCancel.UserID)
 		if userIDErr != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("malformed user_id: %v", userIDErr)})
+			return
+		}
+
+		if !p.isUserOrHasAnyRole(c, *membCancel.UserID, common.RoleRoot, common.RoleAdmin) {
 			return
 		}
 	}
@@ -143,14 +165,17 @@ func (p *ProfileManager) handleMembershipCancellation(c *gin.Context) {
 
 func (p *ProfileManager) handleMembershipEvaluationByUserID(c *gin.Context) {
 	var evalbody repo.EmailKeycloakAndUserIDBody
-
 	if err := c.ShouldBindJSON(&evalbody); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if evalbody.UserID == nil && evalbody.KeycloakID == nil && evalbody.Email == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body ( at least one of email, keycloak_id or user_id is required )"})
+	if evalbody.UserID == nil && evalbody.KeycloakID == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body ( at least one of keycloak_id or user_id is required )"})
+		return
+	}
+
+	if !p.HasAnyRole(c, common.RoleRoot, common.RoleAdmin) {
 		return
 	}
 
@@ -173,9 +198,12 @@ func (p *ProfileManager) handleMembershipSoftDeleteByID(c *gin.Context) {
 	}
 
 	var mebership repo.Membership
-
 	if err := c.ShouldBindJSON(&mebership); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if !p.HasAnyRole(c, common.RoleRoot, common.RoleAdmin) {
 		return
 	}
 
@@ -190,7 +218,6 @@ func (p *ProfileManager) handleMembershipSoftDeleteByID(c *gin.Context) {
 }
 
 func (p *ProfileManager) handleMembershipFetchAll(c *gin.Context) {
-
 	skip := c.Query("skip")
 	limit := c.Query("limit")
 	userID := c.Query("user_id")
@@ -202,17 +229,19 @@ func (p *ProfileManager) handleMembershipFetchAll(c *gin.Context) {
 		limit = "10"
 	}
 
-	// String conversion to int
 	intSkip, serr := strconv.Atoi(skip)
 	if serr != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid skip value! Accepted value is INTEGER"})
 		return
 	}
 
-	// String conversion to int
 	intLimit, lerr := strconv.Atoi(limit)
 	if lerr != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid limit value! Accepted value is INTEGER"})
+		return
+	}
+
+	if !p.HasAnyRole(c, common.RoleAnyAdmin...) {
 		return
 	}
 

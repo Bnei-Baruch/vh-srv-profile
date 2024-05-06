@@ -23,6 +23,10 @@ func (p *ProfileManager) delete(c *gin.Context) {
 		return
 	}
 
+	if !p.HasAnyRole(c, common.RoleRoot, common.RoleAdmin) {
+		return
+	}
+
 	if err := p.repo.DeleteProfile(c.Request.Context(), keycloakID); err != nil {
 		if errors.Is(err, common.ErrProfileNotFound) {
 			c.Status(http.StatusNotFound)

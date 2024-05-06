@@ -13,26 +13,21 @@ import (
 )
 
 func (p *ProfileManager) handleNotificationFetchByID(c *gin.Context) {
-
 	id := c.Param("id")
-
-	// convert id to int
 	notificationId, err := strconv.Atoi(id)
-
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
 
-	res, dbErr := p.repo.GetNotificationByID(c.Request.Context(), notificationId)
-
-	if dbErr != nil {
-		if errors.Is(dbErr, common.ErrNotFound) {
+	res, err := p.repo.GetNotificationByID(c.Request.Context(), notificationId)
+	if err != nil {
+		if errors.Is(err, common.ErrNotFound) {
 			c.Status(http.StatusNotFound)
-			return
+		} else {
+			c.Status(http.StatusInternalServerError)
+			_ = c.Error(fmt.Errorf("repo.GetNotificationByID: %w", err))
 		}
-		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("repo.GetNotificationByID: %w", dbErr))
 		return
 	}
 
@@ -41,7 +36,6 @@ func (p *ProfileManager) handleNotificationFetchByID(c *gin.Context) {
 
 func (p *ProfileManager) handleNotificationCreate(c *gin.Context) {
 	var noti repo.Notification
-
 	if err := c.ShouldBindJSON(&noti); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -52,11 +46,14 @@ func (p *ProfileManager) handleNotificationCreate(c *gin.Context) {
 		return
 	}
 
-	ID, dbErr := p.repo.CreateNotification(c.Request.Context(), noti)
+	if !p.HasAnyRole(c, common.RoleRoot, common.RoleAdmin) {
+		return
+	}
 
-	if dbErr != nil {
+	ID, err := p.repo.CreateNotification(c.Request.Context(), noti)
+	if err != nil {
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("repo.CreateNotification: %w", dbErr))
+		_ = c.Error(fmt.Errorf("repo.CreateNotification: %w", err))
 		return
 	}
 
@@ -64,29 +61,27 @@ func (p *ProfileManager) handleNotificationCreate(c *gin.Context) {
 }
 
 func (p *ProfileManager) handleNotificationPatchByID(c *gin.Context) {
-
 	id := c.Param("id")
-
-	// convert id to int
 	notificationId, err := strconv.Atoi(id)
-
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
 
 	var noti repo.Notification
-
 	if err := c.ShouldBindJSON(&noti); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	_, patchErr := p.repo.PatchNotification(c.Request.Context(), noti, notificationId)
+	if !p.HasAnyRole(c, common.RoleRoot, common.RoleAdmin) {
+		return
+	}
 
-	if patchErr != nil {
+	_, err = p.repo.PatchNotification(c.Request.Context(), noti, notificationId)
+	if err != nil {
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("repo.PatchNotification: %w", patchErr))
+		_ = c.Error(fmt.Errorf("repo.PatchNotification: %w", err))
 		return
 	}
 
@@ -94,22 +89,21 @@ func (p *ProfileManager) handleNotificationPatchByID(c *gin.Context) {
 }
 
 func (p *ProfileManager) handleNotificationSoftDeleteByID(c *gin.Context) {
-
 	id := c.Param("id")
-
-	// convert id to int
 	notificationId, err := strconv.Atoi(id)
-
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
 
-	softDelErr := p.repo.SoftDeleteNotification(c.Request.Context(), notificationId)
+	if !p.HasAnyRole(c, common.RoleRoot, common.RoleAdmin) {
+		return
+	}
 
-	if softDelErr != nil {
+	err = p.repo.SoftDeleteNotification(c.Request.Context(), notificationId)
+	if err != nil {
 		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("repo.SoftDeleteNotification: %w", softDelErr))
+		_ = c.Error(fmt.Errorf("repo.SoftDeleteNotification: %w", err))
 		return
 	}
 
@@ -117,7 +111,6 @@ func (p *ProfileManager) handleNotificationSoftDeleteByID(c *gin.Context) {
 }
 
 func (p *ProfileManager) handleNotificationFetchAll(c *gin.Context) {
-
 	skip := c.Query("skip")
 	limit := c.Query("limit")
 
@@ -128,14 +121,12 @@ func (p *ProfileManager) handleNotificationFetchAll(c *gin.Context) {
 		limit = "10"
 	}
 
-	// String conversion to int
 	intSkip, serr := strconv.Atoi(skip)
 	if serr != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid skip value! Accepted value is INTEGER"})
 		return
 	}
 
-	// String conversion to int
 	intLimit, lerr := strconv.Atoi(limit)
 	if lerr != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid limit value! Accepted value is INTEGER"})

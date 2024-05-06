@@ -6,6 +6,11 @@ const (
 	CtxTokenSource = "TOKEN_SOURCE"
 	CtxRequestID   = "REQUEST_ID"
 	CtxLogger      = "LOGGER"
+	CtxAuthClaims  = "AUTH_CLAIMS"
+
+	RoleRoot           = "vh_root" // kong service clients has this role as well to allow inter-service communication
+	RoleAdmin          = "vh_admin"
+	RoleHelpHaverAdmin = "vh_helphaver_admin"
 
 	RequestTypeHelpHaver   = "hhmembership"
 	RequestStatusRequested = "REQUESTED"
@@ -27,6 +32,8 @@ const (
 	WhatsApp = "WhatsApp"
 	Telegram = "Telegram"
 )
+
+var RoleAnyAdmin = []string{RoleRoot, RoleAdmin, RoleHelpHaverAdmin}
 
 // This gets set at build time via `-ldflags "-X ..."`
 var GitSHA string = "local"

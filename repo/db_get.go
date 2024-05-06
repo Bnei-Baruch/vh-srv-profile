@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 
 	"github.com/jackc/pgx/v4"
 	uuid "github.com/satori/go.uuid"
@@ -11,6 +12,7 @@ import (
 
 type readStorage interface {
 	GetProfile(ctx context.Context, keycloakID uuid.UUID) (User, error)
+	IsSubjectID(ctx context.Context, keycloakID, userID string) (bool, error)
 }
 
 func (db *ProfileDB) GetProfile(ctx context.Context, keycloakID uuid.UUID) (User, error) {
@@ -113,4 +115,17 @@ func (db *ProfileDB) GetProfile(ctx context.Context, keycloakID uuid.UUID) (User
 	profile.UserID = &userID
 
 	return profile, nil
+}
+
+func (db *ProfileDB) IsSubjectID(ctx context.Context, keycloakID, userID string) (bool, error) {
+	row := db.QueryRow(ctx, "SELECT 1 FROM users WHERE keycloak_id = $1 AND user_id = $2", keycloakID, userID)
+	var x int
+	if err := row.Scan(&x); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return true, nil
 }
