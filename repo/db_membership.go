@@ -1006,7 +1006,7 @@ func (db *ProfileDB) getHelphaverMembershipByMembershipID(ctx context.Context, m
 		mh.id,
 		mh.grant_id,
 		mh.membership_id,
-		(g.properties->'months')::integer,
+		(g.properties->>'months')::integer,
 		mh.created_at,
 		mh.updated_at,
 		mh.deleted_at 
