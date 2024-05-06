@@ -80,7 +80,7 @@ func (db *ProfileDB) GetMultipleRequest(ctx context.Context, intSkip int, intLim
 
 	rows, err := db.Query(ctx, `
 		SELECT 
-		r.id, r.name, r.keycloak_id, r.status, r.type, r.request_note, r.rejection_note, r.created_at, r.updated_at,
+		r.id, r.name, r.keycloak_id, r.status, r.type, r.request_note, r.rejection_note, r.created_at, r.updated_at, r.months,
 		g.id, g.user_id, g.request_id, g.type, g.created_at, g.updated_at, g.cancelled_at, g.properties
 		FROM request r LEFT JOIN "grant" g ON g.request_id=r.id`+userDbWhereQuery+
 		orderByQuery+
@@ -100,6 +100,7 @@ func (db *ProfileDB) GetMultipleRequest(ctx context.Context, intSkip int, intLim
 			&r.Request.RejectionNote,
 			&r.Request.CreatedAt,
 			&r.Request.UpdatedAt,
+			&r.Request.Months,
 			&r.Grant.ID,
 			&r.Grant.UserID,
 			&r.Grant.RequestID,
