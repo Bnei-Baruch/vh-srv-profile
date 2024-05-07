@@ -35,14 +35,14 @@ deploy_staging:
     APP_ENV: "staging"
     SENDGRID_API_KEY: ${SENDGRID_API_KEY}
     SENTRY_DSN: ${STAGING_PROFILE_SENTRY_DSN}
-  image: gitlab.bbdev.team:5050/vh/buildutils/buildutil:0.7.0
+  image: gitlab.bbdev.team:5050/vh/buildutils/buildutil:0.8.0
   stage: deploy
   tags:
     - staging
   script:
     - for variable in "${!DYN_STAGING@}"; do echo "${variable#DYN_STAGING_}"="${!variable}"; export "${variable#DYN_STAGING_}"="${!variable}"; done;
     - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY
-    - IMAGE_NAME=$STAGING_IMAGE docker-compose up -d --remove-orphans
+    - IMAGE_NAME=$STAGING_IMAGE docker compose up -d --remove-orphans
   only:
     - master
 
@@ -61,7 +61,7 @@ build_production:
     - tags
 
 deploy_production:
-  image: gitlab.bbdev.team:5050/vh/buildutils/buildutil:0.7.0
+  image: gitlab.bbdev.team:5050/vh/buildutils/buildutil:0.8.0
   stage: deploy
   tags:
     - production
@@ -79,7 +79,7 @@ deploy_production:
   script:
     - for variable in "${!DYN_PROD@}"; do echo "${variable#DYN_PROD_}"="${!variable}"; export "${variable#DYN_PROD_}"="${!variable}"; done;
     - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY
-    - IMAGE_NAME=$PROD_IMAGE docker-compose up -d vh-srv-profile
+    - IMAGE_NAME=$PROD_IMAGE docker compose up -d vh-srv-profile
   only:
     - tags
   when: manual
