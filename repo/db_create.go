@@ -189,12 +189,6 @@ func (db *ProfileDB) CreateProfile(ctx context.Context, user UserInput) error {
 		}
 	}
 
-	// TODO (edo): this is old. probably should remove
-	if err := insertUserMembershipStatus(ctx, tx, userID, user.Status.Membership, user.Status.MembershipType,
-		user.Status.Ticket, user.Status.Convention, user.Status.Galaxy); err != nil {
-		return fmt.Errorf("insertUserMembershipStatus: %w", err)
-	}
-
 	if err = tx.Commit(ctx); err != nil {
 		return fmt.Errorf("tx.commit: %w", err)
 	}
@@ -211,42 +205,5 @@ func (db *ProfileDB) CreateProfile(ctx context.Context, user UserInput) error {
 func insertPhone(ctx context.Context, tx pgx.Tx, userID uuid.UUID, number string, phoneType string) error {
 	_, err := tx.Exec(ctx, `INSERT INTO phone_numbers (user_id, phone_number, type) VALUES ($1, $2, $3)`,
 		userID, number, phoneType)
-	return err
-}
-
-/* Function to insert status of user if provided else will insert default values */
-func insertUserMembershipStatus(ctx context.Context, tx pgx.Tx, userID uuid.UUID, membership *bool,
-	membershipType *string, ticket *bool, convention *bool, galaxy *bool) error {
-
-	/* Setting default values */
-	boolMembership := false
-	boolTicket := false
-	boolConvention := false
-	boolGalaxy := false
-
-	strMembershipType := "inactive"
-
-	if membership != nil {
-		boolMembership = *membership
-	}
-
-	if membershipType != nil {
-		strMembershipType = *membershipType
-	}
-
-	if ticket != nil {
-		boolTicket = *ticket
-	}
-
-	if convention != nil {
-		boolConvention = *convention
-	}
-
-	if galaxy != nil {
-		boolGalaxy = *galaxy
-	}
-
-	_, err := tx.Exec(ctx, `INSERT INTO status (user_id, membership, membership_type, ticket, convention, galaxy) VALUES ($1, $2, $3, $4, $5, $6)`,
-		userID, boolMembership, strMembershipType, boolTicket, boolConvention, boolGalaxy)
 	return err
 }

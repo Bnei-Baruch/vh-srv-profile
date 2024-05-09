@@ -56,24 +56,6 @@ func (db *ProfileDB) UpdateProfile(ctx context.Context, keycloakID uuid.UUID, us
 		}
 	}
 
-	/* Update status of the user in the status table if provided in the request */
-	userStatusToUpdate, userStatusArgs := prepareUserStatusUpdateQuery(user)
-
-	if len(userStatusArgs) != 0 {
-		updateRes, err := tx.Exec(ctx, fmt.Sprintf(`UPDATE status SET %s WHERE user_id='%s'`, userStatusToUpdate, userID),
-			userStatusArgs...)
-		if err != nil {
-			return fmt.Errorf("tx.Exec [status]: %w", err)
-		}
-
-		/* Add new status row for the user if 0 rows are affected i.e. user status is not present in status table */
-		if updateRes.RowsAffected() == 0 {
-			if err := insertUserMembershipStatus(ctx, tx, userID, user.Status.Membership, user.Status.MembershipType, user.Status.Ticket, user.Status.Convention, user.Status.Galaxy); err != nil {
-				return fmt.Errorf("insertUserMembershipStatus: %w", err)
-			}
-		}
-	}
-
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("tx.Commit: %w", err)
 	}
@@ -217,37 +199,6 @@ func preparePhoneUpdate(userID uuid.UUID, user UserInput) (string, []interface{}
 	if user.Phones.TelegramNumber != nil {
 		updateStrings = append(updateStrings, fmt.Sprintf("('%s', $%d, '%s')", userID, len(updateStrings)+1, common.Telegram))
 		args = append(args, user.Phones.TelegramNumber)
-	}
-
-	updateArgument := strings.Join(updateStrings, ",")
-
-	return updateArgument, args
-}
-
-/* status update query builder */
-func prepareUserStatusUpdateQuery(user UserInput) (string, []interface{}) {
-	var updateStrings []string
-	var args []interface{}
-
-	if user.Status.Membership != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("membership=$%d", len(updateStrings)+1))
-		args = append(args, user.Status.Membership)
-	}
-	if user.Status.MembershipType != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("membership_type=$%d", len(updateStrings)+1))
-		args = append(args, user.Status.MembershipType)
-	}
-	if user.Status.Convention != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("convention=$%d", len(updateStrings)+1))
-		args = append(args, user.Status.Convention)
-	}
-	if user.Status.Galaxy != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("galaxy=$%d", len(updateStrings)+1))
-		args = append(args, user.Status.Galaxy)
-	}
-	if user.Status.Ticket != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("ticket=$%d", len(updateStrings)+1))
-		args = append(args, user.Status.Ticket)
 	}
 
 	updateArgument := strings.Join(updateStrings, ",")

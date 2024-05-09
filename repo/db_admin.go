@@ -23,12 +23,6 @@ func (db *ProfileDB) HardDeleteProfile(ctx context.Context, keycloakID uuid.UUID
 		return fmt.Errorf("problem deleting phone numbers for keycloak id %q: %w", keycloakID, err)
 	}
 
-	/* Delete status related to the user */
-	_, err = tx.Exec(ctx, `DELETE FROM status WHERE user_id=(SELECT user_id FROM users WHERE keycloak_id=$1)`, keycloakID)
-	if err != nil {
-		return fmt.Errorf("problem deleting phone numbers for keycloak id %q: %w", keycloakID, err)
-	}
-
 	// delete membership_helphaver
 	_, err = tx.Exec(ctx, `DELETE FROM membership_helphaver WHERE membership_id IN (SELECT membership_id FROM membership WHERE user_id=(SELECT user_id FROM users WHERE keycloak_id=$1))`, keycloakID)
 	if err != nil {
@@ -51,12 +45,6 @@ func (db *ProfileDB) HardDeleteProfile(ctx context.Context, keycloakID uuid.UUID
 	_, err = tx.Exec(ctx, `DELETE FROM membership_special WHERE membership_id IN (SELECT membership_id FROM membership WHERE user_id=(SELECT user_id FROM users WHERE keycloak_id=$1))`, keycloakID)
 	if err != nil {
 		return fmt.Errorf("problem deleting membership_special for keycloak id %q: %w", keycloakID, err)
-	}
-
-	// delete grant_membership
-	_, err = tx.Exec(ctx, `DELETE FROM grant_membership WHERE grant_id IN (SELECT grant_id FROM "grant" WHERE user_id=(SELECT user_id FROM users WHERE keycloak_id=$1))`, keycloakID)
-	if err != nil {
-		return fmt.Errorf("problem deleting grant_membership for keycloak id %q: %w", keycloakID, err)
 	}
 
 	// delete membership
