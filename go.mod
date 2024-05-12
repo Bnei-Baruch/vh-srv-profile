@@ -47,6 +47,7 @@ require (
 	github.com/jackc/pgtype v1.7.0 // indirect
 	github.com/jackc/puddle v1.1.3 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/klauspost/compress v1.17.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.5 // indirect
 	github.com/leodido/go-urn v1.2.4 // indirect

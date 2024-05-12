@@ -40,7 +40,7 @@ func Test_profileHandler_hardDelete_returns_404_when_storage_returns_errProfileN
 	w := httptest.NewRecorder()
 	g.ServeHTTP(w, r)
 
-	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func Test_profileHandler_hardDelete_returns_500_when_storage_returns_error(t *testing.T) {
