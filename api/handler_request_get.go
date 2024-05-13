@@ -61,5 +61,5 @@ func (p *ProfileManager) getRequests(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Fetched!", "data": res})
+	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Fetched!", "totalCount": len(res), "data": res})
 }
