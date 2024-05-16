@@ -23,6 +23,7 @@ const (
 	TypeUpdateAccount     = "update_account"
 	TypeDeleteAccount     = "delete_account"
 	TypeHardDeleteAccount = "hard_delete_account"
+	TypeMergeAccount      = "merge_account"
 	TypeCreateOrder       = "create_order"
 	TypeUpdateOrder       = "update_order"
 	TypeDeleteOrder       = "delete_order"

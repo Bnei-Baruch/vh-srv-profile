@@ -20,6 +20,7 @@ var interestingEvents = map[string]struct{}{
 	//orders.TypeUpdateAccount: {},
 	//orders.TypeDeleteAccount: {},
 	//orders.TypeHardDeleteAccount: {},
+	orders.TypeMergeAccount:  {},
 	orders.TypeCreateOrder:   {},
 	orders.TypeUpdateOrder:   {},
 	orders.TypeDeleteOrder:   {},
@@ -90,6 +91,7 @@ func (eh *EventsHandler) newContext(event orders.Event) context.Context {
 }
 
 func (eh *EventsHandler) shouldSkip(event orders.Event) bool {
+
 	// skip events with no direct impact of membership
 	if _, ok := interestingEvents[event.Type]; !ok {
 		return true
@@ -119,9 +121,25 @@ func (eh *EventsHandler) getUserIDs(ctx context.Context, event orders.Event) (*r
 	case orders.TypeDeleteSpecial:
 		email := event.Payload["email"].(string)
 		return &repo.EmailKeycloakAndUserIDBody{Email: &email}, nil
+	case orders.TypeMergeAccount:
+		return eh.mergeAccounts(ctx, event)
+
 	}
 
 	return nil, fmt.Errorf("unsupported event type: %s", event.Type)
+}
+
+func (eh *EventsHandler) mergeAccounts(ctx context.Context, event orders.Event) (*repo.EmailKeycloakAndUserIDBody, error) {
+	var mergeData = repo.AccountsMergeData{event.Payload["source_account_id"].(string),
+		event.Payload["destination_account_id"].(string),
+		event.Payload["source_account_email"].(string),
+		event.Payload["destination_account_email"].(string)}
+	res, err := eh.repo.MergeAccounts(ctx, mergeData)
+	if err != nil {
+		return nil, fmt.Errorf("EventsHandler.mergeAccounts: %w", err)
+	}
+	return res, nil
+
 }
 
 func (eh *EventsHandler) getUserIDsFromOrder(ctx context.Context, orderID int) (*repo.EmailKeycloakAndUserIDBody, error) {
