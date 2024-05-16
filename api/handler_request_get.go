@@ -19,6 +19,7 @@ func (p *ProfileManager) getRequests(c *gin.Context) {
 	kcid := c.Query("kcid")
 	status := c.Query("status")
 	name := c.Query("name")
+	email := c.Query("email")
 	typeFilter := c.Query("type")
 	orderByCreatedAt := c.Query("o_created_at")
 
@@ -45,12 +46,11 @@ func (p *ProfileManager) getRequests(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid limit value! Accepted value is INTEGER"})
 		return
 	}
-
 	if !p.HasAnyRole(c, common.RoleAnyAdmin...) {
 		return
 	}
 
-	res, err := p.repo.GetMultipleRequest(c.Request.Context(), intSkip, intLimit, kcid, status, name, typeFilter, orderByCreatedAt)
+	res, err := p.repo.GetMultipleRequest(c.Request.Context(), intSkip, intLimit, kcid, status, name, email, typeFilter, orderByCreatedAt)
 	if err != nil {
 		if errors.Is(err, common.ErrNotFound) {
 			c.Status(http.StatusNotFound)
@@ -60,6 +60,14 @@ func (p *ProfileManager) getRequests(c *gin.Context) {
 		_ = c.Error(fmt.Errorf("repo.GetMultipleRequest: %w", err))
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Fetched!", "data": res})
+	totalCount := len(res)
+	if totalCount > 0 {
+		totalCount, err = p.repo.GetMultipleRequestCount(c.Request.Context(), kcid, status, name, email, typeFilter, orderByCreatedAt)
+		if err != nil {
+			c.Status(http.StatusInternalServerError)
+			_ = c.Error(fmt.Errorf("repo.GetMultipleRequestCount: %w", err))
+			return
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Fetched!", "totalCount": totalCount, "data": res})
 }
