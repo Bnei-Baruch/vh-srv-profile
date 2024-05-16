@@ -191,7 +191,7 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 		return UserMembershipRes{}, fmt.Errorf("ordersService.GetOrders: %w", err)
 	}
 
-	approvedRequests, err := db.GetMultipleRequest(ctx, 0, 1, userKeycloakID, common.RequestStatusApproved, "", common.RequestTypeHelpHaver, "desc")
+	approvedRequests, err := db.GetMultipleRequest(ctx, 0, 1, userKeycloakID, common.RequestStatusApproved, "", "", common.RequestTypeHelpHaver, "desc")
 	if err != nil {
 		return UserMembershipRes{}, fmt.Errorf("db.GetMultipleRequest: %w", err)
 	}

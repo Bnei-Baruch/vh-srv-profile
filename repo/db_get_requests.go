@@ -19,8 +19,16 @@ type readMultipleRequestStorage interface {
 		kcid string,
 		status string,
 		name string,
+		email string,
 		typeFilter string,
 		orderByCreatedAt string) ([]RequestAndGrant, error)
+	GetMultipleRequestCount(ctx context.Context,
+		kcid string,
+		status string,
+		name string,
+		email string,
+		typeFilter string,
+		orderByCreatedAt string) (int, error)
 }
 
 type NewRequest struct {
@@ -73,18 +81,18 @@ func (db *ProfileDB) GetRequestByID(ctx context.Context, id int) (*NewRequest, e
 	return &request, nil
 }
 
-func (db *ProfileDB) GetMultipleRequest(ctx context.Context, intSkip int, intLimit int, kcid string, status string, name string, typeFilter string, orderByCreatedAt string) ([]RequestAndGrant, error) {
+func (db *ProfileDB) GetMultipleRequest(ctx context.Context, intSkip int, intLimit int, kcid string, status string, name string, email string, typeFilter string, orderByCreatedAt string) ([]RequestAndGrant, error) {
 	requests := []RequestAndGrant{}
 
-	userDbWhereQuery, orderByQuery := buildAndGetWhereRequestQuery(kcid, status, name, typeFilter, orderByCreatedAt)
+	userDbWhereQuery, orderByQuery := buildAndGetWhereRequestQuery(kcid, status, name, typeFilter, orderByCreatedAt, email)
+	queryString := `SELECT r.id, r.name, r.keycloak_id, r.status, r.type, r.request_note, r.rejection_note, r.created_at, r.updated_at, r.months, g.id, g.user_id, g.request_id, g.type, g.created_at, g.updated_at, g.cancelled_at, g.properties" +
+		"FROM request r LEFT JOIN "grant" g ON g.request_id=r.id`
+	if email != "" {
+		queryString += ` LEFT JOIN "users" u ON u.keycloak_id=r.keycloak_id `
 
-	rows, err := db.Query(ctx, `
-		SELECT 
-		r.id, r.name, r.keycloak_id, r.status, r.type, r.request_note, r.rejection_note, r.created_at, r.updated_at, r.months,
-		g.id, g.user_id, g.request_id, g.type, g.created_at, g.updated_at, g.cancelled_at, g.properties
-		FROM request r LEFT JOIN "grant" g ON g.request_id=r.id`+userDbWhereQuery+
-		orderByQuery+
-		" LIMIT $1 OFFSET $2", intLimit, intSkip)
+	}
+	finalQueryString := fmt.Sprintf("%s %s %s  LIMIT $1 OFFSET $2", queryString, userDbWhereQuery, orderByQuery)
+	rows, err := db.Query(ctx, finalQueryString, intLimit, intSkip)
 	if err != nil {
 		return []RequestAndGrant{}, fmt.Errorf("db.Query: %w", err)
 	}
@@ -123,7 +131,25 @@ func (db *ProfileDB) GetMultipleRequest(ctx context.Context, intSkip int, intLim
 	return requests, nil
 }
 
-func buildAndGetWhereRequestQuery(kcid string, status string, name string, typeFilter string, orderByCreatedAt string) (string, string) {
+func (db *ProfileDB) GetMultipleRequestCount(ctx context.Context, kcid string, status string, name string, email string, typeFilter string, orderByCreatedAt string) (int, error) {
+
+	userDbWhereQuery, _ := buildAndGetWhereRequestQuery(kcid, status, name, typeFilter, orderByCreatedAt, email)
+	queryString := `SELECT COUNT(*) FROM request r`
+	queryStringJoin := ""
+	if email != "" {
+		queryStringJoin = ` LEFT JOIN "users" u ON u.keycloak_id=r.keycloak_id `
+	}
+	queryStringFinal := fmt.Sprintf("%s %s %s", queryString, queryStringJoin, userDbWhereQuery)
+	var count int
+	err := db.QueryRow(ctx, queryStringFinal).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("db.QueryRow get count: %w", err)
+	}
+
+	return count, nil
+}
+
+func buildAndGetWhereRequestQuery(kcid string, status string, name string, typeFilter string, orderByCreatedAt string, email string) (string, string) {
 
 	var whereString strings.Builder
 	var orderBy strings.Builder
@@ -146,9 +172,9 @@ func buildAndGetWhereRequestQuery(kcid string, status string, name string, typeF
 
 	if name != "" {
 		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND r.name='%s'", name))
+			whereCondition.WriteString(fmt.Sprintf(" AND lower(r.name) like lower('%%%s%%')", name))
 		} else {
-			whereCondition.WriteString(fmt.Sprintf(" r.name='%s'", name))
+			whereCondition.WriteString(fmt.Sprintf(" lower(r.name) like lower('%%%s%%')", name))
 		}
 	}
 
@@ -157,6 +183,14 @@ func buildAndGetWhereRequestQuery(kcid string, status string, name string, typeF
 			whereCondition.WriteString(fmt.Sprintf(" AND r.type='%s'", typeFilter))
 		} else {
 			whereCondition.WriteString(fmt.Sprintf(" r.type='%s'", typeFilter))
+		}
+	}
+
+	if email != "" {
+		if whereCondition.String() != "" {
+			whereCondition.WriteString(fmt.Sprintf(" AND (lower(u.primary_email) like lower('%%%[1]s%%') OR lower(u.alternate_email_1) like lower('%%%[1]s%%') OR lower(u.alternate_email_2) like lower('%%%[1]s%%')) ", email))
+		} else {
+			whereCondition.WriteString(fmt.Sprintf(" (lower(u.primary_email) like lower('%%%[1]s%%') OR lower(u.alternate_email_1) like lower('%%%[1]s%%') OR lower(u.alternate_email_2) like lower('%%%[1]s%%')) ", email))
 		}
 	}
 
