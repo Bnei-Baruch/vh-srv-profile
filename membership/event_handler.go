@@ -91,7 +91,6 @@ func (eh *EventsHandler) newContext(event orders.Event) context.Context {
 }
 
 func (eh *EventsHandler) shouldSkip(event orders.Event) bool {
-
 	// skip events with no direct impact of membership
 	if _, ok := interestingEvents[event.Type]; !ok {
 		return true
@@ -123,7 +122,6 @@ func (eh *EventsHandler) getUserIDs(ctx context.Context, event orders.Event) (*r
 		return &repo.EmailKeycloakAndUserIDBody{Email: &email}, nil
 	case orders.TypeMergeAccount:
 		return eh.mergeAccounts(ctx, event)
-
 	}
 
 	return nil, fmt.Errorf("unsupported event type: %s", event.Type)

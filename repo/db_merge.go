@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	uuid "github.com/satori/go.uuid"
 )
@@ -21,12 +22,21 @@ func (db *ProfileDB) MergeAccounts(ctx context.Context, data AccountsMergeData) 
 	var (
 		sourceUserID      string
 		destinationUserID string
+		err               error
 	)
-	if err := db.QueryRow(ctx, `SELECT user_id from users WHERE keycloak_id = $1`, data.SourceId).Scan(&sourceUserID); err != nil {
+	if err = db.QueryRow(ctx, `SELECT user_id from users WHERE keycloak_id = $1`, data.SourceId).Scan(&sourceUserID); err != nil {
 		return nil, fmt.Errorf("db.QueryRow [user_id from keycloak_id(%s)]: %w", data.SourceId, err)
 	}
-	if err := db.QueryRow(ctx, `SELECT user_id from users WHERE keycloak_id = $1`, data.DestinationId).Scan(&destinationUserID); err != nil {
+	if err = db.QueryRow(ctx, `SELECT user_id from users WHERE keycloak_id = $1`, data.DestinationId).Scan(&destinationUserID); err != nil {
 		return nil, fmt.Errorf("db.QueryRow [user_id from keycloak_id(%s)]: %w", data.DestinationId, err)
+	}
+	needUpdateEmail := false
+	var destinationAlternativeEmail sql.NullString
+	if data.SourceEmail != data.DestinationEmail {
+		if err := db.QueryRow(ctx, `SELECT alternate_email_1 from users WHERE keycloak_id = $1`, data.DestinationId).Scan(&destinationAlternativeEmail); err != nil {
+			return nil, fmt.Errorf("db.QueryRow [alternate_email_1 from keycloak_id(%s)]: %w", data.DestinationEmail, err)
+		}
+		needUpdateEmail = true
 	}
 
 	// start transaction
@@ -35,35 +45,39 @@ func (db *ProfileDB) MergeAccounts(ctx context.Context, data AccountsMergeData) 
 		return nil, fmt.Errorf("db.Begin: %w", txErr)
 	}
 	defer func() error {
-		if err := tx.Rollback(ctx); err != nil {
+		if err = tx.Rollback(ctx); err != nil {
 			return fmt.Errorf("tx.Rollback: %w", txErr)
 		}
 		return nil
 	}()
 
-	_, err := tx.Exec(ctx, `UPDATE users set primary_email =$1  WHERE keycloak_id=$2`, data.DestinationEmail, data.SourceId)
-	if err != nil {
-		return nil, fmt.Errorf("tx.Exec [manual]: %w", err)
+	if needUpdateEmail && destinationAlternativeEmail.Valid {
+		_, err = tx.Exec(ctx, `UPDATE users set alternate_email_1 =$1  WHERE keycloak_id=$2`, data.DestinationEmail, data.SourceId)
+		if err != nil {
+			return nil, fmt.Errorf("tx.Exec [UPDATE users set alternate_email_1]: %w", err)
+		}
 	}
 
 	_, err = tx.Exec(ctx, `UPDATE status set user_id =$1  WHERE user_id=$2`, destinationUserID, sourceUserID)
 	if err != nil {
-		return nil, fmt.Errorf("tx.Exec [manual]: %w", err)
+		return nil, fmt.Errorf("tx.Exec [UPDATE status set user_id]: %w", err)
 	}
 
 	_, err = tx.Exec(ctx, `UPDATE "grant" set user_id = $1 where user_id = $2 `, destinationUserID, sourceUserID)
 	if err != nil {
-		return nil, fmt.Errorf("tx.Exec [special]: %w", err)
+		return nil, fmt.Errorf("tx.Exec [UPDATE grant set user_id]: %w", err)
 	}
 
-	_, err = tx.Exec(ctx, `UPDATE phone_numbers set user_id = $1 where user_id = $2 `, destinationUserID, sourceUserID)
+	_, err = tx.Exec(ctx, `UPDATE phone_numbers AS pn1 SET pn1.user_id = $1 WHERE pn1.user_id = $2 AND NOT EXISTS (
+	SELECT 1 FROM phone_numbers AS pn2 WHERE pn2.user_id = $1 AND pn2.phone_number = pn1.phone_number AND pn2.type = pn1.type
+)`, destinationUserID, sourceUserID)
 	if err != nil {
-		return nil, fmt.Errorf("tx.Exec [automatic]: %w", err)
+		return nil, fmt.Errorf("tx.Exec [UPDATE phone_numbers set user_id]: %w", err)
 	}
 
 	_, err = tx.Exec(ctx, `UPDATE user_notification set user_id = $1 where user_id = $2 `, destinationUserID, sourceUserID)
 	if err != nil {
-		return nil, fmt.Errorf("tx.Exec [automatic]: %w", err)
+		return nil, fmt.Errorf("tx.Exec [UPDATE user_notification set user_id]: %w", err)
 	}
 
 	// commit transaction
