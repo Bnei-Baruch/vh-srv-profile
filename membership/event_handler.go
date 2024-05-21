@@ -53,7 +53,18 @@ func (eh *EventsHandler) HandleOrdersEvent(event orders.Event) {
 		return
 	}
 
-	userIDs, err := eh.getUserIDs(ctx, event)
+	var (
+		userIDs *repo.EmailKeycloakAndUserIDBody
+		err     error
+	)
+
+	switch event.Type {
+	case orders.TypeMergeAccount:
+		userIDs, err = eh.mergeAccounts(ctx, event)
+	default:
+		userIDs, err = eh.getUserIDs(ctx, event)
+	}
+
 	if err != nil {
 		if !errors.Is(err, errSkip) {
 			utils.LogFor(ctx).Error("membership.EventsHandler.HandleOrdersEvent getUserIDs", slog.Any("err", err))
@@ -120,18 +131,16 @@ func (eh *EventsHandler) getUserIDs(ctx context.Context, event orders.Event) (*r
 	case orders.TypeDeleteSpecial:
 		email := event.Payload["email"].(string)
 		return &repo.EmailKeycloakAndUserIDBody{Email: &email}, nil
-	case orders.TypeMergeAccount:
-		return eh.mergeAccounts(ctx, event)
 	}
 
 	return nil, fmt.Errorf("unsupported event type: %s", event.Type)
 }
 
 func (eh *EventsHandler) mergeAccounts(ctx context.Context, event orders.Event) (*repo.EmailKeycloakAndUserIDBody, error) {
-	var mergeData = repo.AccountsMergeData{event.Payload["source_account_id"].(string),
-		event.Payload["destination_account_id"].(string),
-		event.Payload["source_account_email"].(string),
-		event.Payload["destination_account_email"].(string)}
+	var mergeData = repo.AccountsMergeData{
+		SourceId:      event.Payload["source_account_id"].(string),
+		DestinationId: event.Payload["destination_account_id"].(string),
+	}
 	res, err := eh.repo.MergeAccounts(ctx, mergeData)
 	if err != nil {
 		return nil, fmt.Errorf("EventsHandler.mergeAccounts: %w", err)

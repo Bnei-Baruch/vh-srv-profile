@@ -12,16 +12,16 @@ type mergeAccounts interface {
 }
 
 type AccountsMergeData struct {
-	SourceId         string
-	DestinationId    string
-	SourceEmail      string
-	DestinationEmail string
+	SourceId      string
+	DestinationId string
 }
 
 func (db *ProfileDB) MergeAccounts(ctx context.Context, data AccountsMergeData) (*EmailKeycloakAndUserIDBody, error) {
 	var (
 		sourceUserID      string
 		destinationUserID string
+		sourceEmail       string
+		destinationEmail  string
 		err               error
 	)
 	if err = db.QueryRow(ctx, `SELECT user_id from users WHERE keycloak_id = $1`, data.SourceId).Scan(&sourceUserID); err != nil {
@@ -30,11 +30,19 @@ func (db *ProfileDB) MergeAccounts(ctx context.Context, data AccountsMergeData) 
 	if err = db.QueryRow(ctx, `SELECT user_id from users WHERE keycloak_id = $1`, data.DestinationId).Scan(&destinationUserID); err != nil {
 		return nil, fmt.Errorf("db.QueryRow [user_id from keycloak_id(%s)]: %w", data.DestinationId, err)
 	}
+
+	if err = db.QueryRow(ctx, `SELECT primary_email from users WHERE keycloak_id = $1`, data.SourceId).Scan(&sourceEmail); err != nil {
+		return nil, fmt.Errorf("db.QueryRow [primary_email from keycloak_id(%s)]: %w", data.SourceId, err)
+	}
+	if err = db.QueryRow(ctx, `SELECT primary_email from users WHERE keycloak_id = $1`, data.DestinationId).Scan(&destinationEmail); err != nil {
+		return nil, fmt.Errorf("db.QueryRow [primary_email from keycloak_id(%s)]: %w", data.DestinationId, err)
+	}
+
 	needUpdateEmail := false
 	var destinationAlternativeEmail sql.NullString
-	if data.SourceEmail != data.DestinationEmail {
+	if sourceEmail != destinationEmail {
 		if err := db.QueryRow(ctx, `SELECT alternate_email_1 from users WHERE keycloak_id = $1`, data.DestinationId).Scan(&destinationAlternativeEmail); err != nil {
-			return nil, fmt.Errorf("db.QueryRow [alternate_email_1 from keycloak_id(%s)]: %w", data.DestinationEmail, err)
+			return nil, fmt.Errorf("db.QueryRow [alternate_email_1 from keycloak_id(%s)]: %w", data.DestinationId, err)
 		}
 		needUpdateEmail = true
 	}
@@ -52,12 +60,12 @@ func (db *ProfileDB) MergeAccounts(ctx context.Context, data AccountsMergeData) 
 	}()
 
 	if needUpdateEmail && destinationAlternativeEmail.Valid {
-		_, err = tx.Exec(ctx, `UPDATE users set alternate_email_1 =$1  WHERE keycloak_id=$2`, data.DestinationEmail, data.SourceId)
+		_, err = tx.Exec(ctx, `UPDATE users set alternate_email_1 =$1  WHERE keycloak_id=$2`, destinationEmail, data.SourceId)
 		if err != nil {
 			return nil, fmt.Errorf("tx.Exec [UPDATE users set alternate_email_1]: %w", err)
 		}
 	}
-
+	//Remove entries from the legacy table to prevent constraint issues when deleting the source account
 	_, err = tx.Exec(ctx, `UPDATE status set user_id =$1  WHERE user_id=$2`, destinationUserID, sourceUserID)
 	if err != nil {
 		return nil, fmt.Errorf("tx.Exec [UPDATE status set user_id]: %w", err)
@@ -89,5 +97,5 @@ func (db *ProfileDB) MergeAccounts(ctx context.Context, data AccountsMergeData) 
 		return nil, fmt.Errorf("db.HardDeleteProfile: %w", err)
 	}
 
-	return &EmailKeycloakAndUserIDBody{Email: &data.DestinationEmail, KeycloakID: &data.DestinationId, UserID: &destinationUserID}, nil
+	return &EmailKeycloakAndUserIDBody{Email: &destinationEmail, KeycloakID: &data.DestinationId, UserID: &destinationUserID}, nil
 }
