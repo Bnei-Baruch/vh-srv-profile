@@ -25,17 +25,17 @@ func (db *ProfileDB) MergeAccounts(ctx context.Context, data AccountsMergeData) 
 		err               error
 	)
 	if err = db.QueryRow(ctx, `SELECT user_id from users WHERE keycloak_id = $1`, data.SourceId).Scan(&sourceUserID); err != nil {
-		return nil, fmt.Errorf("db.QueryRow [user_id from keycloak_id(%s)]: %w", data.SourceId, err)
+		return nil, fmt.Errorf("db.QueryRow [Source user_id from keycloak_id(%s)]: %w", data.SourceId, err)
 	}
 	if err = db.QueryRow(ctx, `SELECT user_id from users WHERE keycloak_id = $1`, data.DestinationId).Scan(&destinationUserID); err != nil {
-		return nil, fmt.Errorf("db.QueryRow [user_id from keycloak_id(%s)]: %w", data.DestinationId, err)
+		return nil, fmt.Errorf("db.QueryRow [Destination user_id from keycloak_id(%s)]: %w", data.DestinationId, err)
 	}
 
 	if err = db.QueryRow(ctx, `SELECT primary_email from users WHERE keycloak_id = $1`, data.SourceId).Scan(&sourceEmail); err != nil {
-		return nil, fmt.Errorf("db.QueryRow [primary_email from keycloak_id(%s)]: %w", data.SourceId, err)
+		return nil, fmt.Errorf("db.QueryRow [SourceId primary_email from keycloak_id(%s)]: %w", data.SourceId, err)
 	}
 	if err = db.QueryRow(ctx, `SELECT primary_email from users WHERE keycloak_id = $1`, data.DestinationId).Scan(&destinationEmail); err != nil {
-		return nil, fmt.Errorf("db.QueryRow [primary_email from keycloak_id(%s)]: %w", data.DestinationId, err)
+		return nil, fmt.Errorf("db.QueryRow [Destination primary_email from keycloak_id(%s)]: %w", data.DestinationId, err)
 	}
 
 	needUpdateEmail := false
@@ -60,7 +60,7 @@ func (db *ProfileDB) MergeAccounts(ctx context.Context, data AccountsMergeData) 
 	}()
 
 	if needUpdateEmail && destinationAlternativeEmail.Valid {
-		_, err = tx.Exec(ctx, `UPDATE users set alternate_email_1 =$1  WHERE keycloak_id=$2`, destinationEmail, data.SourceId)
+		_, err = tx.Exec(ctx, `UPDATE users set alternate_email_1=$1  WHERE keycloak_id=$2`, sourceEmail, data.DestinationId)
 		if err != nil {
 			return nil, fmt.Errorf("tx.Exec [UPDATE users set alternate_email_1]: %w", err)
 		}
