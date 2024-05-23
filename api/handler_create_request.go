@@ -52,7 +52,7 @@ func (p *ProfileManager) concludeRequest(c *gin.Context) {
 		return
 	}
 
-	if !p.HasAnyRole(c, common.RoleRoot, common.RoleHelpHaverAdmin) {
+	if !p.HasAnyRole(c, common.RoleAnyAdmin...) {
 		return
 	}
 
