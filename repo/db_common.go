@@ -31,6 +31,7 @@ type ProfileRepository interface {
 	notificationInterface
 	userNotificationInterface
 	operationInterface
+	mergeAccounts
 }
 
 type ProfileDB struct {
