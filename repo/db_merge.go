@@ -76,11 +76,17 @@ func (db *ProfileDB) MergeAccounts(ctx context.Context, data AccountsMergeData) 
 		return nil, fmt.Errorf("tx.Exec [UPDATE grant set user_id]: %w", err)
 	}
 
-	_, err = tx.Exec(ctx, `UPDATE phone_numbers AS pn1 SET pn1.user_id = $1 WHERE pn1.user_id = $2 AND NOT EXISTS (
+	_, err = tx.Exec(ctx, `UPDATE phone_numbers AS pn1 SET user_id = $1 WHERE NOT EXISTS (
 	SELECT 1 FROM phone_numbers AS pn2 WHERE pn2.user_id = $1 AND pn2.phone_number = pn1.phone_number AND pn2.type = pn1.type
-)`, destinationUserID, sourceUserID)
+) AND pn1.user_id = $2 AND NOT EXISTS (SELECT 1 FROM phone_numbers AS pn3
+	WHERE pn3.user_id = $1 	AND pn3.type = pn1.type)`, destinationUserID, sourceUserID)
 	if err != nil {
 		return nil, fmt.Errorf("tx.Exec [UPDATE phone_numbers set user_id]: %w", err)
+	}
+
+	_, err = tx.Exec(ctx, `DELETE from phone_numbers WHERE user_id = $1`, sourceUserID)
+	if err != nil {
+		return nil, fmt.Errorf("tx.Exec [DELETE from phone_numbers where id = source id]: %w", err)
 	}
 
 	_, err = tx.Exec(ctx, `UPDATE user_notification set user_id = $1 where user_id = $2 `, destinationUserID, sourceUserID)
