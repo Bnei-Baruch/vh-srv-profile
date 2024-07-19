@@ -32,7 +32,7 @@ type Order struct {
 type Payment struct {
 	ID            int       `json:"ID"`
 	OrderID       int       `json:"OrderID"`
-	Amount        int       `json:"Amount"`
+	Amount        float64   `json:"Amount"`
 	Currency      string    `json:"Currency"`
 	CCNumber      string    `json:"CCNumber"`
 	PaymentStatus string    `json:"PaymentStatus"`
