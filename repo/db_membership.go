@@ -86,7 +86,7 @@ type UserMembershipRes struct {
 	Details       struct {
 		Payment struct {
 			Date          *time.Time `json:"date,omitempty"`
-			Amount        *int       `json:"amount,omitempty"`
+			Amount        *float64   `json:"amount,omitempty"`
 			Currency      *string    `json:"currency,omitempty"`
 			PaymentMethod *string    `json:"payment_method,omitempty"`
 			PaymentType   *string    `json:"payment_type,omitempty"`

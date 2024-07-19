@@ -27,6 +27,10 @@ func BulkEval() {
 	do(NewBulkEvaluator())
 }
 
+func FullEval() {
+	do(NewFullEvaluator())
+}
+
 func do(doer doer) {
 	slog.Info("running doer", slog.String("doer", doer.String()))
 

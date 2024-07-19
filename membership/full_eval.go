@@ -11,102 +11,65 @@ import (
 	"time"
 
 	uuid "github.com/satori/go.uuid"
-
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/utils"
 	"gitlab.bbdev.team/vh/vh-srv-profile/repo"
 )
 
-type Migrator struct {
-	Evaluator
+type FullEvaluator struct {
+	Migrator
 }
 
-func NewMigrator() *Migrator {
-	return new(Migrator)
+func NewFullEvaluator() *FullEvaluator {
+	return new(FullEvaluator)
 }
 
-func (m *Migrator) String() string {
-	return "migrator"
+func (e *FullEvaluator) String() string {
+	return "full eval"
 }
 
-// time=2024-07-17T04:45:29.211+03:00
-
-func (m *Migrator) do() error {
-	users, err := m.getAllUsers()
+func (e *FullEvaluator) do() error {
+	users, err := e.getAllUsers()
 	if err != nil {
 		return fmt.Errorf("getAllUsers: %w", err)
 	}
 	slog.Info("getAllUsers", slog.Int("count", len(users)))
 
-	evalResults := m.evalUsers(users)
+	previousStatus := e.previousStatus(users)
+	slog.Info("previous status", slog.Int("count", len(previousStatus)))
+
+	evalResults := e.evalUsers(users)
 	slog.Info("eval results", slog.Int("count", len(evalResults)))
 
-	if err := m.report(users, evalResults); err != nil {
-		utils.LogFatal("Migrator.report", slog.Any("err", err))
+	if err := e.report(users, evalResults, previousStatus); err != nil {
+		utils.LogFatal("FullEvaluator.report", slog.Any("err", err))
 	}
 
 	return nil
 }
 
-func (m *Migrator) getAllUsers() ([]repo.User, error) {
-	pageSize := 1000
-	page := 0
+func (e *FullEvaluator) previousStatus(users []repo.User) map[*uuid.UUID]repo.UserMembershipRes {
+	results := make(map[*uuid.UUID]repo.UserMembershipRes)
 
-	var allUsers []repo.User
-	for {
-		users, err := m.repo.GetMultipleProfiles(context.TODO(), page*pageSize, pageSize,
-			"", "", "", "", "", "",
-			"", "", "", "",
-			"", "", "", "", "", "", "", "")
-		if err != nil {
-			return nil, fmt.Errorf("repo.GetMultipleProfiles: %w", err)
-		}
-
-		allUsers = append(allUsers, users...)
-		page++
-		if len(users) < pageSize {
-			break
-		}
-	}
-
-	return allUsers, nil
-}
-
-func (m *Migrator) evalUsers(users []repo.User) map[*uuid.UUID]repo.UserMembershipRes {
-	evalResults := make(map[*uuid.UUID]repo.UserMembershipRes)
-
+	ctx := context.WithValue(context.Background(), common.CtxTokenSource, e.kcTokenSource)
 	for i, user := range users {
 		if i%100 == 0 {
-			slog.Debug("evalUser", slog.Int("position", i), slog.Int("total", len(users)))
+			slog.Debug("previousStatus", slog.Int("position", i), slog.Int("total", len(users)))
 		}
-		res, err := m.evalUser(user)
+
+		res, err := e.repo.GetMembershipByUserID(ctx, user.UserID.String())
 		if err != nil {
-			slog.Error("evalUser", slog.String("user_id", user.UserID.String()), slog.Any("err", err))
+			slog.Error("previousStatus", slog.String("user_id", user.UserID.String()), slog.Any("err", err))
 		} else {
-			evalResults[user.UserID] = res
+			results[user.UserID] = res
 		}
 	}
 
-	return evalResults
+	return results
 }
 
-func (m *Migrator) evalUser(user repo.User) (repo.UserMembershipRes, error) {
-	slog.Debug("evalUser",
-		slog.String("user_id", user.UserID.String()),
-		slog.String("kc_id", user.UserInput.KeycloakID.String()),
-		slog.String("email", *user.UserInput.Emails.Primary))
-
-	ids := repo.EmailKeycloakAndUserIDBody{
-		UserID:     utils.PointerString(user.UserID.String()),
-		KeycloakID: utils.PointerString(user.UserInput.KeycloakID.String()),
-		Email:      user.UserInput.Emails.Primary,
-	}
-
-	return m.Evaluator.eval(ids)
-}
-
-func (m *Migrator) report(users []repo.User, evalResults map[*uuid.UUID]repo.UserMembershipRes) error {
-	file, err := os.Create("eval_results.csv")
+func (e *FullEvaluator) report(users []repo.User, evalResults, previousStatus map[*uuid.UUID]repo.UserMembershipRes) error {
+	file, err := os.Create("full_eval_results.csv")
 	if err != nil {
 		return fmt.Errorf("os.Create: %w", err)
 	}
@@ -139,15 +102,11 @@ func (m *Migrator) report(users []repo.User, evalResults map[*uuid.UUID]repo.Use
 		"quantity",
 		"category",
 		"subcategory",
-		"order_flag",
-		"order_starting_date",
 		"notification_slugs",
 		"notification_count",
 	}); err != nil {
 		return fmt.Errorf("csv.Writer.Write header: %w", err)
 	}
-
-	ctxWithTokenSource := context.WithValue(context.Background(), common.CtxTokenSource, m.kcTokenSource)
 
 	for i, user := range users {
 		if i%100 == 0 {
@@ -174,37 +133,38 @@ func (m *Migrator) report(users []repo.User, evalResults map[*uuid.UUID]repo.Use
 			vals = append(vals, "")
 		}
 
-		oldStatus, err := m.ordersService.StatusByEmail(ctxWithTokenSource, *user.UserInput.Emails.Primary)
-		if err != nil {
-			slog.Error("getting old status", slog.String("user_id", user.UserID.String()), slog.Any("err", err))
+		prevStatus, ok := previousStatus[user.UserID]
+		if !ok {
+			slog.Warn("user has no previous status")
 			vals = append(vals, "error", "error", "error", "error", "error")
 		} else {
 			vals = append(vals,
-				strconv.FormatBool(oldStatus.Membership),
-				strconv.FormatBool(*evalRes.Active != oldStatus.Membership))
+				strconv.FormatBool(*prevStatus.Active),
+				strconv.FormatBool(*evalRes.Active != *prevStatus.Active))
 
-			if !*evalRes.Active && !oldStatus.Membership {
+			if !*evalRes.Active && !*prevStatus.Active {
 				vals = append(vals, "0")
-			} else if *evalRes.Active && oldStatus.Membership {
+			} else if *evalRes.Active && *prevStatus.Active {
 				vals = append(vals, "1")
-			} else if !*evalRes.Active && oldStatus.Membership {
+			} else if !*evalRes.Active && *prevStatus.Active {
 				vals = append(vals, "2")
-			} else if *evalRes.Active && !oldStatus.Membership {
+			} else if *evalRes.Active && !*prevStatus.Active {
 				vals = append(vals, "3")
 			}
 
 			newIsSpecial := *evalRes.Type == "special"
+			oldIsSpecial := *prevStatus.Type == "special"
 			vals = append(vals,
-				strconv.FormatBool(oldStatus.IsSpecial),
-				strconv.FormatBool(newIsSpecial != oldStatus.IsSpecial))
+				strconv.FormatBool(oldIsSpecial),
+				strconv.FormatBool(newIsSpecial != oldIsSpecial))
 
-			if !newIsSpecial && !oldStatus.IsSpecial {
+			if !newIsSpecial && !oldIsSpecial {
 				vals = append(vals, "0")
-			} else if newIsSpecial && oldStatus.IsSpecial {
+			} else if newIsSpecial && oldIsSpecial {
 				vals = append(vals, "1")
-			} else if !newIsSpecial && oldStatus.IsSpecial {
+			} else if !newIsSpecial && oldIsSpecial {
 				vals = append(vals, "2")
-			} else if newIsSpecial && !oldStatus.IsSpecial {
+			} else if newIsSpecial && !oldIsSpecial {
 				vals = append(vals, "3")
 			}
 		}
@@ -275,23 +235,7 @@ func (m *Migrator) report(users []repo.User, evalResults map[*uuid.UUID]repo.Use
 			vals = append(vals, "error", "error", "error", "error", "error")
 		}
 
-		if orderID > 0 {
-			order, err := m.ordersService.GetOrderByID(ctxWithTokenSource, orderID)
-			if err != nil {
-				slog.Error("getting order extras", slog.String("user_id", user.UserID.String()),
-					slog.Int("order_id", *evalRes.Details.Automatic.OrderID), slog.Any("err", err))
-				vals = append(vals, "error", "error")
-			} else {
-				vals = append(vals, order.Flag)
-				if order.StartingDate.IsZero() {
-					vals = append(vals, order.StartingDate.Format(time.RFC3339))
-				} else {
-					vals = append(vals, "")
-				}
-			}
-		}
-
-		notifications, err := m.repo.GetActiveUserNotificationByUserID(context.TODO(), user.UserID.String())
+		notifications, err := e.repo.GetActiveUserNotificationByUserID(context.TODO(), user.UserID.String())
 		if err != nil {
 			return fmt.Errorf("repo.GetMultipleUserNotification: %w", err)
 		}
