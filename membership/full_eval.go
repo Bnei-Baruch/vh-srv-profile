@@ -135,7 +135,7 @@ func (e *FullEvaluator) report(users []repo.User, evalResults, previousStatus ma
 
 		prevStatus, ok := previousStatus[user.UserID]
 		if !ok {
-			slog.Warn("user has no previous status")
+			slog.Warn("user has no previous status", slog.String("user_id", user.UserID.String()))
 			vals = append(vals, "error", "error", "error", "error", "error")
 		} else {
 			vals = append(vals,
