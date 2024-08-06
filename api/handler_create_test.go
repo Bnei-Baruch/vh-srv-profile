@@ -35,7 +35,7 @@ func Test_profileHandler_create_succeeds_with_minimal_required_fields(t *testing
 	g := gin.New()
 	g.POST("/", profile.create)
 
-	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{
+  r := NewRequestAsRoot(http.MethodPost, "/", strings.NewReader(`{
 		"keycloak_id":"11000000-0000-0000-0000-000000000000",
 		"first_name_vernacular":"First",
 		"last_name_vernacular":"Name",
@@ -55,7 +55,7 @@ func Test_profileHandler_create_returns_bad_request_when_request_is_empty(t *tes
 	g := gin.New()
 	g.POST("/", profile.create)
 
-	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{}`))
+	r := NewRequestAsRoot(http.MethodPost, "/", strings.NewReader(`{}`))
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	g.ServeHTTP(w, r)
@@ -70,7 +70,7 @@ func Test_profileHandler_create_returns_500_when_storage_returns_error(t *testin
 	g := gin.New()
 	g.POST("/", profile.create)
 
-	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{
+	r := NewRequestAsRoot(http.MethodPost, "/", strings.NewReader(`{
 		"keycloak_id":"11000000-0000-0000-0000-000000000000",
 		"first_name_vernacular":"First",
 		"last_name_vernacular":"Name",

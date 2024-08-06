@@ -42,7 +42,7 @@ func Test_profileHandler_get_succeeds(t *testing.T) {
 	g := gin.New()
 	g.GET("/:keycloak_id", profile.get)
 
-	r := httptest.NewRequest(http.MethodGet, "/11000000-0000-0000-0000-000000000000", nil)
+	r := NewRequestAsRoot(http.MethodGet, "/11000000-0000-0000-0000-000000000000", nil)
 	w := httptest.NewRecorder()
 	g.ServeHTTP(w, r)
 
@@ -123,7 +123,7 @@ func Test_profileHandler_get_full_succeeds(t *testing.T) {
 	g := gin.New()
 	g.GET("/:keycloak_id", profile.get)
 
-	r := httptest.NewRequest(http.MethodGet, "/11000000-0000-0000-0000-000000000000", nil)
+	r := NewRequestAsRoot(http.MethodGet, "/11000000-0000-0000-0000-000000000000", nil)
 	w := httptest.NewRecorder()
 	g.ServeHTTP(w, r)
 
@@ -180,7 +180,7 @@ func Test_profileHandler_get_returns_404_when_storage_returns_errProfileNotFound
 	g := gin.New()
 	g.GET("/:keycloak_id", profile.get)
 
-	r := httptest.NewRequest(http.MethodGet, "/11000000-0000-0000-0000-000000000000", nil)
+	r := NewRequestAsRoot(http.MethodGet, "/11000000-0000-0000-0000-000000000000", nil)
 	w := httptest.NewRecorder()
 	g.ServeHTTP(w, r)
 
@@ -194,7 +194,7 @@ func Test_profileHandler_get_returns_500_when_storage_returns_error(t *testing.T
 	g := gin.New()
 	g.GET("/:keycloak_id", profile.get)
 
-	r := httptest.NewRequest(http.MethodGet, "/11000000-0000-0000-0000-000000000000", nil)
+	r := NewRequestAsRoot(http.MethodGet, "/11000000-0000-0000-0000-000000000000", nil)
 	w := httptest.NewRecorder()
 	g.ServeHTTP(w, r)
 
