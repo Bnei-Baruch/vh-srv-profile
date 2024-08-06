@@ -30,25 +30,25 @@ func (db *ProfileDB) HardDeleteProfile(ctx context.Context, keycloakID uuid.UUID
 	}
 
 	// delete membership_helphaver
-	_, err = tx.Exec(ctx, `DELETE FROM membership_helphaver WHERE membership_id IN (SELECT membership_id FROM membership WHERE user_id=(SELECT user_id FROM users WHERE keycloak_id=$1))`, keycloakID)
+	_, err = tx.Exec(ctx, `DELETE FROM membership_helphaver WHERE membership_id IN (SELECT id FROM membership WHERE user_id=(SELECT user_id FROM users WHERE keycloak_id=$1))`, keycloakID)
 	if err != nil {
 		return fmt.Errorf("problem deleting membership_helphaver for keycloak id %q: %w", keycloakID, err)
 	}
 
 	// delete membership_automatic
-	_, err = tx.Exec(ctx, `DELETE FROM membership_automatic WHERE membership_id IN (SELECT membership_id FROM membership WHERE user_id=(SELECT user_id FROM users WHERE keycloak_id=$1))`, keycloakID)
+	_, err = tx.Exec(ctx, `DELETE FROM membership_automatic WHERE membership_id IN (SELECT id FROM membership WHERE user_id=(SELECT user_id FROM users WHERE keycloak_id=$1))`, keycloakID)
 	if err != nil {
 		return fmt.Errorf("problem deleting membership_automatic for keycloak id %q: %w", keycloakID, err)
 	}
 
 	// delete membership_manual
-	_, err = tx.Exec(ctx, `DELETE FROM membership_manual WHERE membership_id IN (SELECT membership_id FROM membership WHERE user_id=(SELECT user_id FROM users WHERE keycloak_id=$1))`, keycloakID)
+	_, err = tx.Exec(ctx, `DELETE FROM membership_manual WHERE membership_id IN (SELECT id FROM membership WHERE user_id=(SELECT user_id FROM users WHERE keycloak_id=$1))`, keycloakID)
 	if err != nil {
 		return fmt.Errorf("problem deleting membership_manual for keycloak id %q: %w", keycloakID, err)
 	}
 
 	// delete membership_special
-	_, err = tx.Exec(ctx, `DELETE FROM membership_special WHERE membership_id IN (SELECT membership_id FROM membership WHERE user_id=(SELECT user_id FROM users WHERE keycloak_id=$1))`, keycloakID)
+	_, err = tx.Exec(ctx, `DELETE FROM membership_special WHERE membership_id IN (SELECT id FROM membership WHERE user_id=(SELECT user_id FROM users WHERE keycloak_id=$1))`, keycloakID)
 	if err != nil {
 		return fmt.Errorf("problem deleting membership_special for keycloak id %q: %w", keycloakID, err)
 	}
