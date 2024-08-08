@@ -21,7 +21,7 @@ func Test_profileHandler_delete_succeeds(t *testing.T) {
 	g := gin.New()
 	g.DELETE("/:keycloak_id", profile.delete)
 
-	r := httptest.NewRequest(http.MethodDelete, "/11000000-0000-0000-0000-000000000000", nil)
+	r := NewRequestAsRoot(http.MethodDelete, "/11000000-0000-0000-0000-000000000000", nil)
 	w := httptest.NewRecorder()
 	g.ServeHTTP(w, r)
 
@@ -36,7 +36,7 @@ func Test_profileHandler_delete_returns_404_when_storage_returns_errProfileNotFo
 	g := gin.New()
 	g.DELETE("/:keycloak_id", profile.delete)
 
-	r := httptest.NewRequest(http.MethodDelete, "/11000000-0000-0000-0000-000000000000", nil)
+	r := NewRequestAsRoot(http.MethodDelete, "/11000000-0000-0000-0000-000000000000", nil)
 	w := httptest.NewRecorder()
 	g.ServeHTTP(w, r)
 
@@ -50,7 +50,7 @@ func Test_profileHandler_delete_returns_500_when_storage_returns_error(t *testin
 	g := gin.New()
 	g.DELETE("/:keycloak_id", profile.delete)
 
-	r := httptest.NewRequest(http.MethodDelete, "/11000000-0000-0000-0000-000000000000", nil)
+	r := NewRequestAsRoot(http.MethodDelete, "/11000000-0000-0000-0000-000000000000", nil)
 	w := httptest.NewRecorder()
 	g.ServeHTTP(w, r)
 

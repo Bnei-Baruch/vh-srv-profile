@@ -64,9 +64,13 @@ func (m *storageMock) GetRequestByID(ctx context.Context, id int) (*repo.NewRequ
 	return args.Get(0).(*repo.NewRequest), args.Error(1)
 }
 
-func (m *storageMock) GetMultipleRequest(ctx context.Context, intSkip int, intLimit int, kcid string, status string, name string, typeFilter string, orderByCreatedAt string) ([]repo.RequestAndGrant, error) {
+func (m *storageMock) GetMultipleRequest(ctx context.Context, intSkip int, intLimit int, kcid string, status string, name string, email string, typeFilter string, orderByCreatedAt string) ([]repo.RequestAndGrant, error) {
 	//TODO implement me
 	panic("implement me")
+}
+
+func (m *storageMock) GetMultipleRequestCount(ctx context.Context, kcid string, status string, name string, email string, typeFilter string, orderByCreatedAt string) (int, error) {
+  panic("implement me")
 }
 
 func (m *storageMock) GetMembershipByID(ctx context.Context, id int) (repo.Membership, error) {
@@ -190,6 +194,16 @@ func (m *storageMock) PerformOperation(ctx context.Context, opr repo.OperationRe
 }
 
 func (m *storageMock) RevertOperation(ctx context.Context, newEmail string, oldEmail string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *storageMock) IsSubjectID(ctx context.Context, arg1 string, arg2 string) (bool, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *storageMock) MergeAccounts(ctx context.Context, accountsMergeData repo.AccountsMergeData) (*repo.EmailKeycloakAndUserIDBody, error) {
 	//TODO implement me
 	panic("implement me")
 }

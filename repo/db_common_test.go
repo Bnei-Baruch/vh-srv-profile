@@ -73,3 +73,8 @@ func (m *orderServiceMock) StatusByEmail(ctx context.Context, email string) (*or
 	args := m.Called(ctx, email)
 	return args.Get(0).(*orders.Status), args.Error(1)
 }
+
+func (m *orderServiceMock) DeleteSpecialIfExist(ctx context.Context, email string) error {
+	args := m.Called(ctx, email)
+	return args.Error(0)
+}

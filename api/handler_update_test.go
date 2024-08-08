@@ -35,7 +35,7 @@ func Test_profileHandler_update_succeeds(t *testing.T) {
 	g := gin.New()
 	g.PATCH("/:keycloak_id", profile.update)
 
-	r := httptest.NewRequest(http.MethodPatch, "/11000000-0000-0000-0000-000000000000", strings.NewReader(`{
+	r := NewRequestAsRoot(http.MethodPatch, "/11000000-0000-0000-0000-000000000000", strings.NewReader(`{
 		"first_name_vernacular":"First",
 		"last_name_vernacular":"Name",
 		"primary_email":"something@fakemail.com"
@@ -55,7 +55,7 @@ func Test_profileHandler_update_returns_404_when_storage_returns_errProfileNotFo
 	g := gin.New()
 	g.PATCH("/:keycloak_id", profile.update)
 
-	r := httptest.NewRequest(http.MethodPatch, "/11000000-0000-0000-0000-000000000000", strings.NewReader(`{
+	r := NewRequestAsRoot(http.MethodPatch, "/11000000-0000-0000-0000-000000000000", strings.NewReader(`{
 		"first_name_vernacular":"First",
 		"last_name_vernacular":"Name",
 		"primary_email":"something@fakemail.com"
@@ -74,7 +74,7 @@ func Test_profileHandler_update_returns_500_when_storage_returns_error(t *testin
 	g := gin.New()
 	g.PATCH("/:keycloak_id", profile.update)
 
-	r := httptest.NewRequest(http.MethodPatch, "/11000000-0000-0000-0000-000000000000", strings.NewReader(`{
+	r := NewRequestAsRoot(http.MethodPatch, "/11000000-0000-0000-0000-000000000000", strings.NewReader(`{
 		"first_name_vernacular":"First",
 		"last_name_vernacular":"Name",
 		"primary_email":"something@fakemail.com"
