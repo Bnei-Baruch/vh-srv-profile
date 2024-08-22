@@ -27,6 +27,7 @@ type Order struct {
 	Quantity     int       `json:"Quantity"`
 	StartingDate time.Time `json:"StartingDate"`
 	Flag         string    `json:"Flag"`
+	Notes        string    `json:"Notes"`
 }
 
 type Payment struct {

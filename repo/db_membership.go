@@ -97,9 +97,10 @@ type UserMembershipRes struct {
 			PaymentID *int `json:"payment_id,omitempty"`
 		} `json:"automatic,omitempty"`
 		Manual struct {
-			OrderID   *int `json:"order_id,omitempty"`
-			PaymentID *int `json:"payment_id,omitempty"`
-			Quantity  *int `json:"quantity,omitempty"`
+			OrderID   *int    `json:"order_id,omitempty"`
+			PaymentID *int    `json:"payment_id,omitempty"`
+			Quantity  *int    `json:"quantity,omitempty"`
+			Note      *string `json:"note,omitempty"`
 		} `json:"manual,omitempty"`
 		Special struct {
 			ApprovedBy *string `json:"approved_by,omitempty"`
@@ -855,12 +856,19 @@ func (db *ProfileDB) GetMembershipByUserID(ctx context.Context, userID string) (
 				fmt.Errorf("ordersService.GetPaymentByID [%d]: %w", *manualMembership.PaymentID, err)
 		}
 
+		order, err := ordersService.GetOrderByID(ctx, payment.OrderID)
+		if err != nil {
+			return UserMembershipRes{},
+				fmt.Errorf("ordersService.GetOrderByID [%d]: %w", *manualMembership.OrderID, err)
+		}
+
 		membership.Details.Payment.Amount = &payment.Amount
 		membership.Details.Payment.Currency = &payment.Currency
 		membership.Details.Payment.Status = &payment.PaymentStatus
 		membership.Details.Payment.Date = &payment.CreatedAt
 		membership.Details.Payment.PaymentMethod = &payment.CCNumber
 		membership.Details.Payment.PaymentType = &payment.PaymentType
+		membership.Details.Manual.Note = &order.Notes
 
 	} else if *membership.Type == "special" {
 		var email string
