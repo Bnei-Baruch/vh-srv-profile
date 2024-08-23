@@ -1,6 +1,8 @@
 package orders
 
-import "time"
+import (
+	"time"
+)
 
 type MessageAndSuccess struct {
 	Message string `json:"message"`
@@ -42,9 +44,13 @@ type Payment struct {
 }
 
 type Special struct {
-	Email       string `json:"email"`
-	Category    string `json:"category"`
-	SubCategory string `json:"subcategory"`
+	Id          int       `json:"id" gorm:"primary_key"`
+	KeycloakId  string    `json:"keycloak_id"`
+	Email       string    `json:"email"`
+	StartDate   time.Time `json:"start_date"`
+	EndDate     time.Time `json:"end_date"`
+	Category    string    `json:"category"`
+	SubCategory string    `json:"subcategory"`
 }
 
 type Status struct {
@@ -62,7 +68,7 @@ type AccountRes struct {
 
 type SpecialRes struct {
 	MessageAndSuccess
-	Data Special `json:"data"`
+	Data []Special `json:"data"`
 }
 
 type PaymentRes struct {

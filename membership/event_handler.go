@@ -27,6 +27,7 @@ var interestingEvents = map[string]struct{}{
 	orders.TypeCreatePayment: {},
 	orders.TypeUpdatePayment: {},
 	orders.TypeDeletePayment: {},
+	orders.TypeCreateSpecial: {},
 	orders.TypeDeleteSpecial: {},
 }
 
@@ -128,6 +129,9 @@ func (eh *EventsHandler) getUserIDs(ctx context.Context, event orders.Event) (*r
 	case orders.TypeCreatePayment, orders.TypeUpdatePayment, orders.TypeDeletePayment:
 		paymentID := event.Payload["payment_id"].(float64)
 		return eh.getUserIDsFromPayment(ctx, event, int(paymentID))
+	case orders.TypeCreateSpecial:
+		keycloakID := event.Payload["keycloak_id"].(string)
+		return &repo.EmailKeycloakAndUserIDBody{KeycloakID: &keycloakID}, nil
 	case orders.TypeDeleteSpecial:
 		email := event.Payload["email"].(string)
 		return &repo.EmailKeycloakAndUserIDBody{Email: &email}, nil

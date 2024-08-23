@@ -30,8 +30,9 @@ type OrdersService interface {
 		createdAtOrder string,
 		limit int, offset int) ([]Payment, error)
 	GetPaymentByID(ctx context.Context, paymentID int) (*Payment, error)
-	GetSpecial(ctx context.Context, email string) (*Special, error)
-	DeleteSpecial(ctx context.Context, email string) error
+	GetSpecials(ctx context.Context, email string) ([]Special, error)
+	UpdateSpecialSetKeycloakIdByEmail(ctx context.Context, payload map[string]interface{}) error
+	DeleteSpecial(ctx context.Context, id int) error
 	DeleteSpecialIfExist(ctx context.Context, email string) error
 	StatusByEmail(ctx context.Context, email string) (*Status, error)
 }
@@ -217,7 +218,7 @@ func (api *OrdersAPI) GetPaymentByID(ctx context.Context, paymentID int) (*Payme
 	return &payment, nil
 }
 
-func (api *OrdersAPI) GetSpecial(ctx context.Context, email string) (*Special, error) {
+func (api *OrdersAPI) GetSpecials(ctx context.Context, email string) ([]Special, error) {
 	req, err := api.baseRequest(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("baseRequest: %w", err)
@@ -226,7 +227,7 @@ func (api *OrdersAPI) GetSpecial(ctx context.Context, email string) (*Special, e
 	resp, err := req.
 		SetPathParam("email", email).
 		SetResult(SpecialRes{}).
-		Get("/v2/special/{email}")
+		Get("/v2/special/email/{email}")
 	if err != nil {
 		return nil, fmt.Errorf("req.Get: %w", err)
 	}
@@ -238,19 +239,19 @@ func (api *OrdersAPI) GetSpecial(ctx context.Context, email string) (*Special, e
 		return nil, respError(resp)
 	}
 
-	special := resp.Result().(*SpecialRes).Data
-	return &special, nil
+	specials := resp.Result().(*SpecialRes).Data
+	return specials, nil
 }
 
-func (api *OrdersAPI) DeleteSpecial(ctx context.Context, email string) error {
+func (api *OrdersAPI) DeleteSpecial(ctx context.Context, id int) error {
 	req, err := api.baseRequest(ctx)
 	if err != nil {
 		return fmt.Errorf("baseRequest: %w", err)
 	}
 
 	resp, err := req.
-		SetPathParam("email", email).
-		Delete("/v2/special/{email}")
+		SetPathParam("id", strconv.Itoa(id)).
+		Delete("/v2/special/{id}")
 	if err != nil {
 		return fmt.Errorf("req.Delete: %w", err)
 	}
@@ -262,25 +263,45 @@ func (api *OrdersAPI) DeleteSpecial(ctx context.Context, email string) error {
 	return nil
 }
 
-func (api *OrdersAPI) DeleteSpecialIfExist(ctx context.Context, email string) error {
+// UpdateSpecialSetKeycloakIdByEmail Consider establishing event sending with NATS for 'update' requests from 'orders' to 'profile'
+func (api *OrdersAPI) UpdateSpecialSetKeycloakIdByEmail(ctx context.Context, payload map[string]interface{}) error {
 	req, err := api.baseRequest(ctx)
 	if err != nil {
 		return fmt.Errorf("baseRequest: %w", err)
 	}
 
 	resp, err := req.
-		SetPathParam("email", email).
-		Delete("/v2/special/{email}")
+		SetBody(payload).
+		Post("/v2/special/update")
 	if err != nil {
-		return fmt.Errorf("req.Delete: %w", err)
-	}
-
-	if resp.StatusCode() == http.StatusNotFound {
-		return nil
+		return fmt.Errorf("req.UpdateSpecialSetKeycloakIdByEmail: %w", err)
 	}
 
 	if err = respError(resp); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// DeleteSpecialIfExist  method retrieves all specials, then checks which ones are no longer actual or are actual at the moment, and removes them.
+// Those that will be actual in the future remain as they are.
+func (api *OrdersAPI) DeleteSpecialIfExist(ctx context.Context, keycloakId string) error {
+	req, err := api.baseRequest(ctx)
+	if err != nil {
+		return fmt.Errorf("baseRequest: %w", err)
+	}
+	resp, err := req.
+		SetPathParam("keycloak_id", keycloakId).
+		Delete("/v2/special/delete/{keycloak_id}")
+	if err != nil {
+		fmt.Println("req.Delete: %w", err)
+	}
+	if resp.StatusCode() == http.StatusNotFound {
+		fmt.Println("req.Delete: %w", err)
+	}
+	if err = respError(resp); err != nil {
+		fmt.Println(err)
 	}
 
 	return nil
