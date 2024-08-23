@@ -348,18 +348,24 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 	}
 
 	if membershipInsertData.Expiry == nil || membershipInsertData.Expiry.Before(time.Now()) {
-		special, err := ordersService.GetSpecial(ctx, email)
+		aSpecial, needKeycloakIdUpdate, err := getUserSpecial(ctx, ordersService, email)
 		if err != nil {
 			return UserMembershipRes{}, fmt.Errorf("ordersService.GetSpecial: %w", err)
 		}
-
-		if special != nil {
+		if aSpecial != nil {
 			userInSpecialTable = true
 			currentMembership = "special"
 			membershipInsertData.Active = utils.PointerBool(true)
 			membershipInsertData.Type = utils.PointerString("special")
-			membershipInsertData.Expiry = nil //TODO (edo): this should probably be changed to have dates
+			membershipInsertData.Expiry = utils.PointerTime(aSpecial.EndDate)
+			if needKeycloakIdUpdate {
+				err := ordersService.UpdateSpecialSetKeycloakIdByEmail(ctx, map[string]interface{}{"email": email, "keycloak_id": userKeycloakID})
+				if err != nil {
+					return UserMembershipRes{}, fmt.Errorf("ordersService.UpdateSpecialSetKeycloakIdByEmail: %w", err)
+				}
+			}
 		}
+
 	}
 
 	// check currentMembership is cancelled or new
@@ -501,6 +507,30 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 	}
 
 	return userMembershipResponse, nil
+}
+
+func getUserSpecial(ctx context.Context, ordersService orders.OrdersService, email string) (*orders.Special, bool, error) {
+	specials, err := ordersService.GetSpecials(ctx, email)
+	if err != nil {
+		return nil, false, fmt.Errorf("ordersService.GetSpecial: %w", err)
+	}
+
+	if len(specials) > 0 {
+		var (
+			aSpecial             *orders.Special
+			needKeycloakIdUpdate bool
+		)
+		for _, special := range specials {
+			if (special.StartDate.Before(time.Now()) || special.StartDate.Equal(time.Now())) && special.EndDate.After(time.Now()) {
+				aSpecial = &special
+				if special.KeycloakId == "" {
+					needKeycloakIdUpdate = true
+				}
+			}
+		}
+		return aSpecial, needKeycloakIdUpdate, nil
+	}
+	return nil, false, nil
 }
 
 func (db *ProfileDB) createMembership(ctx context.Context, req Membership) (int, error) {
@@ -868,7 +898,7 @@ func (db *ProfileDB) GetMembershipByUserID(ctx context.Context, userID string) (
 			return UserMembershipRes{}, fmt.Errorf("db.QueryRow [special email]: %w", err)
 		}
 
-		special, err := ordersService.GetSpecial(ctx, email)
+		special, _, err := getUserSpecial(ctx, ordersService, email)
 		if err != nil {
 			return UserMembershipRes{}, fmt.Errorf("ordersService.GetSpecial: %w", err)
 		}
@@ -1101,7 +1131,8 @@ func (db *ProfileDB) CancelMembership(ctx context.Context, membBody EmailKeycloa
 	}
 
 	// Remove from the 'special' table if it exists.
-	if err = ordersService.DeleteSpecialIfExist(ctx, email); err != nil {
+	// Remove all specials by keycloakID
+	if err = ordersService.DeleteSpecialIfExist(ctx, *membBody.KeycloakID); err != nil {
 		return fmt.Errorf("ordersService.DeleteSpecialIfExist : %w", err)
 	}
 
