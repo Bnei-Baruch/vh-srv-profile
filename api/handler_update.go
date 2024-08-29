@@ -93,15 +93,5 @@ func (p *ProfileManager) update(c *gin.Context) {
 		return
 	}
 
-	keycloakService := p.keycloakServiceFactory()
-	updateErr := keycloakService.UpdateUser(c.Request.Context(), keycloakIDString,
-		request.FirstNameVernacular, request.LastNameVernacular)
-
-	if updateErr != nil {
-		c.Status(http.StatusInternalServerError)
-		_ = c.Error(fmt.Errorf("keycloakService.UpdateUser: %w", updateErr))
-		return
-	}
-
 	c.Status(http.StatusOK)
 }
