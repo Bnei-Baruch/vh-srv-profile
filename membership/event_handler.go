@@ -130,8 +130,23 @@ func (eh *EventsHandler) getUserIDs(ctx context.Context, event orders.Event) (*r
 		paymentID := event.Payload["payment_id"].(float64)
 		return eh.getUserIDsFromPayment(ctx, event, int(paymentID))
 	case orders.TypeCreateSpecial:
-		keycloakID := event.Payload["keycloak_id"].(string)
-		return &repo.EmailKeycloakAndUserIDBody{KeycloakID: &keycloakID}, nil
+		var email string
+		var keycloakID string
+		ret := repo.EmailKeycloakAndUserIDBody{}
+		email_val, has_email := event.Payload["email"]
+		if has_email {
+			email = email_val.(string)
+			ret.Email = &email
+		}
+		kc_val, has_kc := event.Payload["keycloak_id"]
+		if has_kc {
+			keycloakID = kc_val.(string)
+			ret.KeycloakID = &keycloakID
+		}
+		if (!has_email || (email == "")) && (!has_kc || (keycloakID == "")) {
+			return nil, errors.New("no keycloak_id or email in 'CreateSpecial' event")
+		}
+		return &ret, nil
 	case orders.TypeDeleteSpecial:
 		email := event.Payload["email"].(string)
 		return &repo.EmailKeycloakAndUserIDBody{Email: &email}, nil
