@@ -20,8 +20,8 @@ func (db *ProfileDB) GetProfile(ctx context.Context, keycloakID uuid.UUID) (User
 	var userID uuid.UUID
 	if err := db.QueryRow(ctx, `
 	SELECT users.user_id,
-		updated_at,
-		created_at,
+		users.updated_at,
+		users.created_at,
 		deleted,
 		membership.active,
 		membership.type,
