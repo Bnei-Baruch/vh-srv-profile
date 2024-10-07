@@ -64,6 +64,15 @@ type userResponse struct {
 	NameOfGroup         *string    `json:"name_ten_group,omitempty"`
 }
 
+type ShortProfile struct {
+	UserID    uuid.UUID `json:"id"`
+	FirstName *string   `json:"first_name"`
+	LastName  *string   `json:"last_name"`
+	Email     string    `json:"email"`
+	Active    bool      `json:"active"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 func (p *ProfileManager) getProfiles(c *gin.Context) {
 
 	// Fetching all the query strings if present in url
@@ -316,18 +325,11 @@ func (p *ProfileManager) get(c *gin.Context) {
 	}
 
 	result := userResponse{
-		UserID:     profile.UserID,
-		KeycloakID: profile.UserInput.KeycloakID,
-		UpdatedAt:  profile.UpdatedAt,
-		CreatedAt:  profile.CreatedAt,
-		Deleted:    profile.Deleted,
-		Status: status{
-			Membership:     profile.UserInput.Status.Membership,
-			MembershipType: profile.UserInput.Status.MembershipType,
-			Ticket:         profile.UserInput.Status.Ticket,
-			Convention:     profile.UserInput.Status.Convention,
-			Galaxy:         profile.UserInput.Status.Galaxy,
-		},
+		UserID:              profile.UserID,
+		KeycloakID:          profile.UserInput.KeycloakID,
+		UpdatedAt:           profile.UpdatedAt,
+		CreatedAt:           profile.CreatedAt,
+		Deleted:             profile.Deleted,
 		MembershipActive:    profile.UserInput.MembershipActive,
 		MembershipType:      profile.UserInput.MembershipType,
 		FirstNameLatin:      profile.UserInput.FirstNameLatin,
@@ -368,6 +370,45 @@ func (p *ProfileManager) get(c *gin.Context) {
 	}
 
 	result.DateOfBirth = birthDate
+
+	c.JSON(http.StatusOK, result)
+}
+
+func (p *ProfileManager) getProfileShort(c *gin.Context) {
+	keycloakIDString, ok := c.Params.Get("keycloak_id")
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "keycloak ID missing"})
+		return
+	}
+	keycloakID, err := uuid.FromString(keycloakIDString)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("malformed keycloak_id: %v", err)})
+		return
+	}
+
+	if !p.isSubjectOrHasAnyRole(c, keycloakIDString, common.RoleAnyAdmin...) {
+		return
+	}
+
+	profile, err := p.repo.GetProfile(c.Request.Context(), keycloakID)
+	if err != nil {
+		if errors.Is(err, common.ErrProfileNotFound) {
+			c.JSON(http.StatusOK, gin.H{"error": "profile not found"})
+			return
+		}
+		c.Status(http.StatusInternalServerError)
+		_ = c.Error(fmt.Errorf("repo.GetProfile: %w", err))
+		return
+	}
+
+	result := ShortProfile{
+		UserID:    *profile.UserID,
+		FirstName: profile.UserInput.FirstNameVernacular,
+		LastName:  profile.UserInput.LastNameVernacular,
+		Email:     *profile.UserInput.Emails.Primary,
+		Active:    profile.UserInput.MembershipActive != nil && *profile.UserInput.MembershipActive,
+		CreatedAt: profile.CreatedAt,
+	}
 
 	c.JSON(http.StatusOK, result)
 }

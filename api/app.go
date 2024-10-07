@@ -126,6 +126,7 @@ func (a *App) initGinEngine() {
 	a.gEngine.POST("/v1/profile", a.profileManager.create)
 	a.gEngine.GET("/v1/profiles", a.profileManager.getProfiles)
 	a.gEngine.GET("/v1/profile/:keycloak_id", a.profileManager.get)
+	a.gEngine.GET("/v1/profile/:keycloak_id/short", a.profileManager.getProfileShort)
 	a.gEngine.PATCH("/v1/profile/:keycloak_id", a.profileManager.update)
 	a.gEngine.DELETE("/v1/profile/:keycloak_id", a.profileManager.delete)
 	a.gEngine.DELETE("/admin/v1/profile/:keycloak_id", a.profileManager.hardDelete)

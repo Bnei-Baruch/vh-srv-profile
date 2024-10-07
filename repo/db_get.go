@@ -23,11 +23,8 @@ func (db *ProfileDB) GetProfile(ctx context.Context, keycloakID uuid.UUID) (User
 		updated_at,
 		created_at,
 		deleted,
-		status.membership,
-		status.membership_type,
-		status.ticket,
-		status.convention,
-		status.galaxy,
+		membership.active,
+		membership.type,
 		first_name_latin,
 		first_name_vernacular,
 		last_name_latin,
@@ -60,18 +57,15 @@ func (db *ProfileDB) GetProfile(ctx context.Context, keycloakID uuid.UUID) (User
 		(SELECT phone_number FROM phone_numbers as p WHERE p.user_id = users.user_id and type='mobile' ) as mobile,
 		(SELECT phone_number FROM phone_numbers as p WHERE p.user_id = users.user_id and type='Telegram' ) as telegram 
 	FROM users
-	LEFT JOIN status ON users.user_id = status.user_id
+	LEFT JOIN membership ON users.user_id = membership.user_id
 	WHERE keycloak_id = $1
 	AND deleted = false`, keycloakID).Scan(
 		&userID,
 		&profile.UpdatedAt,
 		&profile.CreatedAt,
 		&profile.Deleted,
-		&profile.UserInput.Status.Membership,
-		&profile.UserInput.Status.MembershipType,
-		&profile.UserInput.Status.Ticket,
-		&profile.UserInput.Status.Convention,
-		&profile.UserInput.Status.Galaxy,
+		&profile.UserInput.MembershipActive,
+		&profile.UserInput.MembershipType,
 		&profile.UserInput.FirstNameLatin,
 		&profile.UserInput.FirstNameVernacular,
 		&profile.UserInput.LastNameLatin,
