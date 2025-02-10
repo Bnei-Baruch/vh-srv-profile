@@ -2,7 +2,8 @@ BEGIN;
 
 CREATE TABLE IF NOT EXISTS page_notes (
     id SERIAL PRIMARY KEY,
-    user_id uuid NOT NULL,
+    author_keycloak_id uuid NOT NULL,
+    page_keycloak_id uuid NULL,
     page_id integer NOT NULL,
     note text COLLATE pg_catalog."default" NOT NULL,
     created_at date NOT NULL,
