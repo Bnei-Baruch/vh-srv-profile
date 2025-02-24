@@ -32,6 +32,7 @@ type ProfileRepository interface {
 	userNotificationInterface
 	operationInterface
 	mergeAccounts
+	pageNoteInterface
 }
 
 type ProfileDB struct {

@@ -176,6 +176,13 @@ func (a *App) initGinEngine() {
 		operation.POST("/", a.profileManager.handleOperationCreate)
 		operation.POST("/revert", a.profileManager.handleOperationRevert)
 	}
+
+	pageNote := baseV1Path.Group("/page-notes")
+	{
+		pageNote.GET("/", a.profileManager.handleFetchPageNotes)
+		pageNote.POST("/", a.profileManager.handleInsertPageNote)
+		pageNote.DELETE("/:id", a.profileManager.handleDeletePageNote)
+	}
 }
 
 func (a *App) initHealth() {
