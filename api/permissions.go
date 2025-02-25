@@ -53,3 +53,19 @@ func (p *ProfileManager) isUserOrHasAnyRole(c *gin.Context, userID string, roles
 
 	return true
 }
+
+func (o *ProfileManager) GetKeycloakIdFromRequest(c *gin.Context) (string, bool) {
+
+	authData := c.Request.Context().Value(common.CtxAuthClaims)
+	if authData == nil {
+		c.Status(http.StatusForbidden)
+		return "", false
+	}
+	claims := authData.(*middleware.IDTokenClaims)
+	if claims == nil {
+		c.Status(http.StatusForbidden)
+		return "", false
+	}
+
+	return claims.Sub, true
+}

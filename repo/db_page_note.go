@@ -11,22 +11,24 @@ import (
 type pageNoteInterface interface {
 	FetchPageNotes(ctx context.Context, pageId int, pageKeycloakId null.String) ([]PageNote, error)
 	InsertPageNote(ctx context.Context, pageId int, pageKeycloakId null.String, authorKeycloackId string, note string) (int, error)
-	DeletePageNote(ctx context.Context, id int) error
+	DeletePageNote(ctx context.Context, noteId int, authorKeycloakId string) error
 }
 
 type PageNote struct {
-	ID          int        `json:"id"`
-	AuthorName  string     `json:"author_name"`
-	AuthorEmail string     `json:"author_email"`
-	CreatedDate time.Time  `json:"created_at"`
-	ModifiedAt  *time.Time `json:"modified_at"`
-	Content     string     `json:"content"`
+	ID                int        `json:"id"`
+	AuthorName        string     `json:"author_name"`
+	AuthorEmail       string     `json:"author_email"`
+	AuthorKeycloackId string     `json:"author_keycloack_id"`
+	CreatedDate       time.Time  `json:"created_at"`
+	ModifiedAt        *time.Time `json:"modified_at"`
+	Content           string     `json:"content"`
 }
 
 func (db *ProfileDB) FetchPageNotes(ctx context.Context, pageId int, pageKeycloakId null.String) ([]PageNote, error) {
 	rows, err := db.Query(ctx, `SELECT pn.id, 
 		u.first_name_latin || ' ' || u.last_name_latin as author_name, 
 		u.primary_email as author_email,
+		pn.author_keycloak_id,
 		pn.created_at,
 		pn.modified_at,
 		pn.note as content
@@ -43,6 +45,7 @@ func (db *ProfileDB) FetchPageNotes(ctx context.Context, pageId int, pageKeycloa
 			&note.ID,
 			&note.AuthorName,
 			&note.AuthorEmail,
+			&note.AuthorKeycloackId,
 			&note.CreatedDate,
 			&note.ModifiedAt,
 			&note.Content,
@@ -70,10 +73,14 @@ func (db *ProfileDB) InsertPageNote(ctx context.Context, pageId int, pageKeycloa
 	return id, nil
 }
 
-func (db *ProfileDB) DeletePageNote(ctx context.Context, id int) error {
-	_, err := db.Exec(ctx, `DELETE FROM page_notes WHERE id=$1`, id)
+func (db *ProfileDB) DeletePageNote(ctx context.Context, noteId int, authorKeycloakId string) error {
+	res, err := db.Exec(ctx, `DELETE FROM page_notes WHERE id=$1 and author_keycloak_id=$2`, noteId, authorKeycloakId)
 	if err != nil {
 		return err
+	}
+	rowsAffected := res.RowsAffected()
+	if rowsAffected == 0 {
+		return fmt.Errorf("no notes were deleted")
 	}
 	return nil
 }

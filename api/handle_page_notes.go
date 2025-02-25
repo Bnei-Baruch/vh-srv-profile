@@ -11,6 +11,16 @@ import (
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
 )
 
+type insertPageNoteRequest struct {
+	PageId         int    `json:"page_id"`
+	PageKeycloakId string `json:"page_keycloak_id"`
+	Content        string `json:"content"`
+}
+
+type deletePageNoteRequest struct {
+	NoteId int `json:"note_id"`
+}
+
 func (p *ProfileManager) handleFetchPageNotes(c *gin.Context) {
 	if !p.HasAnyRole(c, common.RoleRoot, common.RoleAdmin) {
 		return
@@ -40,9 +50,27 @@ func (p *ProfileManager) handleInsertPageNote(c *gin.Context) {
 		return
 	}
 
-	// TBD repo insert to db
+	keycloakId, ok := p.GetKeycloakIdFromRequest(c)
+	if !ok {
+		c.Status(http.StatusForbidden)
+		return
+	}
 
-	//c.JSON(http.StatusOK, gin.H{"status": true, "message": "Added!", "data": ID})
+	var req insertPageNoteRequest
+	if err := c.Bind(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	nullablePageKeycloakId := null.NewString(req.PageKeycloakId, req.PageKeycloakId != "")
+
+	noteId, err := p.repo.InsertPageNote(c, req.PageId, nullablePageKeycloakId, keycloakId, req.Content)
+	if err != nil {
+		c.Status(http.StatusInternalServerError)
+		_ = c.Error(fmt.Errorf("repo.InsertPageNote: %w", err))
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Added!", "note_id": noteId})
 }
 
 func (p *ProfileManager) handleDeletePageNote(c *gin.Context) {
@@ -50,8 +78,24 @@ func (p *ProfileManager) handleDeletePageNote(c *gin.Context) {
 		return
 	}
 
-	// TBD check that the note belong to author
-	// TBD repo delete from db
+	keycloakId, ok := p.GetKeycloakIdFromRequest(c)
+	if !ok {
+		c.Status(http.StatusForbidden)
+		return
+	}
 
-	//c.JSON(http.StatusOK, gin.H{"status": true, "message": "Deleted!", "data": ID})
+	var req deletePageNoteRequest
+	if err := c.Bind(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	err := p.repo.DeletePageNote(c, req.NoteId, keycloakId)
+	if err != nil {
+		c.Status(http.StatusInternalServerError)
+		_ = c.Error(fmt.Errorf("repo.DeletePageNote: %w", err))
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Deleted!", "note_id": req.NoteId})
 }
