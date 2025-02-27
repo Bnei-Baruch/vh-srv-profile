@@ -234,6 +234,20 @@ func (p *ProfileManager) getProfiles(c *gin.Context) {
 			return
 		}
 
+		if len(profiles) == 0 && email != "" {
+			// Try to find the user in Orders
+			account, err := p.ordersService.GetAccountByEmail(c, email)
+			if err != nil {
+				c.Status(http.StatusInternalServerError)
+				_ = c.Error(fmt.Errorf("ordersService.GetAccountByEmail: %w", err))
+				return
+			}
+			if account != nil {
+				// TBD create profile by account
+				// first, add to orders.Account type all relevant fields we get from orders
+			}
+		}
+
 		var arrUserRes []userResponse
 
 		for _, profile := range profiles {

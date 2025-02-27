@@ -4,18 +4,21 @@ import (
 	"time"
 
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/keycloak"
+	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/orders"
 	"gitlab.bbdev.team/vh/vh-srv-profile/repo"
 )
 
 type ProfileManager struct {
 	repo                   repo.ProfileRepository
 	keycloakServiceFactory keycloak.KeycloakServiceFactory
+	ordersService          orders.OrdersService
 }
 
 func NewProfileManager(db repo.ProfileRepository) *ProfileManager {
 	return &ProfileManager{
 		repo:                   db,
 		keycloakServiceFactory: keycloak.KeycloakAPIFactory,
+		ordersService:          orders.NewOrdersAPI(),
 	}
 }
 
