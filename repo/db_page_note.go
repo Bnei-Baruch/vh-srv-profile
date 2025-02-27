@@ -15,13 +15,13 @@ type pageNoteInterface interface {
 }
 
 type PageNote struct {
-	ID                int        `json:"id"`
-	AuthorName        *string    `json:"author_name"`
-	AuthorEmail       string     `json:"author_email"`
-	AuthorKeycloackId string     `json:"author_keycloack_id"`
-	CreatedDate       time.Time  `json:"created_at"`
-	ModifiedAt        *time.Time `json:"modified_at"`
-	Content           string     `json:"content"`
+	ID               int        `json:"id"`
+	AuthorName       *string    `json:"author_name"`
+	AuthorEmail      string     `json:"author_email"`
+	AuthorKeycloakId string     `json:"author_keycloak_id"`
+	CreatedDate      time.Time  `json:"created_at"`
+	ModifiedAt       *time.Time `json:"modified_at"`
+	Content          string     `json:"content"`
 }
 
 func (db *ProfileDB) FetchPageNotes(ctx context.Context, pageId int, pageKeycloakId null.String) ([]PageNote, error) {
@@ -45,7 +45,7 @@ func (db *ProfileDB) FetchPageNotes(ctx context.Context, pageId int, pageKeycloa
 			&note.ID,
 			&note.AuthorName,
 			&note.AuthorEmail,
-			&note.AuthorKeycloackId,
+			&note.AuthorKeycloakId,
 			&note.CreatedDate,
 			&note.ModifiedAt,
 			&note.Content,
