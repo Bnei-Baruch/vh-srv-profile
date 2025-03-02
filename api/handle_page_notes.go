@@ -6,7 +6,6 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/volatiletech/null/v9"
 
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
 )
@@ -29,9 +28,8 @@ func (p *ProfileManager) handleFetchPageNotes(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid pageId value! Accepted value is INTEGER"})
 		return
 	}
-	nullablePageKeycloakId := null.NewString(pageKeycloakId, pageKeycloakId != "")
 
-	res, err := p.repo.FetchPageNotes(c.Request.Context(), intPageId, nullablePageKeycloakId)
+	res, err := p.repo.FetchPageNotes(c.Request.Context(), intPageId, pageKeycloakId)
 	if err != nil {
 		c.Status(http.StatusInternalServerError)
 		_ = c.Error(fmt.Errorf("repo.FetchPageNotes: %w", err))
@@ -57,9 +55,8 @@ func (p *ProfileManager) handleInsertPageNote(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	nullablePageKeycloakId := null.NewString(req.PageKeycloakId, req.PageKeycloakId != "")
 
-	noteId, err := p.repo.InsertPageNote(c, req.PageId, nullablePageKeycloakId, keycloakId, req.Content)
+	noteId, err := p.repo.InsertPageNote(c, req.PageId, req.PageKeycloakId, keycloakId, req.Content)
 	if err != nil {
 		c.Status(http.StatusInternalServerError)
 		_ = c.Error(fmt.Errorf("repo.InsertPageNote: %w", err))
