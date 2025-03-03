@@ -13,13 +13,12 @@ type pageNoteInterface interface {
 }
 
 type PageNote struct {
-	ID               int        `json:"id"`
-	AuthorName       *string    `json:"author_name"`
-	AuthorEmail      string     `json:"author_email"`
-	AuthorKeycloakId string     `json:"author_keycloak_id"`
-	CreatedAt        time.Time  `json:"created_at"`
-	ModifiedAt       *time.Time `json:"modified_at"`
-	Content          string     `json:"content"`
+	ID               int       `json:"id"`
+	AuthorName       *string   `json:"author_name"`
+	AuthorEmail      string    `json:"author_email"`
+	AuthorKeycloakId string    `json:"author_keycloak_id"`
+	CreatedAt        time.Time `json:"created_at"`
+	Content          string    `json:"content"`
 }
 
 func (db *ProfileDB) FetchPageNotes(ctx context.Context, pageId int, pageKeycloakId string) ([]PageNote, error) {
@@ -30,7 +29,8 @@ func (db *ProfileDB) FetchPageNotes(ctx context.Context, pageId int, pageKeycloa
 		pn.created_at,
 		pn.note as content
 		FROM page_notes pn join users u ON pn.author_keycloak_id=u.keycloak_id 
-		WHERE pn.page_id = $1 AND pn.page_keycloak_id = $2`, pageId, pageKeycloakId)
+		WHERE pn.page_id = $1 AND pn.page_keycloak_id = $2
+		order by pn.created_at desc`, pageId, pageKeycloakId)
 	if err != nil {
 		return []PageNote{}, fmt.Errorf("db.Query: %w", err)
 	}
