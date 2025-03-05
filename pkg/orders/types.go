@@ -17,6 +17,15 @@ type Account struct {
 	ID      int    `json:"ID"`
 	Email   string `json:"Email"`
 	UserKey string `json:"UserKCID"`
+
+	FirstName *string `json:"FirstName" gorm:"Column:FirstName;type:varchar(100)"`
+	LastName  *string `json:"LastName" gorm:"Column:LastName;type:varchar(100)"`
+	Phone     *string `json:"Phone" gorm:"Column:Phone;type:varchar(30)"`
+	Street    *string `json:"Street" gorm:"Column:Street;type:varchar(100)"`
+	City      *string `json:"City" gorm:"Column:City;type:varchar(85)"`
+	State     *string `json:"State" gorm:"Column:State;type:varchar(85)"`
+	Postcode  *string `json:"Postcode" gorm:"Column:Postcode;type:varchar(85)"`
+	Country   *string `json:"Country" gorm:"Column:Country;type:varchar(50)"`
 }
 
 type Order struct {

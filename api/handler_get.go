@@ -12,6 +12,7 @@ import (
 
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/utils"
+	"gitlab.bbdev.team/vh/vh-srv-profile/repo"
 )
 
 type status struct {
@@ -62,6 +63,10 @@ type userResponse struct {
 	HasGroup            *bool      `json:"has_ten_group,omitempty"`
 	WantsGroup          *bool      `json:"wants_ten_group,omitempty"`
 	NameOfGroup         *string    `json:"name_ten_group,omitempty"`
+
+	NotifyCreatedFromOrders          bool `json:"notify_created_from_orders,omitempty"`
+	NotifyRetrievedByEmailFromOrders bool `json:"notify_retrieved_by_email_from_orders,omitempty"`
+	NotifyEmailUpdatedFromOrders     bool `json:"notify_email_updated_from_orders,omitempty"`
 }
 
 type ShortProfile struct {
@@ -234,8 +239,11 @@ func (p *ProfileManager) getProfiles(c *gin.Context) {
 			return
 		}
 
+		// If no profiles found by email, try to find the user in Orders.
+		var createdFromOrders bool
+		var retrievedByEmailFromOrders bool
+		var emailUpdatedFromOrders bool
 		if len(profiles) == 0 && email != "" {
-			// Try to find the user in Orders
 			account, err := p.ordersService.GetAccountByEmail(c, email)
 			if err != nil {
 				c.Status(http.StatusInternalServerError)
@@ -243,8 +251,81 @@ func (p *ProfileManager) getProfiles(c *gin.Context) {
 				return
 			}
 			if account != nil {
-				// TBD create profile by account
-				// first, add to orders.Account type all relevant fields we get from orders
+				// Search profile by user keycloak id from orders.
+				keycloakID, err := uuid.FromString(account.UserKey)
+				if err != nil {
+					c.Status(http.StatusInternalServerError)
+					_ = c.Error(fmt.Errorf("parse UserKey from orders result: %w", err))
+					return
+				}
+				profile, err := p.repo.GetProfile(c, keycloakID)
+				if err != nil {
+					if errors.Is(err, common.ErrProfileNotFound) {
+						// Profile not found. Create profile from orders user.
+						userInput := repo.UserInput{
+							KeycloakID: &keycloakID,
+							Emails: repo.Emails{
+								Primary: &account.Email,
+							},
+							FirstNameLatin: account.FirstName,
+							LastNameLatin:  account.LastName,
+							Address: repo.Address{
+								Country:       account.Country,
+								StreetAddress: account.Street,
+								City:          account.City,
+								PostalCode:    account.Postcode,
+								StateOrRegion: account.State,
+							},
+							Phones: repo.Phones{
+								MobileNumber: account.Phone,
+							},
+						}
+						err = p.repo.CreateProfile(c, userInput)
+						if err != nil {
+							c.Status(http.StatusInternalServerError)
+							_ = c.Error(fmt.Errorf("repo.CreateProfile: %w", err))
+							return
+						}
+						profile, err = p.repo.GetProfile(c, keycloakID)
+						if err != nil {
+							c.Status(http.StatusInternalServerError)
+							_ = c.Error(fmt.Errorf("repo.GetProfile: %w", err))
+							return
+						}
+						createdFromOrders = true
+					} else {
+						c.Status(http.StatusInternalServerError)
+						_ = c.Error(fmt.Errorf("repo.GetProfile: %w", err))
+						return
+					}
+				} else {
+					retrievedByEmailFromOrders = true
+					if len(account.Email) > 0 {
+						// Profile found by keycloak of orders user. that. Append email from orders user to the profile.
+						emailUpdated := false
+						if profile.UserInput.Emails.Primary == nil {
+							profile.UserInput.Emails.Primary = &account.Email
+							emailUpdated = true
+						} else if profile.UserInput.Emails.Alternate1 == nil {
+							profile.UserInput.Emails.Alternate1 = &account.Email
+							emailUpdated = true
+						} else if profile.UserInput.Emails.Alternate2 == nil {
+							profile.UserInput.Emails.Alternate2 = &account.Email
+							emailUpdated = true
+						}
+						if emailUpdated {
+							// update profile
+							err := p.repo.UpdateProfile(c, keycloakID, profile.UserInput)
+							if err != nil {
+								c.Status(http.StatusInternalServerError)
+								_ = c.Error(fmt.Errorf("repo.UpdateProfile: %w", err))
+								return
+							}
+							emailUpdatedFromOrders = true
+						}
+					}
+				}
+				profiles = append(profiles, profile)
 			}
 		}
 
@@ -305,6 +386,16 @@ func (p *ProfileManager) getProfiles(c *gin.Context) {
 			result.DateOfBirth = birthDate
 
 			arrUserRes = append(arrUserRes, result)
+		}
+
+		if createdFromOrders {
+			arrUserRes[0].NotifyCreatedFromOrders = true
+		}
+		if retrievedByEmailFromOrders {
+			arrUserRes[0].NotifyRetrievedByEmailFromOrders = true
+		}
+		if emailUpdatedFromOrders {
+			arrUserRes[0].NotifyEmailUpdatedFromOrders = true
 		}
 
 		c.JSON(http.StatusOK, arrUserRes)
