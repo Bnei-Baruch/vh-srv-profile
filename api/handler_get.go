@@ -251,7 +251,7 @@ func (p *ProfileManager) getProfiles(c *gin.Context) {
 				return
 			}
 			if account != nil {
-				// Search profile by user keycloak id from orders.
+				// Search profile by account keycloak id from orders.
 				keycloakID, err := uuid.FromString(account.UserKey)
 				if err != nil {
 					c.Status(http.StatusInternalServerError)
@@ -261,7 +261,7 @@ func (p *ProfileManager) getProfiles(c *gin.Context) {
 				profile, err := p.repo.GetProfile(c, keycloakID)
 				if err != nil {
 					if errors.Is(err, common.ErrProfileNotFound) {
-						// Profile not found. Create profile from orders user.
+						// Profile not found. Create profile from orders account.
 						userInput := repo.UserInput{
 							KeycloakID: &keycloakID,
 							Emails: repo.Emails{
@@ -303,7 +303,7 @@ func (p *ProfileManager) getProfiles(c *gin.Context) {
 				} else {
 					retrievedByEmailFromOrders = true
 					if len(account.Email) > 0 {
-						// Profile found by keycloak of orders user. that. Append email from orders user to the profile.
+						// Profile found by keycloak of orders account. Append email from orders account to the profile.
 						emailUpdated := false
 						if profile.UserInput.Emails.Primary == nil {
 							profile.UserInput.Emails.Primary = &account.Email
@@ -316,7 +316,6 @@ func (p *ProfileManager) getProfiles(c *gin.Context) {
 							emailUpdated = true
 						}
 						if emailUpdated {
-							// update profile
 							err := p.repo.UpdateProfile(c, keycloakID, profile.UserInput)
 							if err != nil {
 								c.Status(http.StatusInternalServerError)
