@@ -244,7 +244,7 @@ func (p *ProfileManager) getProfiles(c *gin.Context) {
 		var retrievedByEmailFromOrders bool
 		var emailUpdatedFromOrders bool
 		if len(profiles) == 0 && email != "" {
-			account, err := p.ordersService.GetAccountByEmail(c, email)
+			account, err := p.ordersService.GetAccountByEmailIfExist(c.Request.Context(), email)
 			if err != nil {
 				c.Status(http.StatusInternalServerError)
 				_ = c.Error(fmt.Errorf("ordersService.GetAccountByEmail: %w", err))
@@ -267,8 +267,10 @@ func (p *ProfileManager) getProfiles(c *gin.Context) {
 							Emails: repo.Emails{
 								Primary: &account.Email,
 							},
-							FirstNameLatin: account.FirstName,
-							LastNameLatin:  account.LastName,
+							FirstNameLatin:      account.FirstName,
+							LastNameLatin:       account.LastName,
+							FirstNameVernacular: account.FirstName,
+							LastNameVernacular:  account.LastName,
 							Address: repo.Address{
 								Country:       account.Country,
 								StreetAddress: account.Street,
@@ -280,7 +282,7 @@ func (p *ProfileManager) getProfiles(c *gin.Context) {
 								MobileNumber: account.Phone,
 							},
 						}
-						err = p.repo.CreateProfile(c, userInput)
+						err = p.repo.CreateProfile(c.Request.Context(), userInput)
 						if err != nil {
 							c.Status(http.StatusInternalServerError)
 							_ = c.Error(fmt.Errorf("repo.CreateProfile: %w", err))

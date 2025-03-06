@@ -16,7 +16,7 @@ import (
 
 type OrdersService interface {
 	GetAccountByID(ctx context.Context, accountID int) (*Account, error)
-	GetAccountByEmail(ctx context.Context, email string) (*Account, error)
+	GetAccountByEmailIfExist(ctx context.Context, email string) (*Account, error)
 	GetOrders(ctx context.Context,
 		email string,
 		productType string,
@@ -83,7 +83,7 @@ func (api *OrdersAPI) GetAccountByID(ctx context.Context, accountID int) (*Accou
 	return &account, nil
 }
 
-func (api *OrdersAPI) GetAccountByEmail(ctx context.Context, email string) (*Account, error) {
+func (api *OrdersAPI) GetAccountByEmailIfExist(ctx context.Context, email string) (*Account, error) {
 	req, err := api.baseRequest(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("baseRequest: %w", err)
@@ -96,9 +96,11 @@ func (api *OrdersAPI) GetAccountByEmail(ctx context.Context, email string) (*Acc
 	if err != nil {
 		return nil, fmt.Errorf("req.Get: %w", err)
 	}
-
-	if err = respError(resp); err != nil {
-		return nil, err
+	if resp.IsError() {
+		if resp.StatusCode() == http.StatusNotFound {
+			return nil, nil
+		}
+		return nil, respError(resp)
 	}
 
 	account := resp.Result().(*AccountRes).Data
