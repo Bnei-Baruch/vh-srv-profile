@@ -32,20 +32,21 @@ type readMultipleProfileStorage interface {
 		convention string,
 		ticket string,
 		galaxy string,
-		gender string) ([]User, error)
+		gender string,
+		checkAlternativeEmails bool) ([]User, error)
 	FetchProfileBasedOnPhoneNumber(ctx context.Context, phoneNumber string) (User, error)
 }
 
 func (db *ProfileDB) GetMultipleProfiles(ctx context.Context, intSkip int, intLimit int, country string, email string,
 	name string, tenGroupName string, language string, firstLanguage string, otherLanguageOne string,
 	otherLanguageTwo string, otherLanguageThree string, otherLanguageFour string, updatedAt string, createdAt string,
-	membership string, membershipType string, convention string, ticket string, galaxy string, gender string) ([]User, error) {
+	membership string, membershipType string, convention string, ticket string, galaxy string, gender string, checkAlternativeEmails bool) ([]User, error) {
 	var keycloakId string
 	users := []User{}
 
 	userDbWhereQuery, orderByQuery := buildAndGetWhereUserQuery(country, email, name, tenGroupName, language, firstLanguage,
 		otherLanguageOne, otherLanguageTwo, otherLanguageThree, otherLanguageFour, updatedAt, createdAt, membership,
-		membershipType, convention, ticket, galaxy, gender)
+		membershipType, convention, ticket, galaxy, gender, checkAlternativeEmails)
 
 	rows, err := db.Query(ctx, `
 		SELECT users.user_id,
@@ -289,7 +290,7 @@ func (db *ProfileDB) FetchProfileBasedOnPhoneNumber(ctx context.Context, phoneNu
 func buildAndGetWhereUserQuery(country string, email string, name string, tenGroupName string, language string,
 	firstLanguage string, otherLanguageOne string, otherLanguageTwo string, otherLanguageThree string,
 	otherLanguageFour string, updatedAt string, createdAt string, membership string, membershipType string,
-	convention string, ticket string, galaxy string, gender string) (string, string) {
+	convention string, ticket string, galaxy string, gender string, checkAlternativeEmails bool) (string, string) {
 
 	var whereString strings.Builder
 	var orderBy strings.Builder
@@ -303,10 +304,18 @@ func buildAndGetWhereUserQuery(country string, email string, name string, tenGro
 	}
 
 	if email != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND (LOWER(primary_email) LIKE LOWER('%%%s%%') OR LOWER(alternate_email_1) LIKE LOWER('%%%s%%') OR LOWER(alternate_email_2) LIKE LOWER('%%%s%%'))", email))
+		if checkAlternativeEmails {
+			if whereCondition.String() != "" {
+				whereCondition.WriteString(fmt.Sprintf(" AND (LOWER(primary_email) LIKE LOWER('%%%s%%') OR LOWER(alternate_email_1) LIKE LOWER('%%%s%%') OR LOWER(alternate_email_2) LIKE LOWER('%%%s%%'))", email))
+			} else {
+				whereCondition.WriteString(fmt.Sprintf(" (LOWER(primary_email) LIKE LOWER('%%%s%%') OR LOWER(alternate_email_1) LIKE LOWER('%%%s%%') OR LOWER(alternate_email_2) LIKE LOWER('%%%s%%'))", email))
+			}
 		} else {
-			whereCondition.WriteString(fmt.Sprintf(" (LOWER(primary_email) LIKE LOWER('%%%s%%') OR LOWER(alternate_email_1) LIKE LOWER('%%%s%%') OR LOWER(alternate_email_2) LIKE LOWER('%%%s%%'))", email))
+			if whereCondition.String() != "" {
+				whereCondition.WriteString(fmt.Sprintf(" AND LOWER(primary_email) LIKE LOWER('%%%s%%')", email))
+			} else {
+				whereCondition.WriteString(fmt.Sprintf(" LOWER(primary_email) LIKE LOWER('%%%s%%')", email))
+			}
 		}
 	}
 
