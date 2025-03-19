@@ -75,6 +75,10 @@ type ShortProfile struct {
 
 func (p *ProfileManager) getProfiles(c *gin.Context) {
 
+	if !p.HasAnyRole(c, common.RoleAnyAdmin...) {
+		return
+	}
+
 	// Fetching all the query strings if present in url
 	skip := c.Query("skip")
 	limit := c.Query("limit")
@@ -124,10 +128,6 @@ func (p *ProfileManager) getProfiles(c *gin.Context) {
 	galaxy := c.Query("galaxy")
 	if galaxy != "" && galaxy != "false" && galaxy != "true" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid galaxy value! Accepted value is either true or false"})
-		return
-	}
-
-	if !p.HasAnyRole(c, common.RoleAnyAdmin...) {
 		return
 	}
 
@@ -223,7 +223,7 @@ func (p *ProfileManager) getProfiles(c *gin.Context) {
 			return
 		}
 
-		profiles, err := p.repo.GetMultipleProfiles(c.Request.Context(), intSkip, intLimit, country, email, name, tenGroupName, language, firstLanguage, otherLanguageOne, otherLanguageTwo, otherLanguageThree, otherLanguageFour, updatedAt, createdAt, membership, membershipType, convention, ticket, galaxy, gender)
+		profiles, err := p.repo.GetMultipleProfiles(c.Request.Context(), intSkip, intLimit, country, email, name, tenGroupName, language, firstLanguage, otherLanguageOne, otherLanguageTwo, otherLanguageThree, otherLanguageFour, updatedAt, createdAt, membership, membershipType, convention, ticket, galaxy, gender, false)
 		if err != nil {
 			if errors.Is(err, common.ErrUserNotFound) {
 				c.Status(http.StatusNotFound)

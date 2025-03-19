@@ -17,6 +17,15 @@ type Account struct {
 	ID      int    `json:"ID"`
 	Email   string `json:"Email"`
 	UserKey string `json:"UserKCID"`
+
+	FirstName *string `json:"FirstName"`
+	LastName  *string `json:"LastName"`
+	Phone     *string `json:"Phone"`
+	Street    *string `json:"Street"`
+	City      *string `json:"City"`
+	State     *string `json:"State"`
+	Postcode  *string `json:"Postcode"`
+	Country   *string `json:"Country"`
 }
 
 type Order struct {

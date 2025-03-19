@@ -57,7 +57,7 @@ func (m *Migrator) getAllUsers() ([]repo.User, error) {
 		users, err := m.repo.GetMultipleProfiles(context.TODO(), page*pageSize, pageSize,
 			"", "", "", "", "", "",
 			"", "", "", "",
-			"", "", "", "", "", "", "", "")
+			"", "", "", "", "", "", "", "", false)
 		if err != nil {
 			return nil, fmt.Errorf("repo.GetMultipleProfiles: %w", err)
 		}

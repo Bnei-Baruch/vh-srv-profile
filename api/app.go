@@ -125,6 +125,7 @@ func (a *App) initGinEngine() {
 
 	a.gEngine.POST("/v1/profile", a.profileManager.create)
 	a.gEngine.GET("/v1/profiles", a.profileManager.getProfiles)
+	a.gEngine.GET("/v1/profiles/search", a.profileManager.searchProfiles)
 	a.gEngine.GET("/v1/profile/:keycloak_id", a.profileManager.get)
 	a.gEngine.GET("/v1/profile/:keycloak_id/short", a.profileManager.getProfileShort)
 	a.gEngine.PATCH("/v1/profile/:keycloak_id", a.profileManager.update)
