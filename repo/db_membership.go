@@ -276,8 +276,8 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 				if i == len(paidManualOrders)-1 {
 					orderStartingDate = order.PaymentDate
 				} else {
-					if order.PaymentDate.Before(previousStartingDate.AddDate(0, 0, 30*previousOrderQuantity)) {
-						orderStartingDate = previousStartingDate.AddDate(0, 0, 30*previousOrderQuantity)
+					if order.PaymentDate.Before(previousStartingDate.AddDate(0, previousOrderQuantity, 0)) {
+						orderStartingDate = previousStartingDate.AddDate(0, previousOrderQuantity, 0)
 					} else {
 						orderStartingDate = order.PaymentDate
 					}
@@ -314,12 +314,12 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 	}
 
 	if currentMembership == "automatic" {
-		if time.Now().AddDate(0, 0, -60).Before(*latestOrderPaymentDate) {
+		if time.Now().AddDate(0, 0, -1*common.MembershipGracePeriodInDays).Before(*latestOrderPaymentDate) {
 			membershipInsertData.Active = utils.PointerBool(true)
 		}
 	} else if currentMembership == "manual" {
-		membershipInsertData.Expiry = utils.PointerTime(orderStartingDate.AddDate(0, 0, 30*orderQuantity))
-		if time.Now().AddDate(0, 0, -60).Before(*membershipInsertData.Expiry) {
+		membershipInsertData.Expiry = utils.PointerTime(orderStartingDate.AddDate(0, orderQuantity, 0))
+		if time.Now().AddDate(0, 0, -1*common.MembershipGracePeriodInDays).Before(*membershipInsertData.Expiry) {
 			membershipInsertData.Active = utils.PointerBool(true)
 		}
 	} else if currentMembership == "helphaver" {
@@ -334,7 +334,7 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 
 		if months, ok := props["months"]; ok {
 			if monthsVal, ok := months.(float64); ok {
-				membershipInsertData.Expiry = utils.PointerTime(lastApprovedRequest.Grant.CreatedAt.AddDate(0, 0, 30*int(monthsVal)))
+				membershipInsertData.Expiry = utils.PointerTime(lastApprovedRequest.Grant.CreatedAt.AddDate(0, int(monthsVal), 0))
 			} else {
 				return UserMembershipRes{}, fmt.Errorf("malformed grant property 'months' [%d]", *lastApprovedRequest.Grant.ID)
 			}
@@ -342,7 +342,7 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 			return UserMembershipRes{}, fmt.Errorf("missing grant property 'months' [%d]", *lastApprovedRequest.Grant.ID)
 		}
 
-		if time.Now().AddDate(0, 0, -60).Before(*membershipInsertData.Expiry) {
+		if time.Now().AddDate(0, 0, -1*common.MembershipGracePeriodInDays).Before(*membershipInsertData.Expiry) {
 			membershipInsertData.Active = utils.PointerBool(true)
 		}
 	}
@@ -463,12 +463,12 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 
 	if currentMembership == "automatic" && latestOrderPaymentStatus == "nosuccess" {
 		notificationSlugs = append(notificationSlugs, common.NotificationSlugMBProblemPreviousPayment)
-		if time.Now().AddDate(0, 0, -60).After(*latestOrderPaymentDate) {
+		if time.Now().AddDate(0, 0, -1*common.MembershipGracePeriodInDays).After(*latestOrderPaymentDate) {
 			notificationSlugs = append(notificationSlugs, common.NotificationSlugMBHasExpiredNotice)
 		}
 	} else if (currentMembership == "manual" || currentMembership == "helphaver") &&
 		time.Now().After(*membershipInsertData.Expiry) {
-		if time.Now().AddDate(0, 0, -60).After(*membershipInsertData.Expiry) {
+		if time.Now().AddDate(0, 0, -1*common.MembershipGracePeriodInDays).After(*membershipInsertData.Expiry) {
 			notificationSlugs = append(notificationSlugs, common.NotificationSlugMBHasExpiredNotice)
 		} else {
 			notificationSlugs = append(notificationSlugs, common.NotificationSlugMBExpirationNotice)

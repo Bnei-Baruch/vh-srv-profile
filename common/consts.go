@@ -31,6 +31,8 @@ const (
 	Mobile   = "mobile"
 	WhatsApp = "WhatsApp"
 	Telegram = "Telegram"
+
+	MembershipGracePeriodInDays = 7
 )
 
 var RoleAnyAdmin = []string{RoleRoot, RoleAdmin, RoleHelpHaverAdmin}
