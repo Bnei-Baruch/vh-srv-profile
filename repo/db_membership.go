@@ -314,7 +314,9 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 	}
 
 	if currentMembership == "automatic" {
-		if time.Now().AddDate(0, 0, -1*common.MembershipGracePeriodInDays).Before(*latestOrderPaymentDate) {
+		year, month, _ := latestOrderPaymentDate.Date()
+		nextMonthBillingCycle := time.Date(year, month+1, 20, 0, 0, 0, 0, time.UTC) // Ideal billing cycle happens on the 20th every month
+		if time.Now().AddDate(0, 0, -1*common.MembershipGracePeriodInDays).Before(nextMonthBillingCycle) {
 			membershipInsertData.Active = utils.PointerBool(true)
 		}
 	} else if currentMembership == "manual" {
