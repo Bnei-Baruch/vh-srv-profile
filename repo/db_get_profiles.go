@@ -306,9 +306,9 @@ func buildAndGetWhereUserQuery(country string, email string, name string, tenGro
 	if email != "" {
 		if checkAlternativeEmails {
 			if whereCondition.String() != "" {
-				whereCondition.WriteString(fmt.Sprintf(" AND (LOWER(primary_email) LIKE LOWER('%%%s%%') OR LOWER(alternate_email_1) LIKE LOWER('%%%s%%') OR LOWER(alternate_email_2) LIKE LOWER('%%%s%%'))", email))
+				whereCondition.WriteString(fmt.Sprintf(" AND (LOWER(primary_email) LIKE LOWER('%%%[1]s%%') OR LOWER(alternate_email_1) LIKE LOWER('%%%[1]s%%') OR LOWER(alternate_email_2) LIKE LOWER('%%%[1]s%%'))", email))
 			} else {
-				whereCondition.WriteString(fmt.Sprintf(" (LOWER(primary_email) LIKE LOWER('%%%s%%') OR LOWER(alternate_email_1) LIKE LOWER('%%%s%%') OR LOWER(alternate_email_2) LIKE LOWER('%%%s%%'))", email))
+				whereCondition.WriteString(fmt.Sprintf(" (LOWER(primary_email) LIKE LOWER('%%%[1]s%%') OR LOWER(alternate_email_1) LIKE LOWER('%%%[1]s%%') OR LOWER(alternate_email_2) LIKE LOWER('%%%[1]s%%'))", email))
 			}
 		} else {
 			if whereCondition.String() != "" {
