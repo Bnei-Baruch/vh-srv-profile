@@ -160,7 +160,7 @@ func (p *ProfileManager) searchProfiles(c *gin.Context) {
 							MobileNumber: account.Phone,
 						},
 					}
-					err = p.repo.CreateProfile(c.Request.Context(), userInput)
+					err = p.repo.CreateProfileWithCountryCheck(c.Request.Context(), userInput)
 					if err != nil {
 						c.Status(http.StatusInternalServerError)
 						_ = c.Error(fmt.Errorf("repo.CreateProfile: %w", err))
