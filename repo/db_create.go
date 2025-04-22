@@ -14,6 +14,7 @@ import (
 
 type createStorage interface {
 	CreateProfile(ctx context.Context, user UserInput) error
+	CreateProfileWithCountryCheck(ctx context.Context, user UserInput) error
 }
 
 type User struct {
@@ -89,6 +90,20 @@ type Ten struct {
 	HasGroup    *bool
 	WantsGroup  *bool
 	NameOfGroup *string
+}
+
+func (db *ProfileDB) CreateProfileWithCountryCheck(ctx context.Context, user UserInput) error {
+	var countryCode *string = nil
+	if user.Address.Country != nil {
+		// The country value received from the 'orders' service may be either a country name or a country code.
+		// Normalize it by looking up the corresponding code in the country_list table.
+		err := db.QueryRow(ctx, `select code from country_list where name = $1 or code = $1`, *user.Address.Country).Scan(&countryCode)
+		if err != nil && err != pgx.ErrNoRows {
+			return fmt.Errorf("db.QueryRow: %w", err)
+		}
+	}
+	user.Address.Country = countryCode
+	return db.CreateProfile(ctx, user)
 }
 
 func (db *ProfileDB) CreateProfile(ctx context.Context, user UserInput) error {
