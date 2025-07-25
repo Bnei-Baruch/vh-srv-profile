@@ -192,6 +192,15 @@ func (p *ProfileManager) searchProfiles(c *gin.Context) {
 					} else if profile.UserInput.Emails.Alternate2 == nil {
 						profile.UserInput.Emails.Alternate2 = &account.Email
 						emailUpdated = true
+					} else if profile.UserInput.Emails.Primary == profile.UserInput.Emails.Alternate1 {
+						profile.UserInput.Emails.Alternate1 = &account.Email
+						emailUpdated = true
+					} else if profile.UserInput.Emails.Primary == profile.UserInput.Emails.Alternate2 {
+						profile.UserInput.Emails.Alternate2 = &account.Email
+						emailUpdated = true
+					} else if profile.UserInput.Emails.Alternate1 == profile.UserInput.Emails.Alternate2 {
+						profile.UserInput.Emails.Alternate2 = &account.Email
+						emailUpdated = true
 					}
 					if emailUpdated {
 						err := p.repo.UpdateProfile(c, keycloakID, profile.UserInput)
