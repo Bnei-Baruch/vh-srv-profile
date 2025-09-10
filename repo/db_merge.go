@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+
 	uuid "github.com/satori/go.uuid"
 )
 
@@ -12,8 +13,8 @@ type mergeAccounts interface {
 }
 
 type AccountsMergeData struct {
-	SourceId      string
-	DestinationId string
+	SourceId      string // keycloak_id of the source account
+	DestinationId string // keycloak_id of the destination account
 }
 
 func (db *ProfileDB) MergeAccounts(ctx context.Context, data AccountsMergeData) (*EmailKeycloakAndUserIDBody, error) {
@@ -99,7 +100,7 @@ func (db *ProfileDB) MergeAccounts(ctx context.Context, data AccountsMergeData) 
 		return nil, fmt.Errorf("tx.Commit: %w", commitErr)
 	}
 
-	if err := db.HardDeleteProfile(ctx, uuid.FromStringOrNil(sourceUserID)); err != nil {
+	if err := db.HardDeleteProfile(ctx, uuid.FromStringOrNil(data.SourceId)); err != nil {
 		return nil, fmt.Errorf("db.HardDeleteProfile: %w", err)
 	}
 
