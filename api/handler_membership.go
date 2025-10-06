@@ -39,6 +39,31 @@ func (p *ProfileManager) handleMembershipFetchByID(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Fetched!", "data": res})
 }
 
+func (p *ProfileManager) handleMembershipMonthlyCostFetchByKCID(c *gin.Context) {
+	kcID := c.Param("kcid")
+	if kcID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid kcid"})
+		return
+	}
+
+	if !p.isSubjectOrHasAnyRole(c, kcID, common.RoleAnyAdmin...) {
+		return
+	}
+
+	res, dbErr := p.repo.GetMonthlyCostByKCID(c.Request.Context(), kcID)
+	if dbErr != nil {
+		if errors.Is(dbErr, common.ErrNotFound) {
+			c.Status(http.StatusNotFound)
+			return
+		}
+		c.Status(http.StatusInternalServerError)
+		_ = c.Error(fmt.Errorf("repo.GetMonthlyCostByKCID: %w", dbErr))
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": true, "message": "Fetched!", "data": res})
+}
+
 func (p *ProfileManager) handleMembershipFetchByKCID(c *gin.Context) {
 	kcID := c.Param("kcid")
 	if kcID == "" {

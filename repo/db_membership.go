@@ -20,6 +20,7 @@ import (
 type membershipInterface interface {
 	GetMembershipByID(ctx context.Context, id int) (Membership, error)
 	GetMembershipByUserID(ctx context.Context, userID string) (UserMembershipRes, error)
+	GetMonthlyCostByKCID(ctx context.Context, kcID string) (UserMonthlyCostRes, error)
 	GetMembershipByKCID(ctx context.Context, kcID string) (UserMembershipRes, error)
 	GetMultipleMembership(ctx context.Context, intSkip int, intLimit int, userID string) ([]Membership, error)
 	GetExpiredMemberships(ctx context.Context, intSkip int, intLimit int) ([]Membership, error)
@@ -78,6 +79,9 @@ type MembershipHelpHaver struct {
 	CreatedAt    *time.Time `json:"created_at"`
 	UpdatedAt    *time.Time `json:"updated_at"`
 	DeletedAt    *time.Time `json:"deleted_at"`
+}
+
+type UserMonthlyCostRes struct {
 }
 
 type UserMembershipRes struct {
@@ -791,6 +795,10 @@ func (db *ProfileDB) GetMembershipByID(ctx context.Context, id int) (Membership,
 	}
 
 	return membership, nil
+}
+
+func (db *ProfileDB) GetMonthlyCostByKCID(ctx context.Context, kcID string) (UserMonthlyCostRes, error) {
+	return UserMonthlyCostRes{}, errors.New("Unimplemented")
 }
 
 func (db *ProfileDB) GetMembershipByKCID(ctx context.Context, kcID string) (UserMembershipRes, error) {

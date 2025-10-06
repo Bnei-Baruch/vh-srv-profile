@@ -48,13 +48,13 @@ func (a *App) initDB() {
 	defer cancel()
 
 	var err error
+	if err = repo.SyncDBStructInsertionAndMigrations(); err != nil {
+		utils.LogFatal("db migrations", slog.Any("err", err))
+	}
+
 	a.profileDB, err = repo.NewProfileDB(ctx, repo.MakeDBURL())
 	if err != nil {
 		utils.LogFatal("connect to db", slog.Any("err", err))
-	}
-
-	if err = repo.SyncDBStructInsertionAndMigrations(); err != nil {
-		utils.LogFatal("db migrations", slog.Any("err", err))
 	}
 
 	slog.Info("db connected and migrated")
@@ -95,7 +95,7 @@ func (a *App) initGinEngine() {
 	a.gEngine = gin.New()
 
 	// middleware
-	issuerUrl := fmt.Sprintf("%s/auth/realms/%s", common.Config.KeycloakServerUrl, common.Config.KeycloakRealm)
+	issuerUrl := fmt.Sprintf("%s/realms/%s", common.Config.KeycloakServerUrl, common.Config.KeycloakRealm)
 	tokenVerifier, err := middleware.NewFailoverOIDCTokenVerifier(issuerUrl)
 	if err != nil {
 		utils.LogFatal("middleware.NewFailoverOIDCTokenVerifier", slog.Any("err", err))
@@ -146,6 +146,7 @@ func (a *App) initGinEngine() {
 	{
 		membershipRoutes.GET("/user/:user_id", a.profileManager.handleMembershipFetchByUserID)
 		membershipRoutes.GET("/kcid/:kcid", a.profileManager.handleMembershipFetchByKCID)
+		membershipRoutes.GET("/cost/:kcid", a.profileManager.handleMembershipMonthlyCostFetchByKCID)
 		membershipRoutes.GET("/id/:id", a.profileManager.handleMembershipFetchByID)
 		membershipRoutes.POST("/evaluation", a.profileManager.handleMembershipEvaluationByUserID)
 		membershipRoutes.PATCH("/:id", a.profileManager.handleMembershipPatchByID)
