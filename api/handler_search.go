@@ -140,6 +140,17 @@ func (p *ProfileManager) searchProfiles(c *gin.Context) {
 			if err != nil {
 				if errors.Is(err, common.ErrProfileNotFound) {
 					// Profile not found. Create profile from orders account.
+					// The types of firstNameVernacular and lastNameVernacular in DB are TEXT NOT NULL, so we pass empty strings if the values from orders are nil.
+					empty := ""
+					firstNameVernacular := account.FirstName
+					if firstNameVernacular == nil {
+						firstNameVernacular = &empty
+					}
+
+					lastNameVernacular := account.LastName
+					if lastNameVernacular == nil {
+						lastNameVernacular = &empty
+					}
 					userInput := repo.UserInput{
 						KeycloakID: &keycloakID,
 						Emails: repo.Emails{
@@ -147,8 +158,8 @@ func (p *ProfileManager) searchProfiles(c *gin.Context) {
 						},
 						FirstNameLatin:      account.FirstName,
 						LastNameLatin:       account.LastName,
-						FirstNameVernacular: account.FirstName,
-						LastNameVernacular:  account.LastName,
+						FirstNameVernacular: firstNameVernacular,
+						LastNameVernacular:  lastNameVernacular,
 						Address: repo.Address{
 							Country:       account.Country,
 							StreetAddress: account.Street,
