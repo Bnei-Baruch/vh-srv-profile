@@ -19,6 +19,11 @@ func (m *storageMock) CreateProfile(ctx context.Context, user repo.UserInput) er
 	return args.Error(0)
 }
 
+func (m *storageMock) CreateProfileWithCountryCheck(ctx context.Context, user repo.UserInput) error {
+	args := m.Called(ctx, user)
+	return args.Error(0)
+}
+
 func (m *storageMock) GetProfile(ctx context.Context, keycloakID uuid.UUID) (repo.User, error) {
 	args := m.Called(ctx, keycloakID)
 	return args.Get(0).(repo.User), args.Error(1)
@@ -39,8 +44,8 @@ func (m *storageMock) HardDeleteProfile(ctx context.Context, keycloakID uuid.UUI
 	return args.Error(0)
 }
 
-func (m *storageMock) GetMultipleProfiles(ctx context.Context, intSkip int, intLimit int, country string, email string, name string, tenGroupName string, language string, firstLanguage string, otherLanguageOne string, otherLanguageTwo string, otherLanguageThree string, otherLanguageFour string, updatedAt string, createdAt string, membership string, membershipType string, convention string, ticket string, galaxy string, gender string) ([]repo.User, error) {
-	args := m.Called(ctx, intSkip, intLimit, country, email, name, tenGroupName, language, firstLanguage, otherLanguageOne, otherLanguageTwo, otherLanguageThree, otherLanguageFour, updatedAt, createdAt, membership, membershipType, convention, ticket, galaxy, gender)
+func (m *storageMock) GetMultipleProfiles(ctx context.Context, intSkip int, intLimit int, country string, email string, name string, tenGroupName string, language string, firstLanguage string, otherLanguageOne string, otherLanguageTwo string, otherLanguageThree string, otherLanguageFour string, updatedAt string, createdAt string, membership string, membershipType string, convention string, ticket string, galaxy string, gender string, checkAlternativeEmails bool) ([]repo.User, error) {
+	args := m.Called(ctx, intSkip, intLimit, country, email, name, tenGroupName, language, firstLanguage, otherLanguageOne, otherLanguageTwo, otherLanguageThree, otherLanguageFour, updatedAt, createdAt, membership, membershipType, convention, ticket, galaxy, gender, checkAlternativeEmails)
 	return args.Get(0).([]repo.User), args.Error(0)
 }
 
@@ -70,7 +75,7 @@ func (m *storageMock) GetMultipleRequest(ctx context.Context, intSkip int, intLi
 }
 
 func (m *storageMock) GetMultipleRequestCount(ctx context.Context, kcid string, status string, name string, email string, typeFilter string, orderByCreatedAt string) (int, error) {
-  panic("implement me")
+	panic("implement me")
 }
 
 func (m *storageMock) GetMembershipByID(ctx context.Context, id int) (repo.Membership, error) {
@@ -204,6 +209,26 @@ func (m *storageMock) IsSubjectID(ctx context.Context, arg1 string, arg2 string)
 }
 
 func (m *storageMock) MergeAccounts(ctx context.Context, accountsMergeData repo.AccountsMergeData) (*repo.EmailKeycloakAndUserIDBody, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *storageMock) FetchPageNotes(ctx context.Context, pageId int, pageKeycloakId string) ([]repo.PageNote, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *storageMock) InsertPageNote(ctx context.Context, pageId int, pageKeycloakId string, authorKeycloackId string, note string) (int, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *storageMock) DeletePageNote(ctx context.Context, noteId int, authorKeycloakId string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *storageMock) Close() {
 	//TODO implement me
 	panic("implement me")
 }

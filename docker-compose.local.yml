@@ -1,11 +1,15 @@
-version: '2.2'
 services:
   profiledb:
     image: postgres:12
-    container_name: profiledb
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
     ports:
       - ${DB_PORT}:5432
+  nats:
+    image: nats:2.10
+    restart: unless-stopped
+    ports:
+      - "4222:4222"
+    command: ["--jetstream", "--user", "nats", "--pass", "password"]

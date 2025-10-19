@@ -16,6 +16,7 @@ import (
 
 	"gitlab.bbdev.team/vh/vh-srv-profile/api/middleware"
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
+	"gitlab.bbdev.team/vh/vh-srv-profile/events"
 	"gitlab.bbdev.team/vh/vh-srv-profile/membership"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/orders"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/utils"
@@ -25,6 +26,7 @@ import (
 type App struct {
 	profileManager          *ProfileManager
 	profileDB               *repo.ProfileDB
+	eventEmitter            events.EventEmitter
 	eventListener           *orders.EventListener
 	membershipEventsHandler *membership.EventsHandler
 	gEngine                 *gin.Engine
@@ -36,6 +38,7 @@ func NewApp() *App {
 
 func (a *App) Initialize() {
 	a.initSentry()
+	a.initEventEmitter()
 	a.initDB()
 	a.initEventListener()
 	a.profileManager = NewProfileManager(a.profileDB)
@@ -43,12 +46,23 @@ func (a *App) Initialize() {
 	a.initHealth()
 }
 
+func (a *App) initEventEmitter() {
+	if common.Config.NatsUrl != "" {
+		slog.Info("initializing events emitter")
+		var err error
+		a.eventEmitter, err = events.CreateEmitter()
+		if err != nil {
+			utils.LogFatal("events.CreateEmitter", slog.Any("err", err))
+		}
+	}
+}
+
 func (a *App) initDB() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	var err error
-	a.profileDB, err = repo.NewProfileDB(ctx, repo.MakeDBURL())
+	a.profileDB, err = repo.NewProfileDB(ctx, repo.MakeDBURL(), a.eventEmitter)
 	if err != nil {
 		utils.LogFatal("connect to db", slog.Any("err", err))
 	}
@@ -106,6 +120,7 @@ func (a *App) initGinEngine() {
 		middleware.Recovery(),
 		sentrygin.New(sentrygin.Options{Repanic: true}),
 		middleware.Sentry(),
+		middleware.EventsBuilder(),
 		middleware.TokenSource(),
 		middleware.Authentication(tokenVerifier),
 	)
@@ -219,5 +234,8 @@ func (a *App) Run() {
 func (a *App) Shutdown() {
 	a.eventListener.Close()
 	a.profileDB.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	a.eventEmitter.Close(ctx)
+	cancel()
 	sentry.Flush(2 * time.Second)
 }

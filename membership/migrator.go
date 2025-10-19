@@ -13,6 +13,7 @@ import (
 	uuid "github.com/satori/go.uuid"
 
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
+	"gitlab.bbdev.team/vh/vh-srv-profile/events"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/utils"
 	"gitlab.bbdev.team/vh/vh-srv-profile/repo"
 )
@@ -46,6 +47,13 @@ func (m *Migrator) do() error {
 	}
 
 	return nil
+}
+
+func (m *Migrator) BuildEvent(eventType string, payload map[string]interface{}) events.Event {
+	event := events.MakeEvent(eventType, payload)
+	event.Component = events.ComponentMembershipMigrator
+	event.Actor = events.ActorSystem
+	return event
 }
 
 func (m *Migrator) getAllUsers() ([]repo.User, error) {
@@ -102,7 +110,8 @@ func (m *Migrator) evalUser(user repo.User) (repo.UserMembershipRes, error) {
 		Email:      user.UserInput.Emails.Primary,
 	}
 
-	return m.Evaluator.eval(ids)
+	ctx := context.WithValue(context.Background(), common.CtxEventBuilder, m)
+	return m.Evaluator.eval(ctx, ids)
 }
 
 func (m *Migrator) report(users []repo.User, evalResults map[*uuid.UUID]repo.UserMembershipRes) error {

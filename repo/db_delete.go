@@ -7,6 +7,7 @@ import (
 	uuid "github.com/satori/go.uuid"
 
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
+	"gitlab.bbdev.team/vh/vh-srv-profile/events"
 )
 
 type deleteStorage interface {
@@ -39,5 +40,10 @@ func (db *ProfileDB) DeleteProfile(ctx context.Context, keycloakID uuid.UUID) er
 	if err != nil {
 		return fmt.Errorf("tx.Commit: %w", err)
 	}
+
+	db.emitEvent(ctx, events.TypeDeleteProfile, map[string]interface{}{
+		"keycloak_id": keycloakID,
+	})
+
 	return nil
 }

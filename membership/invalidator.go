@@ -9,6 +9,8 @@ import (
 	"github.com/getsentry/sentry-go"
 	uuid "github.com/satori/go.uuid"
 
+	"gitlab.bbdev.team/vh/vh-srv-profile/common"
+	"gitlab.bbdev.team/vh/vh-srv-profile/events"
 	"gitlab.bbdev.team/vh/vh-srv-profile/repo"
 )
 
@@ -24,6 +26,13 @@ func (in *Invalidator) String() string {
 	return "invalidator"
 }
 
+func (in *Invalidator) BuildEvent(eventType string, payload map[string]interface{}) events.Event {
+	event := events.MakeEvent(eventType, payload)
+	event.Component = events.ComponentMembershipInvalidator
+	event.Actor = events.ActorSystem
+	return event
+}
+
 func (in *Invalidator) do() error {
 	slog.Info("invalidating memberships about to expire", slog.Time("before", time.Now().UTC()))
 
@@ -33,9 +42,10 @@ func (in *Invalidator) do() error {
 	}
 	slog.Info("memberships to invalidate", slog.Int("count", len(memberships)))
 
+	ctx := context.WithValue(context.Background(), common.CtxEventBuilder, in)
 	evalResults := make(map[*uuid.UUID]repo.UserMembershipRes)
 	for _, membership := range memberships {
-		res, err := in.evalUserID(membership.UserID.String())
+		res, err := in.evalUserID(ctx, membership.UserID.String())
 		if err != nil {
 			slog.Error("evalUser", slog.String("user_id", membership.UserID.String()), slog.Any("err", err))
 			sentry.CaptureException(err)

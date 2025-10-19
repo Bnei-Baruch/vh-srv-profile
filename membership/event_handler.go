@@ -9,6 +9,7 @@ import (
 	"github.com/getsentry/sentry-go"
 
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
+	"gitlab.bbdev.team/vh/vh-srv-profile/events"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/keycloak"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/orders"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/utils"
@@ -88,10 +89,18 @@ func (eh *EventsHandler) HandleOrdersEvent(event orders.Event) {
 	}
 }
 
+func (eh *EventsHandler) BuildEvent(eventType string, payload map[string]interface{}) events.Event {
+	event := events.MakeEvent(eventType, payload)
+	event.Component = events.ComponentMembershipOrdersEventHandler
+	event.Actor = events.ActorSystem
+	return event
+}
+
 func (eh *EventsHandler) newContext(event orders.Event) context.Context {
 	logger := slog.Default().With(slog.String("nats_nuid", event.ID))
 	ctx := context.WithValue(context.Background(), common.CtxLogger, logger)
 	ctx = context.WithValue(ctx, common.CtxTokenSource, eh.kcTokenSource)
+	ctx = context.WithValue(ctx, common.CtxEventBuilder, eh)
 
 	hub := sentry.CurrentHub().Clone()
 	hub.ConfigureScope(func(scope *sentry.Scope) {

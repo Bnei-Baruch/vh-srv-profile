@@ -18,6 +18,11 @@ func (m *orderServiceMock) GetAccountByID(ctx context.Context, accountID int) (*
 	return args.Get(0).(*orders.Account), args.Error(1)
 }
 
+func (m *orderServiceMock) GetAccountByEmailIfExist(ctx context.Context, email string) (*orders.Account, error) {
+	args := m.Called(ctx, email)
+	return args.Get(0).(*orders.Account), args.Error(1)
+}
+
 func (m *orderServiceMock) GetOrders(ctx context.Context,
 	email string,
 	productType string,
@@ -64,8 +69,16 @@ func (m *orderServiceMock) GetSpecial(ctx context.Context, email string) (*order
 	return nil, args.Error(1)
 }
 
-func (m *orderServiceMock) DeleteSpecial(ctx context.Context, email string) error {
+func (m *orderServiceMock) GetSpecials(ctx context.Context, email string) ([]orders.Special, error) {
 	args := m.Called(ctx, email)
+	if args.Get(0) != nil {
+		return args.Get(0).([]orders.Special), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *orderServiceMock) DeleteSpecial(ctx context.Context, id int) error {
+	args := m.Called(ctx, id)
 	return args.Error(0)
 }
 
@@ -76,5 +89,10 @@ func (m *orderServiceMock) StatusByEmail(ctx context.Context, email string) (*or
 
 func (m *orderServiceMock) DeleteSpecialIfExist(ctx context.Context, email string) error {
 	args := m.Called(ctx, email)
+	return args.Error(0)
+}
+
+func (m *orderServiceMock) UpdateSpecialSetKeycloakIdByEmail(ctx context.Context, payload map[string]interface{}) error {
+	args := m.Called(ctx, payload)
 	return args.Error(0)
 }

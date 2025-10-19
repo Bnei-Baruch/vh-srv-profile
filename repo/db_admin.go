@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	uuid "github.com/satori/go.uuid"
+	"gitlab.bbdev.team/vh/vh-srv-profile/events"
 )
 
 type hardDeleteStorage interface {
@@ -82,5 +83,14 @@ func (db *ProfileDB) HardDeleteProfile(ctx context.Context, keycloakID uuid.UUID
 		return fmt.Errorf("problem deleting users for keycloak id %q: %w", keycloakID, err)
 	}
 
-	return tx.Commit(ctx)
+	err = tx.Commit(ctx)
+	if err != nil {
+		return fmt.Errorf("tx.commit: %w", err)
+	}
+
+	db.emitEvent(ctx, events.TypeHardDeleteProfile, map[string]interface{}{
+		"keycloak_id": keycloakID,
+	})
+
+	return nil
 }

@@ -14,6 +14,7 @@ import (
 	_ "github.com/lib/pq"
 
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
+	"gitlab.bbdev.team/vh/vh-srv-profile/events"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/orders"
 )
 
@@ -33,14 +34,16 @@ type ProfileRepository interface {
 	operationInterface
 	mergeAccounts
 	pageNoteInterface
+	Close()
 }
 
 type ProfileDB struct {
 	*pgxpool.Pool
+	eventEmitter         events.EventEmitter
 	ordersServiceFactory orders.OrdersServiceFactory
 }
 
-func NewProfileDB(ctx context.Context, databaseURL string) (*ProfileDB, error) {
+func NewProfileDB(ctx context.Context, databaseURL string, eventEmitter events.EventEmitter) (*ProfileDB, error) {
 	pool, err := pgxpool.Connect(ctx, databaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to database: %w", err)
@@ -48,6 +51,7 @@ func NewProfileDB(ctx context.Context, databaseURL string) (*ProfileDB, error) {
 
 	db := &ProfileDB{
 		Pool:                 pool,
+		eventEmitter:         eventEmitter,
 		ordersServiceFactory: orders.OrdersAPIFactory,
 	}
 
@@ -56,6 +60,10 @@ func NewProfileDB(ctx context.Context, databaseURL string) (*ProfileDB, error) {
 	}
 
 	return db, nil
+}
+
+func (db *ProfileDB) SetEventEmitter(emitter events.EventEmitter) {
+	db.eventEmitter = emitter
 }
 
 func (db *ProfileDB) SetOrdersServiceFactory(factory orders.OrdersServiceFactory) {
@@ -88,4 +96,10 @@ func SyncDBStructInsertionAndMigrations() error {
 	}
 
 	return nil
+}
+
+func (db *ProfileDB) emitEvent(ctx context.Context, eventType string, payload map[string]interface{}) {
+	builder := ctx.Value(common.CtxEventBuilder).(events.EventBuilder)
+	event := builder.BuildEvent(eventType, payload)
+	db.eventEmitter.Emit(ctx, event)
 }

@@ -16,8 +16,12 @@ import (
 )
 
 const (
-	ComponentAPI              = "api"
-	ComponentRobokasaImporter = "robokasa_importer"
+	ComponentAPI                     = "api"
+	ComponentOfflinePaymentsImporter = "offline_payments_importer"
+	ComponentRobokasaImporter        = "robokasa_importer"
+	ComponentSpecialImporter         = "special_importer"
+	ComponentSpecialActivator        = "special_activator"
+	ComponentProfileEventHnadler     = "profile_event_handler"
 
 	TypeCreateAccount     = "create_account"
 	TypeUpdateAccount     = "update_account"
