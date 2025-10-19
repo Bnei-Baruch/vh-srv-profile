@@ -9,6 +9,7 @@ import (
 	uuid "github.com/satori/go.uuid"
 
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
+	"gitlab.bbdev.team/vh/vh-srv-profile/events"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/utils"
 )
 
@@ -219,6 +220,11 @@ func (db *ProfileDB) CreateProfile(ctx context.Context, user UserInput) error {
 	if err != nil {
 		return fmt.Errorf("db.EvaluateMembershipByUserID: %w", err)
 	}
+
+	db.emitEvent(ctx, events.TypeCreateProfile, map[string]interface{}{
+		"user_id":     userID.String(),
+		"keycloak_id": user.KeycloakID,
+	})
 
 	return nil
 }

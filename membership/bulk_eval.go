@@ -1,12 +1,15 @@
 package membership
 
 import (
+	"context"
 	"encoding/csv"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 
+	"gitlab.bbdev.team/vh/vh-srv-profile/common"
+	"gitlab.bbdev.team/vh/vh-srv-profile/events"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/utils"
 	"gitlab.bbdev.team/vh/vh-srv-profile/repo"
 )
@@ -23,6 +26,13 @@ func (be *BulkEvaluator) String() string {
 	return "bulk eval"
 }
 
+func (be *BulkEvaluator) BuildEvent(eventType string, payload map[string]interface{}) events.Event {
+	event := events.MakeEvent(eventType, payload)
+	event.Component = events.ComponentMembershipBulkEval
+	event.Actor = events.ActorSystem
+	return event
+}
+
 func (be *BulkEvaluator) do() error {
 	ids, err := be.readIDs()
 	if err != nil {
@@ -30,8 +40,9 @@ func (be *BulkEvaluator) do() error {
 	}
 	slog.Info("readIDs", slog.Int("count", len(ids)))
 
+	ctx := context.WithValue(context.Background(), common.CtxEventBuilder, be)
 	for i := range ids {
-		if _, err := be.eval(*ids[i]); err != nil {
+		if _, err := be.eval(ctx, *ids[i]); err != nil {
 			slog.Error("evaluator.eval", slog.Int("line", i+1), slog.Any("err", err))
 		}
 	}

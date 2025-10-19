@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	uuid "github.com/satori/go.uuid"
+	"gitlab.bbdev.team/vh/vh-srv-profile/events"
 )
 
 type mergeAccounts interface {
@@ -99,6 +100,15 @@ func (db *ProfileDB) MergeAccounts(ctx context.Context, data AccountsMergeData) 
 	if commitErr := tx.Commit(ctx); commitErr != nil {
 		return nil, fmt.Errorf("tx.Commit: %w", commitErr)
 	}
+
+	db.emitEvent(ctx, events.TypeMergeAccounts, map[string]interface{}{
+		"source_keycloak_id":      data.SourceId,
+		"source_user_id":          sourceUserID,
+		"source_email":            sourceEmail,
+		"destination_keycloak_id": data.DestinationId,
+		"destination_user_id":     destinationUserID,
+		"destination_email":       destinationEmail,
+	})
 
 	if err := db.HardDeleteProfile(ctx, uuid.FromStringOrNil(data.SourceId)); err != nil {
 		return nil, fmt.Errorf("db.HardDeleteProfile: %w", err)

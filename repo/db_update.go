@@ -9,6 +9,7 @@ import (
 	uuid "github.com/satori/go.uuid"
 
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
+	"gitlab.bbdev.team/vh/vh-srv-profile/events"
 )
 
 type updateStorage interface {
@@ -77,6 +78,11 @@ func (db *ProfileDB) UpdateProfile(ctx context.Context, keycloakID uuid.UUID, us
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("tx.Commit: %w", err)
 	}
+
+	db.emitEvent(ctx, events.TypeUpdateProfile, map[string]interface{}{
+		"keycloak_id": keycloakID,
+		"user_id":     userID,
+	})
 
 	return nil
 }

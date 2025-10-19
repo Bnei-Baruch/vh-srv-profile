@@ -16,6 +16,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/nats-io/nats.go v1.33.1
 	github.com/nats-io/nuid v1.0.1
+	github.com/oklog/ulid/v2 v2.1.1
 	github.com/satori/go.uuid v1.2.0
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.9.0

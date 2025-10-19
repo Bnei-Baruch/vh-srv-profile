@@ -3,10 +3,11 @@ package common
 const (
 	ServiceName = "vh-srv-profile"
 
-	CtxTokenSource = "TOKEN_SOURCE"
-	CtxRequestID   = "REQUEST_ID"
-	CtxLogger      = "LOGGER"
-	CtxAuthClaims  = "AUTH_CLAIMS"
+	CtxEventBuilder = "EVENT_BUILDER"
+	CtxRequestID    = "REQUEST_ID"
+	CtxLogger       = "LOGGER"
+	CtxTokenSource  = "TOKEN_SOURCE"
+	CtxAuthClaims   = "AUTH_CLAIMS"
 
 	RoleRoot           = "vh_root" // kong service clients has this role as well to allow inter-service communication
 	RoleAdmin          = "vh_admin"

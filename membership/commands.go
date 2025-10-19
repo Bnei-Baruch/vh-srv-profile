@@ -13,6 +13,7 @@ type doer interface {
 	String() string
 	init() error
 	do() error
+	close()
 }
 
 func Migrate() {
@@ -61,5 +62,6 @@ func do(doer doer) {
 		utils.LogFatal("doer.do", slog.Any("err", err))
 	}
 
-	slog.Info("doer completed", slog.String("doer", doer.String()))
+	slog.Info("doer completed. Closing...", slog.String("doer", doer.String()))
+	doer.close()
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"gitlab.bbdev.team/vh/vh-srv-profile/events"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/orders"
 	_ "gitlab.bbdev.team/vh/vh-srv-profile/pkg/testutil"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/utils"
@@ -25,19 +26,17 @@ func checkIntegrationTest(t testing.TB) {
 
 func newTestProfileDB(t *testing.T) *ProfileDB {
 	t.Helper()
-	db, err := NewProfileDB(context.Background(), os.Getenv("DATABASE_URL"))
+
+	eventEmitter, err := events.CreateEmitter()
+	require.NoError(t, err)
+
+	db, err := NewProfileDB(context.Background(), os.Getenv("DATABASE_URL"), eventEmitter)
 	require.NoError(t, err)
 
 	_, err = db.Exec(context.Background(), `TRUNCATE users CASCADE`)
 	require.NoError(t, err)
 
 	return db
-}
-
-func Test_newProfileDB(t *testing.T) {
-	checkIntegrationTest(t)
-	_, err := NewProfileDB(context.Background(), os.Getenv("DATABASE_URL"))
-	assert.NoError(t, err)
 }
 
 func Test_ProfileDB_createUser_with_minimum_info_succeeds(t *testing.T) {
