@@ -1,0 +1,9 @@
+# Example keycloak IDs file
+# One keycloak ID per line
+# Lines starting with # are ignored
+# Empty lines are ignored
+
+# Add your actual keycloak IDs here:
+# 12345678-1234-1234-1234-123456789012
+# 87654321-4321-4321-4321-210987654321
+# 11111111-2222-3333-4444-555555555555

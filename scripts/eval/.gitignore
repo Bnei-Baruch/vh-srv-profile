@@ -1,0 +1,5 @@
+# Ignore keycloak IDs file (contains sensitive data)
+keycloak_ids.txt
+
+# Ignore CSV files (may contain sensitive data)
+*.csv
