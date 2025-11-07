@@ -22,7 +22,8 @@ type envConfig struct {
 	KeycloakClientID     string `envconfig:"KEYCLOAK_CLIENT_ID"`
 	KeycloakClientSecret string `envconfig:"KEYCLOAK_CLIENT_SECRET"`
 
-	OrdersServiceUrl string `envconfig:"ORDERS_SERVICE_URL"`
+	OrdersServiceUrl   string `envconfig:"ORDERS_SERVICE_URL"`
+	HandleOrdersEvents bool   `envconfig:"HANDLE_ORDERS_EVENTS" default:"true"`
 }
 
 var Config = new(envConfig)

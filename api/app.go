@@ -62,21 +62,21 @@ func (a *App) initDB() {
 	defer cancel()
 
 	var err error
+	if err = repo.SyncDBStructInsertionAndMigrations(); err != nil {
+		utils.LogFatal("db migrations", slog.Any("err", err))
+	}
+
 	a.profileDB, err = repo.NewProfileDB(ctx, repo.MakeDBURL(), a.eventEmitter)
 	if err != nil {
 		utils.LogFatal("connect to db", slog.Any("err", err))
-	}
-
-	if err = repo.SyncDBStructInsertionAndMigrations(); err != nil {
-		utils.LogFatal("db migrations", slog.Any("err", err))
 	}
 
 	slog.Info("db connected and migrated")
 }
 
 func (a *App) initEventListener() {
-	if common.Config.NatsUrl != "" {
-		slog.Info("initializing events listener")
+	if common.Config.HandleOrdersEvents {
+		slog.Info("initializing orders events listener")
 
 		var err error
 		a.eventListener, err = orders.NewEventListener()
@@ -120,9 +120,6 @@ func (a *App) initGinEngine() {
 		middleware.Recovery(),
 		sentrygin.New(sentrygin.Options{Repanic: true}),
 		middleware.Sentry(),
-		middleware.EventsBuilder(),
-		middleware.TokenSource(),
-		middleware.Authentication(tokenVerifier),
 	)
 	if gin.IsDebugging() {
 		a.gEngine.Use(cors.New(cors.Config{
@@ -134,6 +131,11 @@ func (a *App) initGinEngine() {
 			MaxAge:           12 * time.Hour,
 		}))
 	}
+	a.gEngine.Use(
+		middleware.EventsBuilder(),
+		middleware.TokenSource(),
+		middleware.Authentication(tokenVerifier),
+	)
 
 	// routes
 	baseV1Path := a.gEngine.Group("/v1")
