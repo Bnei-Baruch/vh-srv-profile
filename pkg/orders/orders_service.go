@@ -62,17 +62,14 @@ func NewOrdersAPI() *OrdersAPI {
 }
 
 func (api *OrdersAPI) GetAccountByID(ctx context.Context, accountID int) (*Account, error) {
-	req, err := api.baseRequest(ctx)
+	resp, err := api.executeWithRetry(ctx, func(req *resty.Request) (*resty.Response, error) {
+		return req.
+			SetPathParam("accountID", strconv.Itoa(accountID)).
+			SetResult(AccountRes{}).
+			Get("/v2/account/{accountID}")
+	})
 	if err != nil {
-		return nil, fmt.Errorf("baseRequest: %w", err)
-	}
-
-	resp, err := req.
-		SetPathParam("accountID", strconv.Itoa(accountID)).
-		SetResult(AccountRes{}).
-		Get("/v2/account/{accountID}")
-	if err != nil {
-		return nil, fmt.Errorf("req.Get: %w", err)
+		return nil, err
 	}
 
 	if err = respError(resp); err != nil {
@@ -84,17 +81,14 @@ func (api *OrdersAPI) GetAccountByID(ctx context.Context, accountID int) (*Accou
 }
 
 func (api *OrdersAPI) GetAccountByEmailIfExist(ctx context.Context, email string) (*Account, error) {
-	req, err := api.baseRequest(ctx)
+	resp, err := api.executeWithRetry(ctx, func(req *resty.Request) (*resty.Response, error) {
+		return req.
+			SetPathParam("email", email).
+			SetResult(AccountRes{}).
+			Get("/v2/account/email/{email}")
+	})
 	if err != nil {
-		return nil, fmt.Errorf("baseRequest: %w", err)
-	}
-
-	resp, err := req.
-		SetPathParam("email", email).
-		SetResult(AccountRes{}).
-		Get("/v2/account/email/{email}")
-	if err != nil {
-		return nil, fmt.Errorf("req.Get: %w", err)
+		return nil, err
 	}
 	if resp.IsError() {
 		if resp.StatusCode() == http.StatusNotFound {
@@ -113,11 +107,6 @@ func (api *OrdersAPI) GetOrders(ctx context.Context,
 	evaluateMembership bool,
 	paymentDateOrder string,
 	limit int, offset int) ([]Order, error) {
-	req, err := api.baseRequest(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("baseRequest: %w", err)
-	}
-
 	params := make(map[string]string)
 	if email != "" {
 		params["email"] = email
@@ -138,12 +127,14 @@ func (api *OrdersAPI) GetOrders(ctx context.Context,
 		params["offset"] = strconv.Itoa(offset)
 	}
 
-	resp, err := req.
-		SetQueryParams(params).
-		SetResult(OrdersRes{}).
-		Get("/v2/orders")
+	resp, err := api.executeWithRetry(ctx, func(req *resty.Request) (*resty.Response, error) {
+		return req.
+			SetQueryParams(params).
+			SetResult(OrdersRes{}).
+			Get("/v2/orders")
+	})
 	if err != nil {
-		return nil, fmt.Errorf("req.Get: %w", err)
+		return nil, err
 	}
 
 	if err = respError(resp); err != nil {
@@ -154,17 +145,14 @@ func (api *OrdersAPI) GetOrders(ctx context.Context,
 }
 
 func (api *OrdersAPI) GetOrderByID(ctx context.Context, orderID int) (*Order, error) {
-	req, err := api.baseRequest(ctx)
+	resp, err := api.executeWithRetry(ctx, func(req *resty.Request) (*resty.Response, error) {
+		return req.
+			SetPathParam("orderID", strconv.Itoa(orderID)).
+			SetResult(OrderRes{}).
+			Get("/v2/order/{orderID}")
+	})
 	if err != nil {
-		return nil, fmt.Errorf("baseRequest: %w", err)
-	}
-
-	resp, err := req.
-		SetPathParam("orderID", strconv.Itoa(orderID)).
-		SetResult(OrderRes{}).
-		Get("/v2/order/{orderID}")
-	if err != nil {
-		return nil, fmt.Errorf("req.Get: %w", err)
+		return nil, err
 	}
 
 	if err = respError(resp); err != nil {
@@ -187,11 +175,6 @@ func (api *OrdersAPI) GetOrderPayments(ctx context.Context,
 	orderID int,
 	createdAtOrder string,
 	limit int, offset int) ([]Payment, error) {
-	req, err := api.baseRequest(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("baseRequest: %w", err)
-	}
-
 	params := make(map[string]string)
 	if orderID != 0 {
 		params["order-id"] = strconv.Itoa(orderID)
@@ -206,12 +189,14 @@ func (api *OrdersAPI) GetOrderPayments(ctx context.Context,
 		params["offset"] = strconv.Itoa(offset)
 	}
 
-	resp, err := req.
-		SetQueryParams(params).
-		SetResult(MultiplePaymentRes{}).
-		Get("/v2/payments")
+	resp, err := api.executeWithRetry(ctx, func(req *resty.Request) (*resty.Response, error) {
+		return req.
+			SetQueryParams(params).
+			SetResult(MultiplePaymentRes{}).
+			Get("/v2/payments")
+	})
 	if err != nil {
-		return nil, fmt.Errorf("req.Get: %w", err)
+		return nil, err
 	}
 
 	if err = respError(resp); err != nil {
@@ -222,17 +207,14 @@ func (api *OrdersAPI) GetOrderPayments(ctx context.Context,
 }
 
 func (api *OrdersAPI) GetPaymentByID(ctx context.Context, paymentID int) (*Payment, error) {
-	req, err := api.baseRequest(ctx)
+	resp, err := api.executeWithRetry(ctx, func(req *resty.Request) (*resty.Response, error) {
+		return req.
+			SetPathParam("paymentID", strconv.Itoa(paymentID)).
+			SetResult(PaymentRes{}).
+			Get("/v2/payment/{paymentID}")
+	})
 	if err != nil {
-		return nil, fmt.Errorf("baseRequest: %w", err)
-	}
-
-	resp, err := req.
-		SetPathParam("paymentID", strconv.Itoa(paymentID)).
-		SetResult(PaymentRes{}).
-		Get("/v2/payment/{paymentID}")
-	if err != nil {
-		return nil, fmt.Errorf("req.Get: %w", err)
+		return nil, err
 	}
 
 	if err = respError(resp); err != nil {
@@ -244,17 +226,14 @@ func (api *OrdersAPI) GetPaymentByID(ctx context.Context, paymentID int) (*Payme
 }
 
 func (api *OrdersAPI) GetSpecials(ctx context.Context, email string) ([]Special, error) {
-	req, err := api.baseRequest(ctx)
+	resp, err := api.executeWithRetry(ctx, func(req *resty.Request) (*resty.Response, error) {
+		return req.
+			SetPathParam("email", email).
+			SetResult(SpecialRes{}).
+			Get("/v2/special/email/{email}")
+	})
 	if err != nil {
-		return nil, fmt.Errorf("baseRequest: %w", err)
-	}
-
-	resp, err := req.
-		SetPathParam("email", email).
-		SetResult(SpecialRes{}).
-		Get("/v2/special/email/{email}")
-	if err != nil {
-		return nil, fmt.Errorf("req.Get: %w", err)
+		return nil, err
 	}
 
 	if resp.IsError() {
@@ -269,16 +248,13 @@ func (api *OrdersAPI) GetSpecials(ctx context.Context, email string) ([]Special,
 }
 
 func (api *OrdersAPI) DeleteSpecial(ctx context.Context, id int) error {
-	req, err := api.baseRequest(ctx)
+	resp, err := api.executeWithRetry(ctx, func(req *resty.Request) (*resty.Response, error) {
+		return req.
+			SetPathParam("id", strconv.Itoa(id)).
+			Delete("/v2/special/{id}")
+	})
 	if err != nil {
-		return fmt.Errorf("baseRequest: %w", err)
-	}
-
-	resp, err := req.
-		SetPathParam("id", strconv.Itoa(id)).
-		Delete("/v2/special/{id}")
-	if err != nil {
-		return fmt.Errorf("req.Delete: %w", err)
+		return err
 	}
 
 	if err = respError(resp); err != nil {
@@ -290,16 +266,13 @@ func (api *OrdersAPI) DeleteSpecial(ctx context.Context, id int) error {
 
 // UpdateSpecialSetKeycloakIdByEmail Consider establishing event sending with NATS for 'update' requests from 'orders' to 'profile'
 func (api *OrdersAPI) UpdateSpecialSetKeycloakIdByEmail(ctx context.Context, payload map[string]interface{}) error {
-	req, err := api.baseRequest(ctx)
+	resp, err := api.executeWithRetry(ctx, func(req *resty.Request) (*resty.Response, error) {
+		return req.
+			SetBody(payload).
+			Post("/v2/special/update")
+	})
 	if err != nil {
-		return fmt.Errorf("baseRequest: %w", err)
-	}
-
-	resp, err := req.
-		SetBody(payload).
-		Post("/v2/special/update")
-	if err != nil {
-		return fmt.Errorf("req.UpdateSpecialSetKeycloakIdByEmail: %w", err)
+		return err
 	}
 
 	if err = respError(resp); err != nil {
@@ -312,38 +285,33 @@ func (api *OrdersAPI) UpdateSpecialSetKeycloakIdByEmail(ctx context.Context, pay
 // DeleteSpecialIfExist  method retrieves all specials, then checks which ones are no longer actual or are actual at the moment, and removes them.
 // Those that will be actual in the future remain as they are.
 func (api *OrdersAPI) DeleteSpecialIfExist(ctx context.Context, keycloakId string) error {
-	req, err := api.baseRequest(ctx)
+	resp, err := api.executeWithRetry(ctx, func(req *resty.Request) (*resty.Response, error) {
+		return req.
+			SetPathParam("keycloak_id", keycloakId).
+			Delete("/v2/special/delete/{keycloak_id}")
+	})
 	if err != nil {
-		return fmt.Errorf("baseRequest: %w", err)
-	}
-	resp, err := req.
-		SetPathParam("keycloak_id", keycloakId).
-		Delete("/v2/special/delete/{keycloak_id}")
-	if err != nil {
-		fmt.Println("req.Delete: %w", err)
+		return err
 	}
 	if resp.StatusCode() == http.StatusNotFound {
-		fmt.Println("req.Delete: %w", err)
+		return nil
 	}
 	if err = respError(resp); err != nil {
-		fmt.Println(err)
+		return err
 	}
 
 	return nil
 }
 
 func (api *OrdersAPI) StatusByEmail(ctx context.Context, email string) (*Status, error) {
-	req, err := api.baseRequest(ctx)
+	resp, err := api.executeWithRetry(ctx, func(req *resty.Request) (*resty.Response, error) {
+		return req.
+			SetPathParam("email", email).
+			SetResult(Status{}).
+			Get("/status/{email}")
+	})
 	if err != nil {
-		return nil, fmt.Errorf("baseRequest: %w", err)
-	}
-
-	resp, err := req.
-		SetPathParam("email", email).
-		SetResult(Status{}).
-		Get("/status/{email}")
-	if err != nil {
-		return nil, fmt.Errorf("req.Get: %w", err)
+		return nil, err
 	}
 
 	if resp.IsError() {
@@ -357,17 +325,14 @@ func (api *OrdersAPI) StatusByEmail(ctx context.Context, email string) (*Status,
 }
 
 func (api *OrdersAPI) patchOrder(ctx context.Context, orderID int, payload map[string]interface{}) error {
-	req, err := api.baseRequest(ctx)
+	resp, err := api.executeWithRetry(ctx, func(req *resty.Request) (*resty.Response, error) {
+		return req.
+			SetPathParam("orderID", strconv.Itoa(orderID)).
+			SetBody(payload).
+			Patch("/v2/order/{orderID}")
+	})
 	if err != nil {
-		return fmt.Errorf("baseRequest: %w", err)
-	}
-
-	resp, err := req.
-		SetPathParam("orderID", strconv.Itoa(orderID)).
-		SetBody(payload).
-		Patch("/v2/order/{orderID}")
-	if err != nil {
-		return fmt.Errorf("req.Patch: %w", err)
+		return err
 	}
 
 	if err = respError(resp); err != nil {
@@ -389,6 +354,51 @@ func (api *OrdersAPI) baseRequest(ctx context.Context) (*resty.Request, error) {
 	r.SetAuthToken(token)
 
 	return r, nil
+}
+
+// invalidateTokenSource clears token cache if TokenSource supports it (e.g., ServiceClient)
+func (api *OrdersAPI) invalidateTokenSource(ctx context.Context) {
+	tokenSource := ctx.Value(common.CtxTokenSource).(keycloak.TokenSource)
+	tokenSource.Invalidate()
+}
+
+// executeWithRetry executes a request and retries once on 401 after invalidating the token source
+func (api *OrdersAPI) executeWithRetry(ctx context.Context,
+	execute func(*resty.Request) (*resty.Response, error)) (*resty.Response, error) {
+
+	// First attempt
+	req, err := api.baseRequest(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("baseRequest: %w", err)
+	}
+
+	resp, err := execute(req)
+	if err != nil {
+		return nil, err
+	}
+
+	// If 401, invalidate token cache and retry once
+	if resp != nil && resp.StatusCode() == http.StatusUnauthorized {
+		api.invalidateTokenSource(ctx)
+
+		// Get fresh token and retry
+		req, err := api.baseRequest(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("baseRequest (retry): %w", err)
+		}
+
+		resp, err = execute(req)
+		if err != nil {
+			return nil, err
+		}
+
+		// If still 401 after retry with fresh token, return the error
+		if resp != nil && resp.StatusCode() == http.StatusUnauthorized {
+			return nil, respError(resp)
+		}
+	}
+
+	return resp, nil
 }
 
 func respError(resp *resty.Response) error {
