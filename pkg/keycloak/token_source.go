@@ -8,6 +8,7 @@ import (
 
 type TokenSource interface {
 	Token() (string, error)
+	Invalidate()
 }
 
 // AuthHeaderTokenSource will strip the token from the header and reuse it forever
@@ -29,4 +30,8 @@ type authHeaderTokenSource struct {
 
 func (s authHeaderTokenSource) Token() (string, error) {
 	return s.token, s.err
+}
+
+func (s authHeaderTokenSource) Invalidate() {
+	// No-op: AuthHeaderTokenSource uses a static token that cannot be invalidated
 }
