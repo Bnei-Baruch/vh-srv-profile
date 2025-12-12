@@ -1,12 +1,12 @@
 package api
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-  "context"
-  "io"
 
 	"github.com/gin-gonic/gin"
 	uuid "github.com/satori/go.uuid"
@@ -19,10 +19,10 @@ import (
 
 func NewRequestAsRoot(method, target string, body io.Reader) *http.Request {
 	r := httptest.NewRequest(method, target, body)
-  ctx := r.Context()
-  claims := &middleware.IDTokenClaims{RealmAccess: middleware.Roles{ Roles: []string{common.RoleRoot} }}
-  ctx = context.WithValue(ctx, common.CtxAuthClaims, claims)
-  return r.WithContext(ctx)
+	ctx := r.Context()
+	claims := &middleware.IDTokenClaims{RealmAccess: middleware.Roles{Roles: []string{common.RoleRoot}}}
+	ctx = context.WithValue(ctx, common.CtxAuthClaims, claims)
+	return r.WithContext(ctx)
 }
 
 func Test_profileHandler_hardDelete_succeeds(t *testing.T) {

@@ -12,6 +12,11 @@ import (
 	"gitlab.bbdev.team/vh/vh-srv-profile/repo"
 )
 
+type SetSpouseRequest struct {
+	SpouseKeycloakID string `json:"spouse_keycloak_id"`
+	ForceUpdate      bool   `json:"force_update"`
+}
+
 func (p *ProfileManager) update(c *gin.Context) {
 	keycloakIDString, ok := c.Params.Get("keycloak_id")
 	if !ok {
@@ -25,7 +30,7 @@ func (p *ProfileManager) update(c *gin.Context) {
 	}
 
 	var request profileRequest
-	if err := c.ShouldBind(&request); err != nil {
+	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -95,3 +100,44 @@ func (p *ProfileManager) update(c *gin.Context) {
 
 	c.Status(http.StatusOK)
 }
+
+func (p *ProfileManager) setSpouse(c *gin.Context) {
+	keycloakIDString := c.Param("keycloak_id")
+	keycloakID, err := uuid.FromString(keycloakIDString)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid keycloak_id"})
+		return
+	}
+
+	if !p.isSubjectOrHasAnyRole(c, keycloakIDString, common.RoleRoot, common.RoleAdmin) {
+		return
+	}
+
+	var req SetSpouseRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var spouseKeycloakID uuid.UUID
+	if req.SpouseKeycloakID != "" {
+		var err error
+		spouseKeycloakID, err = uuid.FromString(req.SpouseKeycloakID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid spouse_keycloak_id"})
+			return
+		}
+	}
+
+	if err := p.repo.SetSpouse(c.Request.Context(), keycloakID, spouseKeycloakID, req.ForceUpdate); err != nil {
+		if errors.Is(err, common.ErrSpouseConflict) {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Status(http.StatusOK)
+}
+

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	uuid "github.com/satori/go.uuid"
@@ -33,6 +34,7 @@ func (p *ProfileManager) searchProfiles(c *gin.Context) {
 	country := c.Query("country")
 	email := c.Query("email")
 	name := c.Query("name")
+	keycloakID := c.Query("keycloak_id")
 	tenGroupName := c.Query("ten-group-name")
 	language := c.Query("language")
 	firstLanguage := c.Query("first-language")
@@ -43,8 +45,22 @@ func (p *ProfileManager) searchProfiles(c *gin.Context) {
 	phoneNumber := c.Query("phone-number")
 	updatedAt := c.Query("updated")
 	gender := c.Query("gender")
+	userID := c.Query("user_id")
+	clauseParam := c.Query("clause")
 
-	if email == "" || phoneNumber != "" {
+	// Validate clause parameter
+	clause := repo.AND_CLAUSE // Default clause
+	if clauseParam != "" {
+		upperClauseParam := strings.ToUpper(clauseParam)
+		if upperClauseParam == repo.AND_CLAUSE || upperClauseParam == repo.OR_CLAUSE {
+			clause = upperClauseParam
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid clause value! Accepted values are 'and' or 'or'"})
+			return
+		}
+	}
+
+	if phoneNumber != "" {
 		p.getProfiles(c)
 		return
 	}
@@ -106,7 +122,7 @@ func (p *ProfileManager) searchProfiles(c *gin.Context) {
 		return
 	}
 
-	profiles, err := p.repo.GetMultipleProfiles(c.Request.Context(), intSkip, intLimit, country, email, name, tenGroupName, language, firstLanguage, otherLanguageOne, otherLanguageTwo, otherLanguageThree, otherLanguageFour, updatedAt, createdAt, membership, membershipType, convention, ticket, galaxy, gender, true)
+	profiles, err := p.repo.GetMultipleProfiles(c.Request.Context(), intSkip, intLimit, country, email, name, keycloakID, tenGroupName, language, firstLanguage, otherLanguageOne, otherLanguageTwo, otherLanguageThree, otherLanguageFour, updatedAt, createdAt, membership, membershipType, convention, ticket, galaxy, gender, userID, true, clause)
 	if err != nil {
 		if errors.Is(err, common.ErrUserNotFound) {
 			c.Status(http.StatusNotFound)
@@ -258,6 +274,7 @@ func (p *ProfileManager) searchProfiles(c *gin.Context) {
 				City:                profile.UserInput.Address.City,
 				Gender:              profile.UserInput.Gender,
 				MaritalStatus:       profile.UserInput.MaritalStatus,
+				SpouseKeycloakID:    profile.UserInput.SpouseKeycloakID,
 				PrimaryEmail:        profile.UserInput.Emails.Primary,
 				AlternateEmail1:     profile.UserInput.Emails.Alternate1,
 				AlternateEmail2:     profile.UserInput.Emails.Alternate2,

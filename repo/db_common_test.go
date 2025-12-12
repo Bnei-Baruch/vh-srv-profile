@@ -2,12 +2,38 @@ package repo
 
 import (
 	"context"
+	"testing"
 	"time"
 
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
+	"gitlab.bbdev.team/vh/vh-srv-profile/events"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/orders"
+	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/testutil"
 )
+
+// newTestProfileDBIsolated creates a new isolated test database for unit tests
+func newTestProfileDBIsolated(t *testing.T) *ProfileDB {
+	t.Helper()
+
+	ctx := context.Background()
+	dbURL, err := testutil.NewTestProfileDB(t, ctx)
+	require.NoError(t, err)
+
+	eventEmitter, err := events.CreateEmitter()
+	require.NoError(t, err)
+
+	db, err := NewProfileDB(ctx, dbURL, eventEmitter)
+	require.NoError(t, err)
+
+	// Ensure database connection is closed after test
+	t.Cleanup(func() {
+		db.Close()
+	})
+
+	return db
+}
 
 type orderServiceMock struct {
 	mock.Mock

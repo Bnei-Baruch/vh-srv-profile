@@ -5,13 +5,16 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	uuid "github.com/satori/go.uuid"
+	"github.com/volatiletech/null/v9"
 
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/utils"
+	"gitlab.bbdev.team/vh/vh-srv-profile/repo"
 )
 
 type status struct {
@@ -23,45 +26,46 @@ type status struct {
 	Galaxy         *bool   `json:"galaxy,omitempty"`
 }
 type userResponse struct {
-	UserID              *uuid.UUID `json:"user_id"`
-	KeycloakID          *uuid.UUID `json:"keycloak_id"`
-	UpdatedAt           time.Time  `json:"updated_at"`
-	CreatedAt           time.Time  `json:"created_at"`
-	Deleted             bool       `json:"deleted"`
-	Status              status     `json:"status"`
-	MembershipActive    *bool      `json:"membership_active"`
-	MembershipType      *string    `json:"membership_type"`
-	FirstNameLatin      *string    `json:"first_name_latin,omitempty"`
-	FirstNameVernacular *string    `json:"first_name_vernacular" `
-	LastNameLatin       *string    `json:"last_name_latin,omitempty"`
-	LastNameVernacular  *string    `json:"last_name_vernacular"  `
-	StreetAddress       *string    `json:"street_address,omitempty"`
-	Country             *string    `json:"country,omitempty"`
-	StateOrRegion       *string    `json:"state_region,omitempty"`
-	PostalCode          *string    `json:"postal_code,omitempty"`
-	City                *string    `json:"city,omitempty"`
-	Gender              *string    `json:"gender,omitempty"`
-	MaritalStatus       *string    `json:"marital_status,omitempty"`
-	DateOfBirth         *string    `json:"date_of_birth,omitempty"`
-	PrimaryEmail        *string    `json:"primary_email" `
-	AlternateEmail1     *string    `json:"alternate_email_1,omitempty"`
-	AlternateEmail2     *string    `json:"alternate_email_2,omitempty"`
-	MobileNumber        *string    `json:"mobile_number,omitempty"`
-	WhatsAppNumber      *string    `json:"whats_app_number,omitempty"`
-	TelegramNumber      *string    `json:"telegram_number,omitempty"`
-	FirstLanguage       *string    `json:"first_language,omitempty"`
-	OtherLanguage1      *string    `json:"other_language_1,omitempty"`
-	OtherLanguage2      *string    `json:"other_language_2,omitempty"`
-	OtherLanguage3      *string    `json:"other_language_3,omitempty"`
-	OtherLanguage4      *string    `json:"other_language_4,omitempty"`
-	ListeningLanguage   *string    `json:"listening_language,omitempty"`
-	ReadingLanguage     *string    `json:"reading_language,omitempty"`
-	EmailLanguage       *string    `json:"email_language,omitempty"`
-	StudyStartYear      *int       `json:"study_start_year,omitempty"`
-	StudyFramework      *string    `json:"study_framework,omitempty"`
-	HasGroup            *bool      `json:"has_ten_group,omitempty"`
-	WantsGroup          *bool      `json:"wants_ten_group,omitempty"`
-	NameOfGroup         *string    `json:"name_ten_group,omitempty"`
+	UserID              *uuid.UUID  `json:"user_id"`
+	KeycloakID          *uuid.UUID  `json:"keycloak_id"`
+	UpdatedAt           time.Time   `json:"updated_at"`
+	CreatedAt           time.Time   `json:"created_at"`
+	Deleted             bool        `json:"deleted"`
+	Status              status      `json:"status"`
+	MembershipActive    *bool       `json:"membership_active"`
+	MembershipType      *string     `json:"membership_type"`
+	FirstNameLatin      *string     `json:"first_name_latin,omitempty"`
+	FirstNameVernacular *string     `json:"first_name_vernacular" `
+	LastNameLatin       *string     `json:"last_name_latin,omitempty"`
+	LastNameVernacular  *string     `json:"last_name_vernacular"  `
+	StreetAddress       *string     `json:"street_address,omitempty"`
+	Country             *string     `json:"country,omitempty"`
+	StateOrRegion       *string     `json:"state_region,omitempty"`
+	PostalCode          *string     `json:"postal_code,omitempty"`
+	City                *string     `json:"city,omitempty"`
+	Gender              *string     `json:"gender,omitempty"`
+	MaritalStatus       null.String `json:"marital_status"`
+	SpouseKeycloakID    *string     `json:"spouse_keycloak_id,omitempty"`
+	DateOfBirth         *string     `json:"date_of_birth,omitempty"`
+	PrimaryEmail        *string     `json:"primary_email" `
+	AlternateEmail1     *string     `json:"alternate_email_1,omitempty"`
+	AlternateEmail2     *string     `json:"alternate_email_2,omitempty"`
+	MobileNumber        *string     `json:"mobile_number,omitempty"`
+	WhatsAppNumber      *string     `json:"whats_app_number,omitempty"`
+	TelegramNumber      *string     `json:"telegram_number,omitempty"`
+	FirstLanguage       *string     `json:"first_language,omitempty"`
+	OtherLanguage1      *string     `json:"other_language_1,omitempty"`
+	OtherLanguage2      *string     `json:"other_language_2,omitempty"`
+	OtherLanguage3      *string     `json:"other_language_3,omitempty"`
+	OtherLanguage4      *string     `json:"other_language_4,omitempty"`
+	ListeningLanguage   *string     `json:"listening_language,omitempty"`
+	ReadingLanguage     *string     `json:"reading_language,omitempty"`
+	EmailLanguage       *string     `json:"email_language,omitempty"`
+	StudyStartYear      *int        `json:"study_start_year,omitempty"`
+	StudyFramework      *string     `json:"study_framework,omitempty"`
+	HasGroup            *bool       `json:"has_ten_group,omitempty"`
+	WantsGroup          *bool       `json:"wants_ten_group,omitempty"`
+	NameOfGroup         *string     `json:"name_ten_group,omitempty"`
 }
 
 type ShortProfile struct {
@@ -85,6 +89,7 @@ func (p *ProfileManager) getProfiles(c *gin.Context) {
 	country := c.Query("country")
 	email := c.Query("email")
 	name := c.Query("name")
+	keycloakID := c.Query("keycloak_id")
 	tenGroupName := c.Query("ten-group-name")
 	language := c.Query("language")
 	firstLanguage := c.Query("first-language")
@@ -95,6 +100,20 @@ func (p *ProfileManager) getProfiles(c *gin.Context) {
 	phoneNumber := c.Query("phone-number")
 	updatedAt := c.Query("updated")
 	gender := c.Query("gender")
+	userID := c.Query("user_id") // Add user_id
+	clauseParam := c.Query("clause")
+
+	// Validate clause parameter
+	clause := repo.AND_CLAUSE // Default clause
+	if clauseParam != "" {
+		upperClauseParam := strings.ToUpper(clauseParam)
+		if upperClauseParam == repo.AND_CLAUSE || upperClauseParam == repo.OR_CLAUSE {
+			clause = upperClauseParam
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid clause value! Accepted values are 'and' or 'or'"})
+			return
+		}
+	}
 	if updatedAt != "" && updatedAt != "desc" && updatedAt != "asc" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid updatedAt value! Accepted values are desc for descending & asc for ascending"})
 		return
@@ -223,7 +242,7 @@ func (p *ProfileManager) getProfiles(c *gin.Context) {
 			return
 		}
 
-		profiles, err := p.repo.GetMultipleProfiles(c.Request.Context(), intSkip, intLimit, country, email, name, tenGroupName, language, firstLanguage, otherLanguageOne, otherLanguageTwo, otherLanguageThree, otherLanguageFour, updatedAt, createdAt, membership, membershipType, convention, ticket, galaxy, gender, false)
+		profiles, err := p.repo.GetMultipleProfiles(c.Request.Context(), intSkip, intLimit, country, email, name, keycloakID, tenGroupName, language, firstLanguage, otherLanguageOne, otherLanguageTwo, otherLanguageThree, otherLanguageFour, updatedAt, createdAt, membership, membershipType, convention, ticket, galaxy, gender, userID, false, clause)
 		if err != nil {
 			if errors.Is(err, common.ErrUserNotFound) {
 				c.Status(http.StatusNotFound)
@@ -343,6 +362,7 @@ func (p *ProfileManager) get(c *gin.Context) {
 		City:                profile.UserInput.Address.City,
 		Gender:              profile.UserInput.Gender,
 		MaritalStatus:       profile.UserInput.MaritalStatus,
+		SpouseKeycloakID:    profile.UserInput.SpouseKeycloakID,
 		PrimaryEmail:        profile.UserInput.Emails.Primary,
 		AlternateEmail1:     profile.UserInput.Emails.Alternate1,
 		AlternateEmail2:     profile.UserInput.Emails.Alternate2,

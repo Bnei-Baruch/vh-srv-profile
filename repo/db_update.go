@@ -14,6 +14,7 @@ import (
 
 type updateStorage interface {
 	UpdateProfile(ctx context.Context, keycloakID uuid.UUID, toUpdate UserInput) error
+	SetSpouse(ctx context.Context, keycloakID1, keycloakID2 uuid.UUID, forceUpdate bool) error
 }
 
 func (db *ProfileDB) UpdateProfile(ctx context.Context, keycloakID uuid.UUID, user UserInput) error {
@@ -131,9 +132,14 @@ func prepareUserUpdate(user UserInput) (string, []interface{}) {
 		updateStrings = append(updateStrings, fmt.Sprintf("gender=$%d", len(updateStrings)+1))
 		args = append(args, user.Gender)
 	}
-	if user.MaritalStatus != nil {
+	if user.MaritalStatus.Set {
 		updateStrings = append(updateStrings, fmt.Sprintf("marital_status=$%d", len(updateStrings)+1))
-		args = append(args, user.MaritalStatus)
+		if user.MaritalStatus.Valid {
+			args = append(args, user.MaritalStatus)
+		} else {
+			// Clear marital status, set it NULL.
+			args = append(args, nil)
+		}
 	}
 	if user.DateOfBirth != nil {
 		updateStrings = append(updateStrings, fmt.Sprintf("date_of_birth=$%d", len(updateStrings)+1))
@@ -260,3 +266,117 @@ func prepareUserStatusUpdateQuery(user UserInput) (string, []interface{}) {
 
 	return updateArgument, args
 }
+
+// SetSpouse manages symmetric spouse relationships and marital status.
+// Purpose: Establishes/breaks spouse links (spouse_keycloak_id) and updates marital_status (Married/Single).
+// - Prevents self-spousing; uses transactions and `FOR UPDATE` for data integrity.
+// - On unset (keycloakID2=uuid.Nil), clears spouse links and sets marital_status to 'Single' for affected parties.
+// - On set (keycloakID2!=uuid.Nil), links spouses, sets marital_status to 'Married' for both.
+// - Conflicts (existing spouses) are checked; forceUpdate can bypass.
+// - Unlinks any prior spouses of keycloakID1/keycloakID2, setting their marital_status to 'Single'.
+// - Returns errors for non-existent users.
+func (db *ProfileDB) SetSpouse(ctx context.Context, keycloakID1, keycloakID2 uuid.UUID, forceUpdate bool) error {
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("db.Begin: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	err = db.SetSpouseWithTx(ctx, tx, keycloakID1, keycloakID2, forceUpdate)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
+func (db *ProfileDB) SetSpouseWithTx(ctx context.Context, tx pgx.Tx, keycloakID1, keycloakID2 uuid.UUID, forceUpdate bool) error {
+	if keycloakID1 == keycloakID2 {
+		return common.ErrSpouseSelf
+	}
+
+	// Get user 1's current spouse
+	var spouse1_id *string
+	err := tx.QueryRow(ctx, "SELECT spouse_keycloak_id FROM users WHERE keycloak_id = $1 FOR UPDATE", keycloakID1).Scan(&spouse1_id)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return fmt.Errorf("user %s: %w", keycloakID1, common.ErrUserNotFound)
+		}
+		return fmt.Errorf("failed to get user 1: %w", err)
+	}
+
+	// Handle cancellation
+	// TODO: Marital status handling after cancellation needs better logic.
+	// Currently defaults to 'Divorced', but we should consider the previous state
+	// and whether the user had a spouse to cancel or not.
+	if keycloakID2 == uuid.Nil {
+		if spouse1_id != nil {
+			// Unlink user 1 and set marital status to Divorced
+			_, err := tx.Exec(ctx, "UPDATE users SET spouse_keycloak_id = NULL, marital_status = $1 WHERE keycloak_id = $2", common.MaritalStatusDivorced, keycloakID1)
+			if err != nil {
+				return err
+			}
+			// Unlink old spouse and set marital status to Divorced
+			_, err = tx.Exec(ctx, "UPDATE users SET spouse_keycloak_id = NULL, marital_status = $1 WHERE keycloak_id = $2", common.MaritalStatusDivorced, *spouse1_id)
+			if err != nil {
+				return err
+			}
+		} else { // If there was no spouse before, just set current user to Divorced if they were not already.
+			_, err := tx.Exec(ctx, "UPDATE users SET marital_status = $1 WHERE keycloak_id = $2 AND marital_status != $1", common.MaritalStatusDivorced, keycloakID1)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	// Get user 2's current spouse
+	var spouse2_id *string
+	err = tx.QueryRow(ctx, "SELECT spouse_keycloak_id FROM users WHERE keycloak_id = $1 FOR UPDATE", keycloakID2).Scan(&spouse2_id)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return fmt.Errorf("user %s: %w", keycloakID2, common.ErrUserNotFound)
+		}
+		return fmt.Errorf("failed to get user 2: %w", err)
+	}
+
+	// Conflict check for non-forced updates
+	if !forceUpdate {
+		isUser1Ok := spouse1_id == nil || *spouse1_id == keycloakID2.String()
+		isUser2Ok := spouse2_id == nil || *spouse2_id == keycloakID1.String()
+		if !isUser1Ok || !isUser2Ok {
+			return common.ErrSpouseConflict
+		}
+	}
+
+	// Unlink previous spouses and set their marital status to Divorced, if they were indeed spouses.
+	if spouse1_id != nil && *spouse1_id != keycloakID2.String() {
+		// Only unlink if current spouse is not the new spouse
+		_, err := tx.Exec(ctx, "UPDATE users SET spouse_keycloak_id = NULL, marital_status = $1 WHERE keycloak_id = $2", common.MaritalStatusDivorced, *spouse1_id)
+		if err != nil {
+			return err
+		}
+	}
+	if spouse2_id != nil && *spouse2_id != keycloakID1.String() {
+		// Only unlink if current spouse is not the new spouse
+		_, err := tx.Exec(ctx, "UPDATE users SET spouse_keycloak_id = NULL, marital_status = $1 WHERE keycloak_id = $2", common.MaritalStatusDivorced, *spouse2_id)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Set new spouse relationship and marital status to Married
+	s1 := keycloakID1.String()
+	s2 := keycloakID2.String()
+	_, err = tx.Exec(ctx, "UPDATE users SET spouse_keycloak_id = $1, marital_status = $2 WHERE keycloak_id = $3", s2, common.MaritalStatusMarried, keycloakID1)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, "UPDATE users SET spouse_keycloak_id = $1, marital_status = $2 WHERE keycloak_id = $3", s1, common.MaritalStatusMarried, keycloakID2)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+

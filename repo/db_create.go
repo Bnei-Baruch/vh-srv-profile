@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v4"
 	uuid "github.com/satori/go.uuid"
+	"github.com/volatiletech/null/v9"
 
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
 	"gitlab.bbdev.team/vh/vh-srv-profile/events"
@@ -37,7 +38,8 @@ type UserInput struct {
 	MembershipActive    *bool
 	MembershipType      *string
 	Gender              *string
-	MaritalStatus       *string
+	MaritalStatus       null.String
+	SpouseKeycloakID    *string
 	DateOfBirth         *time.Time
 	Emails              Emails
 	Phones              Phones

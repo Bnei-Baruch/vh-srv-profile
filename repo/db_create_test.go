@@ -1,8 +1,6 @@
 package repo
 
 import (
-	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -11,46 +9,22 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"gitlab.bbdev.team/vh/vh-srv-profile/events"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/orders"
-	_ "gitlab.bbdev.team/vh/vh-srv-profile/pkg/testutil"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/utils"
 )
 
-func checkIntegrationTest(t testing.TB) {
-	t.Helper()
-	if os.Getenv("GO_INTEGRATION_TESTS") != "1" {
-		t.SkipNow()
-	}
-}
-
-func newTestProfileDB(t *testing.T) *ProfileDB {
-	t.Helper()
-
-	eventEmitter, err := events.CreateEmitter()
-	require.NoError(t, err)
-
-	db, err := NewProfileDB(context.Background(), os.Getenv("DATABASE_URL"), eventEmitter)
-	require.NoError(t, err)
-
-	_, err = db.Exec(context.Background(), `TRUNCATE users CASCADE`)
-	require.NoError(t, err)
-
-	return db
-}
-
 func Test_ProfileDB_createUser_with_minimum_info_succeeds(t *testing.T) {
-	checkIntegrationTest(t)
-	db := newTestProfileDB(t)
-	defer newTestProfileDB(t)
+	db := newTestProfileDBIsolated(t)
+	ctx := testContext()
 
 	osMock := orderServiceMock{}
 	db.SetOrdersServiceFactory(func() orders.OrdersService { return &osMock })
 	osMock.On("GetOrders", mock.Anything, "someemail@email.email", "globalmembership", true, "desc",
 		mock.Anything, mock.Anything).Return([]orders.Order{}, nil)
 	osMock.On("GetSpecial", mock.Anything, "someemail@email.email").Return(nil, nil)
+	osMock.On("GetSpecials", mock.Anything, "someemail@email.email").Return([]orders.Special{}, nil)
 
-	err := db.CreateProfile(context.Background(), UserInput{
+	err := db.CreateProfile(ctx, UserInput{
 		KeycloakID:          utils.PointerUUID(uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000")),
 		FirstNameVernacular: utils.PointerString("first name"),
 		LastNameVernacular:  utils.PointerString("last name"),
@@ -58,7 +32,7 @@ func Test_ProfileDB_createUser_with_minimum_info_succeeds(t *testing.T) {
 	})
 
 	assert.NoError(t, err)
-	actualRows, err := db.Query(context.Background(), `SELECT deleted, keycloak_id::text, first_name_vernacular, last_name_vernacular,
+	actualRows, err := db.Query(ctx, `SELECT deleted, keycloak_id::text, first_name_vernacular, last_name_vernacular,
 	primary_email FROM users`)
 	require.NoError(t, err)
 	defer actualRows.Close()
@@ -73,23 +47,23 @@ func Test_ProfileDB_createUser_with_minimum_info_succeeds(t *testing.T) {
 	assert.Equal(t, [][]interface{}{{false, "11000000-0000-0000-0000-000000000000", "first name", "last name", "someemail@email.email"}}, actual)
 
 	var createdAt, updatedAt time.Time
-	require.NoError(t, db.QueryRow(context.Background(), `SELECT created_at, updated_at FROM users`).Scan(&createdAt, &updatedAt))
+	require.NoError(t, db.QueryRow(ctx, `SELECT created_at, updated_at FROM users`).Scan(&createdAt, &updatedAt))
 	assert.WithinDuration(t, time.Now(), createdAt, 3*time.Second)
 	assert.WithinDuration(t, time.Now(), updatedAt, 3*time.Second)
 }
 
 func Test_ProfileDB_createUser_with_language_info_succeeds(t *testing.T) {
-	checkIntegrationTest(t)
-	db := newTestProfileDB(t)
-	defer newTestProfileDB(t)
+	db := newTestProfileDBIsolated(t)
+	ctx := testContext()
 
 	osMock := orderServiceMock{}
 	db.SetOrdersServiceFactory(func() orders.OrdersService { return &osMock })
 	osMock.On("GetOrders", mock.Anything, "someemail@email.email", "globalmembership", true, "desc",
 		mock.Anything, mock.Anything).Return([]orders.Order{}, nil)
 	osMock.On("GetSpecial", mock.Anything, "someemail@email.email").Return(nil, nil)
+	osMock.On("GetSpecials", mock.Anything, "someemail@email.email").Return([]orders.Special{}, nil)
 
-	err := db.CreateProfile(context.Background(), UserInput{
+	err := db.CreateProfile(ctx, UserInput{
 		KeycloakID:          utils.PointerUUID(uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000")),
 		FirstNameVernacular: utils.PointerString("first name"),
 		LastNameVernacular:  utils.PointerString("last name"),
@@ -103,7 +77,7 @@ func Test_ProfileDB_createUser_with_language_info_succeeds(t *testing.T) {
 	})
 
 	assert.NoError(t, err)
-	actualRows, err := db.Query(context.Background(), `
+	actualRows, err := db.Query(ctx, `
 	SELECT deleted,
        keycloak_id::text,
        first_name_vernacular,
@@ -137,25 +111,25 @@ func Test_ProfileDB_createUser_with_language_info_succeeds(t *testing.T) {
 	}}, actual)
 
 	var createdAt, updatedAt time.Time
-	require.NoError(t, db.QueryRow(context.Background(), `SELECT created_at, updated_at FROM users`).Scan(&createdAt, &updatedAt))
+	require.NoError(t, db.QueryRow(ctx, `SELECT created_at, updated_at FROM users`).Scan(&createdAt, &updatedAt))
 	assert.WithinDuration(t, time.Now(), createdAt, 3*time.Second)
 	assert.WithinDuration(t, time.Now(), updatedAt, 3*time.Second)
 }
 
 func Test_ProfileDB_createUser_with_phone_number_succeeds(t *testing.T) {
-	checkIntegrationTest(t)
-	db := newTestProfileDB(t)
-	defer newTestProfileDB(t)
+	db := newTestProfileDBIsolated(t)
+	ctx := testContext()
 
 	osMock := orderServiceMock{}
 	db.SetOrdersServiceFactory(func() orders.OrdersService { return &osMock })
 	osMock.On("GetOrders", mock.Anything, "someemail@email.email", "globalmembership", true, "desc",
 		mock.Anything, mock.Anything).Return([]orders.Order{}, nil)
 	osMock.On("GetSpecial", mock.Anything, "someemail@email.email").Return(nil, nil)
+	osMock.On("GetSpecials", mock.Anything, "someemail@email.email").Return([]orders.Special{}, nil)
 
 	mobile := "0100000000"
 	whatsApp := "0200000000"
-	err := db.CreateProfile(context.Background(), UserInput{
+	err := db.CreateProfile(ctx, UserInput{
 		KeycloakID:          utils.PointerUUID(uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000")),
 		FirstNameVernacular: utils.PointerString("first name"),
 		LastNameVernacular:  utils.PointerString("last name"),
@@ -168,7 +142,7 @@ func Test_ProfileDB_createUser_with_phone_number_succeeds(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	actualRows, err := db.Query(context.Background(), `SELECT phone_number, type FROM phone_numbers`)
+	actualRows, err := db.Query(ctx, `SELECT phone_number, type FROM phone_numbers`)
 	require.NoError(t, err)
 	defer actualRows.Close()
 	var actualPhoneNumbers [][]interface{}

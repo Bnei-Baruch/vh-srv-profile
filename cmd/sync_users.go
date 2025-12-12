@@ -103,9 +103,9 @@ func (s *UserSyncer) run() error {
 	for {
 		slog.Info("fetching users", slog.Int("page", page))
 		users, err := s.repo.GetMultipleProfiles(ctx, page*pageSize, pageSize,
-			"", "", "", "", "", "",
+			"", "", "", "", "", "", "",
 			"", "", "", "",
-			"", "", "", "", "", "", "", "", false)
+			"", "", "", "", "", "", "", "", "", false, repo.AND_CLAUSE)
 		if err != nil {
 			return fmt.Errorf("repo.GetMultipleProfiles: %w", err)
 		}
