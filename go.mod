@@ -1,6 +1,8 @@
 module gitlab.bbdev.team/vh/vh-srv-profile
 
-go 1.21
+go 1.21.0
+
+toolchain go1.22.0
 
 require (
 	github.com/Nerzal/gocloak/v13 v13.8.0
@@ -9,7 +11,7 @@ require (
 	github.com/gin-gonic/gin v1.9.1
 	github.com/go-resty/resty/v2 v2.7.0
 	github.com/golang-jwt/jwt/v4 v4.5.0
-	github.com/golang-migrate/migrate/v4 v4.15.2
+	github.com/golang-migrate/migrate/v4 v4.16.0
 	github.com/hellofresh/health-go/v5 v5.5.3
 	github.com/jackc/pgx/v4 v4.18.3
 	github.com/joho/godotenv v1.3.0
@@ -21,6 +23,11 @@ require (
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.9.0
 	github.com/volatiletech/null/v9 v9.0.0
+)
+
+require (
+	github.com/peterldowns/pgtestdb v0.1.1 // indirect
+	github.com/peterldowns/pgtestdb/migrators/golangmigrator v0.1.1 // indirect
 )
 
 require (
@@ -45,7 +52,7 @@ require (
 	github.com/jackc/pgio v1.0.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgproto3/v2 v2.3.3 // indirect
-	github.com/jackc/pgservicefile v0.0.0-20231201235250-de7065d80cb9 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/pgtype v1.14.0 // indirect
 	github.com/jackc/puddle v1.3.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -70,11 +77,11 @@ require (
 	go.opentelemetry.io/otel/trace v1.24.0 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
 	golang.org/x/arch v0.5.0 // indirect
-	golang.org/x/crypto v0.20.0 // indirect
-	golang.org/x/net v0.21.0 // indirect
+	golang.org/x/crypto v0.27.0 // indirect
+	golang.org/x/net v0.28.0 // indirect
 	golang.org/x/oauth2 v0.16.0 // indirect
-	golang.org/x/sys v0.17.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/sys v0.25.0 // indirect
+	golang.org/x/text v0.18.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240123012728-ef4313101c80 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect

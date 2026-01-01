@@ -1,7 +1,6 @@
 package repo
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -9,21 +8,22 @@ import (
 	uuid "github.com/satori/go.uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/volatiletech/null/v9"
 
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/utils"
 )
 
 func Test_ProfileDB_getUser_minimal_data_succeeds(t *testing.T) {
-	checkIntegrationTest(t)
-	db := newTestProfileDB(t)
-	defer newTestProfileDB(t)
-	_, err := db.Exec(context.Background(), `
-	INSERT into users (keycloak_id, first_name_vernacular, last_name_vernacular, primary_email) 
+	db := newTestProfileDBIsolated(t)
+	ctx := testContext()
+
+	_, err := db.Exec(ctx, `
+	INSERT into users (keycloak_id, first_name_vernacular, last_name_vernacular, primary_email)
 	VALUES ('11000000-0000-0000-0000-000000000000', 'first name', 'last name', 'someemail@email.email')`)
 	require.NoError(t, err)
 
-	actual, err := db.GetProfile(context.Background(), uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000"))
+	actual, err := db.GetProfile(ctx, uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000"))
 
 	assert.NoError(t, err)
 	assert.Equal(t, UserInput{
@@ -38,11 +38,11 @@ func Test_ProfileDB_getUser_minimal_data_succeeds(t *testing.T) {
 }
 
 func Test_ProfileDB_getUser_full_data_succeeds(t *testing.T) {
-	checkIntegrationTest(t)
-	db := newTestProfileDB(t)
-	//defer newTestProfileDB(t)
+	db := newTestProfileDBIsolated(t)
+	ctx := testContext()
+
 	var userID uuid.UUID
-	err := db.QueryRow(context.Background(), `
+	err := db.QueryRow(ctx, `
 	INSERT INTO users (keycloak_id,
                    first_name_latin,
                    first_name_vernacular,
@@ -103,12 +103,12 @@ VALUES ('441dc8be-7f58-40fb-951e-085797917110',
         'some name')
 	RETURNING user_id`).Scan(&userID)
 	require.NoError(t, err)
-	_, err = db.Exec(context.Background(), `
+	_, err = db.Exec(ctx, `
 	INSERT into phone_numbers (user_id, phone_number, type) VALUES ($1, '+33783691190', 'mobile'), ($1, '+33783691191', 'WhatsApp'),
 	($1, '+33783691192', 'Telegram')`, userID)
 	require.NoError(t, err)
 
-	actual, err := db.GetProfile(context.Background(), uuid.FromStringOrNil("441dc8be-7f58-40fb-951e-085797917110"))
+	actual, err := db.GetProfile(ctx, uuid.FromStringOrNil("441dc8be-7f58-40fb-951e-085797917110"))
 
 	assert.NoError(t, err)
 	assert.Equal(t, UserInput{
@@ -125,7 +125,7 @@ VALUES ('441dc8be-7f58-40fb-951e-085797917110',
 			City:          utils.PointerString("Le Havre"),
 		},
 		Gender:        utils.PointerString("male"),
-		MaritalStatus: utils.PointerString("Married"),
+		MaritalStatus: null.String{String: "Married", Valid: true, Set: true},
 		DateOfBirth:   utils.PointerTime(time.Date(1082, 9, 30, 0, 0, 0, 0, time.UTC)),
 		Emails: Emails{
 			Primary:    utils.PointerString("yaakov.sabal@gmail.com"),
@@ -161,19 +161,19 @@ VALUES ('441dc8be-7f58-40fb-951e-085797917110',
 }
 
 func Test_ProfileDB_getUser_with_phone_numbers_succeeds(t *testing.T) {
-	checkIntegrationTest(t)
-	db := newTestProfileDB(t)
-	defer newTestProfileDB(t)
+	db := newTestProfileDBIsolated(t)
+	ctx := testContext()
+
 	var userID uuid.UUID
-	err := db.QueryRow(context.Background(), `
-	INSERT into users (keycloak_id, first_name_vernacular, last_name_vernacular, primary_email) 
+	err := db.QueryRow(ctx, `
+	INSERT into users (keycloak_id, first_name_vernacular, last_name_vernacular, primary_email)
 	VALUES ('11000000-0000-0000-0000-000000000000', 'first name', 'last name', 'someemail@email.email') RETURNING user_id`).Scan(&userID)
 	require.NoError(t, err)
-	_, err = db.Exec(context.Background(), `
+	_, err = db.Exec(ctx, `
 	INSERT into phone_numbers (user_id, phone_number, type) VALUES ($1, '0100000000', 'mobile'), ($1, '0200000000', 'WhatsApp')`, userID)
 	require.NoError(t, err)
 
-	actual, err := db.GetProfile(context.Background(), uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000"))
+	actual, err := db.GetProfile(ctx, uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000"))
 
 	expectedMobile := "0100000000"
 	expectedWhatsApp := "0200000000"
@@ -191,15 +191,15 @@ func Test_ProfileDB_getUser_with_phone_numbers_succeeds(t *testing.T) {
 }
 
 func Test_ProfileDB_getUser_deleted_true_returns_nothing(t *testing.T) {
-	checkIntegrationTest(t)
-	db := newTestProfileDB(t)
-	defer newTestProfileDB(t)
-	_, err := db.Exec(context.Background(), `
-	INSERT into users (keycloak_id, first_name_vernacular, last_name_vernacular, primary_email, deleted) 
+	db := newTestProfileDBIsolated(t)
+	ctx := testContext()
+
+	_, err := db.Exec(ctx, `
+	INSERT into users (keycloak_id, first_name_vernacular, last_name_vernacular, primary_email, deleted)
 	VALUES ('11000000-0000-0000-0000-000000000000', 'first name', 'last name', 'someemail@email.email', true)`)
 	require.NoError(t, err)
 
-	_, err = db.GetProfile(context.Background(), uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000"))
+	_, err = db.GetProfile(ctx, uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000"))
 
 	assert.Error(t, err)
 	assert.True(t, errors.Is(err, common.ErrProfileNotFound))

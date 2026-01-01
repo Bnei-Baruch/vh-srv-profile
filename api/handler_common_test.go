@@ -34,6 +34,11 @@ func (m *storageMock) UpdateProfile(ctx context.Context, keycloakID uuid.UUID, u
 	return args.Error(0)
 }
 
+func (m *storageMock) SetSpouse(ctx context.Context, keycloakID1, keyclaokID2 uuid.UUID, forceUpdate bool) error {
+	args := m.Called(ctx, keycloakID1, keyclaokID2, forceUpdate)
+	return args.Error(0)
+}
+
 func (m *storageMock) DeleteProfile(ctx context.Context, keycloakID uuid.UUID) error {
 	args := m.Called(ctx, keycloakID)
 	return args.Error(0)
@@ -44,8 +49,14 @@ func (m *storageMock) HardDeleteProfile(ctx context.Context, keycloakID uuid.UUI
 	return args.Error(0)
 }
 
-func (m *storageMock) GetMultipleProfiles(ctx context.Context, intSkip int, intLimit int, country string, email string, name string, tenGroupName string, language string, firstLanguage string, otherLanguageOne string, otherLanguageTwo string, otherLanguageThree string, otherLanguageFour string, updatedAt string, createdAt string, membership string, membershipType string, convention string, ticket string, galaxy string, gender string, checkAlternativeEmails bool) ([]repo.User, error) {
-	args := m.Called(ctx, intSkip, intLimit, country, email, name, tenGroupName, language, firstLanguage, otherLanguageOne, otherLanguageTwo, otherLanguageThree, otherLanguageFour, updatedAt, createdAt, membership, membershipType, convention, ticket, galaxy, gender, checkAlternativeEmails)
+func (m *storageMock) GetMultipleProfiles(ctx context.Context, intSkip int, intLimit int, country string, email string,
+	name string, keycloakID string, tenGroupName string, language string, firstLanguage string, otherLanguageOne string,
+	otherLanguageTwo string, otherLanguageThree string, otherLanguageFour string, updatedAt string, createdAt string,
+	membership string, membershipType string, convention string, ticket string, galaxy string, gender string,
+	userID string, checkAlternativeEmails bool, clause string) ([]repo.User, error) {
+	args := m.Called(ctx, intSkip, intLimit, country, email, name, keycloakID, language, firstLanguage, otherLanguageOne,
+		otherLanguageTwo, otherLanguageThree, otherLanguageFour, updatedAt, createdAt, membership, membershipType, convention,
+		ticket, galaxy, gender, userID, checkAlternativeEmails, clause)
 	return args.Get(0).([]repo.User), args.Error(0)
 }
 

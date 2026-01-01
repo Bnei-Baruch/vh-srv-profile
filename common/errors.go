@@ -1,9 +1,11 @@
 package common
 
-import "fmt"
+import "errors"
 
 var (
-	ErrProfileNotFound = fmt.Errorf("no profile found for keycloak id")
-	ErrUserNotFound    = fmt.Errorf("no profile found")
-	ErrNotFound        = fmt.Errorf("not found")
+	ErrProfileNotFound = errors.New("no profile found for keycloak id")
+	ErrUserNotFound    = errors.New("no profile found")
+	ErrNotFound        = errors.New("not found")
+	ErrSpouseConflict  = errors.New("one or both users already have a spouse that is not the intended new spouse")
+	ErrSpouseSelf      = errors.New("cannot set spouse to self")
 )

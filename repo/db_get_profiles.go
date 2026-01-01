@@ -18,6 +18,7 @@ type readMultipleProfileStorage interface {
 		country string,
 		email string,
 		name string,
+		keycloakID string,
 		tenGroupName string,
 		language string,
 		firstLanguage string,
@@ -33,20 +34,28 @@ type readMultipleProfileStorage interface {
 		ticket string,
 		galaxy string,
 		gender string,
-		checkAlternativeEmails bool) ([]User, error)
+		userID string,
+		checkAlternativeEmails bool,
+		clause string) ([]User, error)
 	FetchProfileBasedOnPhoneNumber(ctx context.Context, phoneNumber string) (User, error)
 }
 
 func (db *ProfileDB) GetMultipleProfiles(ctx context.Context, intSkip int, intLimit int, country string, email string,
-	name string, tenGroupName string, language string, firstLanguage string, otherLanguageOne string,
+	name string, keycloakID string, tenGroupName string, language string, firstLanguage string, otherLanguageOne string,
 	otherLanguageTwo string, otherLanguageThree string, otherLanguageFour string, updatedAt string, createdAt string,
-	membership string, membershipType string, convention string, ticket string, galaxy string, gender string, checkAlternativeEmails bool) ([]User, error) {
+	membership string, membershipType string, convention string, ticket string, galaxy string, gender string,
+	userID string, checkAlternativeEmails bool, clause string) ([]User, error) {
 	var keycloakId string
 	users := []User{}
 
-	userDbWhereQuery, orderByQuery := buildAndGetWhereUserQuery(country, email, name, tenGroupName, language, firstLanguage,
+	userDbWhereQuery, orderByQuery, queryArgs := buildAndGetWhereUserQuery(country, email, name, keycloakID, tenGroupName, language, firstLanguage,
 		otherLanguageOne, otherLanguageTwo, otherLanguageThree, otherLanguageFour, updatedAt, createdAt, membership,
-		membershipType, convention, ticket, galaxy, gender, checkAlternativeEmails)
+		membershipType, convention, ticket, galaxy, gender, userID, checkAlternativeEmails, clause)
+
+	// Append LIMIT and OFFSET parameters
+	limitParamNum := len(queryArgs) + 1
+	offsetParamNum := len(queryArgs) + 2
+	queryArgs = append(queryArgs, intLimit, intSkip)
 
 	rows, err := db.Query(ctx, `
 		SELECT users.user_id,
@@ -67,6 +76,7 @@ func (db *ProfileDB) GetMultipleProfiles(ctx context.Context, intSkip int, intLi
 		city,
 		gender,
 		marital_status,
+		spouse_keycloak_id,
 		date_of_birth,
 		primary_email,
 		alternate_email_1,
@@ -86,11 +96,11 @@ func (db *ProfileDB) GetMultipleProfiles(ctx context.Context, intSkip int, intLi
 		name_of_ten_group,
 		(SELECT phone_number FROM phone_numbers as p WHERE p.user_id = users.user_id and type='WhatsApp' ) as whats_app,
 		(SELECT phone_number FROM phone_numbers as p WHERE p.user_id = users.user_id and type='mobile' ) as mobile,
-		(SELECT phone_number FROM phone_numbers as p WHERE p.user_id = users.user_id and type='Telegram' ) as telegram  
+		(SELECT phone_number FROM phone_numbers as p WHERE p.user_id = users.user_id and type='Telegram' ) as telegram
 	FROM users
 	LEFT JOIN membership ON users.user_id = membership.user_id`+userDbWhereQuery+
 		orderByQuery+
-		" LIMIT $1 OFFSET $2", intLimit, intSkip)
+		fmt.Sprintf(" LIMIT $%d OFFSET $%d", limitParamNum, offsetParamNum), queryArgs...)
 	if err != nil {
 		return []User{}, fmt.Errorf("db.Query: %w", err)
 	}
@@ -116,6 +126,7 @@ func (db *ProfileDB) GetMultipleProfiles(ctx context.Context, intSkip int, intLi
 			&profile.UserInput.Address.City,
 			&profile.UserInput.Gender,
 			&profile.UserInput.MaritalStatus,
+			&profile.UserInput.SpouseKeycloakID,
 			&profile.UserInput.DateOfBirth,
 			&profile.UserInput.Emails.Primary,
 			&profile.UserInput.Emails.Alternate1,
@@ -213,6 +224,7 @@ func (db *ProfileDB) FetchProfileBasedOnPhoneNumber(ctx context.Context, phoneNu
 		city,
 		gender,
 		marital_status,
+		spouse_keycloak_id,
 		date_of_birth,
 		primary_email,
 		alternate_email_1,
@@ -252,6 +264,7 @@ func (db *ProfileDB) FetchProfileBasedOnPhoneNumber(ctx context.Context, phoneNu
 		&profile.UserInput.Address.City,
 		&profile.UserInput.Gender,
 		&profile.UserInput.MaritalStatus,
+		&profile.UserInput.SpouseKeycloakID, // Added spouse_keycloak_id
 		&profile.UserInput.DateOfBirth,
 		&profile.UserInput.Emails.Primary,
 		&profile.UserInput.Emails.Alternate1,
@@ -287,144 +300,131 @@ func (db *ProfileDB) FetchProfileBasedOnPhoneNumber(ctx context.Context, phoneNu
 	return profile, nil
 }
 
-func buildAndGetWhereUserQuery(country string, email string, name string, tenGroupName string, language string,
+const (
+	AND_CLAUSE = "AND"
+	OR_CLAUSE  = "OR"
+)
+
+func buildAndGetWhereUserQuery(country string, email string, name string, keycloakID string, tenGroupName string, language string,
 	firstLanguage string, otherLanguageOne string, otherLanguageTwo string, otherLanguageThree string,
 	otherLanguageFour string, updatedAt string, createdAt string, membership string, membershipType string,
-	convention string, ticket string, galaxy string, gender string, checkAlternativeEmails bool) (string, string) {
+	convention string, ticket string, galaxy string, gender string, userID string, checkAlternativeEmails bool, clause string) (string, string, []interface{}) {
 
-	var whereString strings.Builder
+	var conditions []string
+	var args []interface{}
 	var orderBy strings.Builder
-	var whereCondition strings.Builder
-	whereString.WriteString(" WHERE")
-	whereCondition.WriteString("")
+	paramNum := 1
 
 	// WHERE query generation based on parameters
 	if country != "" {
-		whereCondition.WriteString(fmt.Sprintf(" LOWER(country)=LOWER('%s')", country))
+		conditions = append(conditions, fmt.Sprintf(" LOWER(country)=LOWER($%d)", paramNum))
+		args = append(args, country)
+		paramNum++
 	}
 
 	if email != "" {
 		if checkAlternativeEmails {
-			if whereCondition.String() != "" {
-				whereCondition.WriteString(fmt.Sprintf(" AND (LOWER(primary_email) LIKE LOWER('%%%[1]s%%') OR LOWER(alternate_email_1) LIKE LOWER('%%%[1]s%%') OR LOWER(alternate_email_2) LIKE LOWER('%%%[1]s%%'))", email))
-			} else {
-				whereCondition.WriteString(fmt.Sprintf(" (LOWER(primary_email) LIKE LOWER('%%%[1]s%%') OR LOWER(alternate_email_1) LIKE LOWER('%%%[1]s%%') OR LOWER(alternate_email_2) LIKE LOWER('%%%[1]s%%'))", email))
-			}
+			conditions = append(conditions, fmt.Sprintf(" (LOWER(primary_email) LIKE LOWER($%d) OR LOWER(alternate_email_1) LIKE LOWER($%d) OR LOWER(alternate_email_2) LIKE LOWER($%d))", paramNum, paramNum, paramNum))
+			args = append(args, "%"+email+"%")
+			paramNum++
 		} else {
-			if whereCondition.String() != "" {
-				whereCondition.WriteString(fmt.Sprintf(" AND LOWER(primary_email) LIKE LOWER('%%%s%%')", email))
-			} else {
-				whereCondition.WriteString(fmt.Sprintf(" LOWER(primary_email) LIKE LOWER('%%%s%%')", email))
-			}
+			conditions = append(conditions, fmt.Sprintf(" LOWER(primary_email) LIKE LOWER($%d)", paramNum))
+			args = append(args, "%"+email+"%")
+			paramNum++
 		}
 	}
 
 	if name != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND (LOWER(first_name_vernacular) LIKE LOWER('%%%s%%') OR LOWER(last_name_vernacular) LIKE LOWER('%%%s%%'))", name, name))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" (LOWER(first_name_vernacular) LIKE LOWER('%%%s%%') OR LOWER(last_name_vernacular) LIKE LOWER('%%%s%%'))", name, name))
-		}
+		conditions = append(conditions, fmt.Sprintf(" (LOWER(first_name_vernacular) LIKE LOWER($%d) OR LOWER(last_name_vernacular) LIKE LOWER($%d))", paramNum, paramNum))
+		args = append(args, "%"+name+"%")
+		paramNum++
+	}
+
+	if keycloakID != "" {
+		conditions = append(conditions, fmt.Sprintf(" keycloak_id=$%d", paramNum))
+		args = append(args, keycloakID)
+		paramNum++
 	}
 
 	if tenGroupName != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND LOWER(name_of_ten_group)=LOWER('%s')", tenGroupName))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" LOWER(name_of_ten_group)=LOWER('%s')", tenGroupName))
-		}
+		conditions = append(conditions, fmt.Sprintf(" LOWER(name_of_ten_group)=LOWER($%d)", paramNum))
+		args = append(args, tenGroupName)
+		paramNum++
 	}
 
 	if gender != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND gender='%s'", gender))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" gender='%s'", gender))
-		}
+		conditions = append(conditions, fmt.Sprintf(" gender=$%d", paramNum))
+		args = append(args, gender)
+		paramNum++
+	}
+
+	if userID != "" {
+		conditions = append(conditions, fmt.Sprintf(" users.user_id::text=$%d", paramNum))
+		args = append(args, userID)
+		paramNum++
 	}
 
 	if language != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND (first_language='%s' OR other_language_1='%s' OR other_language_2='%s' OR other_language_3='%s' OR other_language_4='%s')", language, language, language, language, language))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" (first_language='%s' OR other_language_1='%s' OR other_language_2='%s' OR other_language_3='%s' OR other_language_4='%s')", language, language, language, language, language))
-		}
+		conditions = append(conditions, fmt.Sprintf(" (first_language=$%d OR other_language_1=$%d OR other_language_2=$%d OR other_language_3=$%d OR other_language_4=$%d)", paramNum, paramNum, paramNum, paramNum, paramNum))
+		args = append(args, language)
+		paramNum++
 	}
 
 	if firstLanguage != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND first_language='%s'", firstLanguage))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" first_language='%s'", firstLanguage))
-		}
+		conditions = append(conditions, fmt.Sprintf(" first_language=$%d", paramNum))
+		args = append(args, firstLanguage)
+		paramNum++
 	}
 
 	if otherLanguageOne != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND other_language_1='%s'", otherLanguageOne))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" other_language_1='%s'", otherLanguageOne))
-		}
+		conditions = append(conditions, fmt.Sprintf(" other_language_1=$%d", paramNum))
+		args = append(args, otherLanguageOne)
+		paramNum++
 	}
 
 	if otherLanguageTwo != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND other_language_2='%s'", otherLanguageTwo))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" other_language_2='%s'", otherLanguageTwo))
-		}
+		conditions = append(conditions, fmt.Sprintf(" other_language_2=$%d", paramNum))
+		args = append(args, otherLanguageTwo)
+		paramNum++
 	}
 
 	if otherLanguageThree != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND other_language_3='%s'", otherLanguageThree))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" other_language_3='%s'", otherLanguageThree))
-		}
+		conditions = append(conditions, fmt.Sprintf(" other_language_3=$%d", paramNum))
+		args = append(args, otherLanguageThree)
+		paramNum++
 	}
 
 	if otherLanguageFour != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND other_language_4='%s'", otherLanguageFour))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" other_language_4='%s'", otherLanguageFour))
-		}
+		conditions = append(conditions, fmt.Sprintf(" other_language_4=$%d", paramNum))
+		args = append(args, otherLanguageFour)
+		paramNum++
 	}
 	if membership != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND status.membership=%s", membership))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" status.membership=%s", membership))
-		}
+		conditions = append(conditions, fmt.Sprintf(" status.membership=$%d", paramNum))
+		args = append(args, membership)
+		paramNum++
 	}
 	if membershipType != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND LOWER(status.membership_type)=LOWER('%s')", membershipType))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" LOWER(status.membership_type)=LOWER('%s')", membershipType))
-		}
+		conditions = append(conditions, fmt.Sprintf(" LOWER(status.membership_type)=LOWER($%d)", paramNum))
+		args = append(args, membershipType)
+		paramNum++
 	}
 	if convention != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND status.convention=%s", convention))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" status.convention=%s", convention))
-		}
+		conditions = append(conditions, fmt.Sprintf(" status.convention=$%d", paramNum))
+		args = append(args, convention)
+		paramNum++
 	}
 	if ticket != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND status.ticket=%s", ticket))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" status.ticket=%s", ticket))
-		}
+		conditions = append(conditions, fmt.Sprintf(" status.ticket=$%d", paramNum))
+		args = append(args, ticket)
+		paramNum++
 	}
 	if galaxy != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND status.galaxy=%s", galaxy))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" status.galaxy=%s", galaxy))
-		}
+		conditions = append(conditions, fmt.Sprintf(" status.galaxy=$%d", paramNum))
+		args = append(args, galaxy)
+		paramNum++
 	}
+
 	if updatedAt != "" {
 		if strings.ToLower(updatedAt) != "desc" && strings.ToLower(updatedAt) != "asc" {
 			updatedAt = "asc"
@@ -439,10 +439,9 @@ func buildAndGetWhereUserQuery(country string, email string, name string, tenGro
 		orderBy.WriteString(" ORDER BY user_id")
 	}
 
-	if whereCondition.String() != "" {
-		whereString.WriteString(whereCondition.String())
-	} else {
-		whereString.Reset()
+	if len(conditions) > 0 {
+		return " WHERE " + strings.Join(conditions, fmt.Sprintf(" %s ", clause)), orderBy.String(), args
 	}
-	return whereString.String(), orderBy.String()
+
+	return "", orderBy.String(), args
 }

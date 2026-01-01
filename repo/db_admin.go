@@ -2,9 +2,11 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	uuid "github.com/satori/go.uuid"
+	"gitlab.bbdev.team/vh/vh-srv-profile/common"
 	"gitlab.bbdev.team/vh/vh-srv-profile/events"
 )
 
@@ -18,6 +20,12 @@ func (db *ProfileDB) HardDeleteProfile(ctx context.Context, keycloakID uuid.UUID
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Unlink spouse if there is one
+	err = db.SetSpouseWithTx(ctx, tx, keycloakID, uuid.Nil, false)
+	if err != nil && !errors.Is(err, common.ErrUserNotFound) {
+		return fmt.Errorf("failed to unlink spouse: %w", err)
+	}
 
 	_, err = tx.Exec(ctx, `DELETE FROM phone_numbers WHERE user_id=(SELECT user_id FROM users WHERE keycloak_id=$1)`, keycloakID)
 	if err != nil {

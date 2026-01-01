@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"github.com/volatiletech/null/v9"
 
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/utils"
@@ -48,19 +49,20 @@ func Test_profileHandler_get_succeeds(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.JSONEq(t, `
-	{
-		"user_id":"11000000-0000-0000-0000-000000000000",
-		"keycloak_id":"11000000-0000-0000-0000-000000000000",
-	   	"updated_at":"2020-01-01T01:00:00+01:00",
-	   	"created_at":"2019-12-12T12:00:00+01:00",
-	   	"deleted":false,
-	   	"first_name_vernacular":"first name",
-	   	"last_name_vernacular":"last name",
-	   	"primary_email":"someemail@email.com",
-		"membership_active":true,
-		"membership_type":"automatic",
-		"status":{}
-	}`, w.Body.String())
+  {
+    "user_id":"11000000-0000-0000-0000-000000000000",
+    "keycloak_id":"11000000-0000-0000-0000-000000000000",
+    "updated_at":"2020-01-01T01:00:00+01:00",
+    "created_at":"2019-12-12T12:00:00+01:00",
+    "deleted":false,
+    "first_name_vernacular":"first name",
+    "last_name_vernacular":"last name",
+    "marital_status": null,
+    "primary_email":"someemail@email.com",
+    "membership_active":true,
+    "membership_type":"automatic",
+    "status":{}
+  }`, w.Body.String())
 }
 
 func Test_profileHandler_get_full_succeeds(t *testing.T) {
@@ -87,7 +89,7 @@ func Test_profileHandler_get_full_succeeds(t *testing.T) {
 					City:          utils.PointerString("Le Havre"),
 				},
 				Gender:        utils.PointerString("male"),
-				MaritalStatus: utils.PointerString("Married"),
+				MaritalStatus: null.String{String: "Married", Valid: true, Set: true},
 				DateOfBirth:   utils.PointerTime(time.Date(1082, 9, 30, 0, 0, 0, 0, time.UTC)),
 				Emails: repo.Emails{
 					Primary:    utils.PointerString("yaakov.sabal@gmail.com"),
@@ -129,47 +131,47 @@ func Test_profileHandler_get_full_succeeds(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.JSONEq(t, `
-	{
-		"user_id":"11000000-0000-0000-0000-000000000000",
-		"keycloak_id":"11000000-0000-0000-0000-000000000000",
-	   	"updated_at":"2021-12-12T00:00:00+01:00",
-	   	"created_at":"2021-12-12T00:00:00+01:00",
-	   	"deleted":false,
-	   	"first_name_latin":"yasha",
-	   	"first_name_vernacular":"yasha",
-	   	"last_name_latin":"sol",
-	   	"last_name_vernacular":"sol",
-	   	"street_address":"some street somewhere",
-	   	"country":"France",
-	   	"state_region":"Normandie",
-	   	"postal_code":"76600",
-	   	"city":"Le Havre",
-	   	"gender":"male",
-	   	"marital_status":"Married",
-	   	"date_of_birth":"1082-09-30",
-	   	"primary_email":"yaakov.sabal@gmail.com",
-	   	"alternate_email_1":"johann.savalle@gmail.com",
-	   	"alternate_email_2":"contact@yasha.solution",
-	   	"mobile_number":"+33783691190",
-	   	"whats_app_number":"+33783691191",
-	   	"telegram_number":"+33783691192",
-	   	"first_language":"fr",
-	   	"other_language_1":"en",
-	   	"other_language_2":"zh",
-	   	"other_language_3":"es",
-	   	"other_language_4":"it",
-	   	"listening_language":"en",
-	   	"reading_language":"fr",
-	   	"email_language":"fr",
-	   	"study_start_year":1985,
-	   	"study_framework":"some framework",
-	   	"has_ten_group":true,
-	   	"wants_ten_group":true,
-	   	"name_ten_group":"some name",
-		"membership_active": true,
-		"membership_type": "automatic",
-		"status":{}
-	}`, w.Body.String())
+  {
+    "user_id":"11000000-0000-0000-0000-000000000000",
+    "keycloak_id":"11000000-0000-0000-0000-000000000000",
+       "updated_at":"2021-12-12T00:00:00+01:00",
+       "created_at":"2021-12-12T00:00:00+01:00",
+       "deleted":false,
+       "first_name_latin":"yasha",
+       "first_name_vernacular":"yasha",
+       "last_name_latin":"sol",
+       "last_name_vernacular":"sol",
+       "street_address":"some street somewhere",
+       "country":"France",
+       "state_region":"Normandie",
+       "postal_code":"76600",
+       "city":"Le Havre",
+       "gender":"male",
+       "marital_status":"Married",
+       "date_of_birth":"1082-09-30",
+       "primary_email":"yaakov.sabal@gmail.com",
+       "alternate_email_1":"johann.savalle@gmail.com",
+       "alternate_email_2":"contact@yasha.solution",
+       "mobile_number":"+33783691190",
+       "whats_app_number":"+33783691191",
+       "telegram_number":"+33783691192",
+       "first_language":"fr",
+       "other_language_1":"en",
+       "other_language_2":"zh",
+       "other_language_3":"es",
+       "other_language_4":"it",
+       "listening_language":"en",
+       "reading_language":"fr",
+       "email_language":"fr",
+       "study_start_year":1985,
+       "study_framework":"some framework",
+       "has_ten_group":true,
+       "wants_ten_group":true,
+       "name_ten_group":"some name",
+    "membership_active": true,
+    "membership_type": "automatic",
+    "status":{}
+  }`, w.Body.String())
 }
 
 func Test_profileHandler_get_returns_404_when_storage_returns_errProfileNotFound(t *testing.T) {

@@ -1,40 +1,39 @@
 package repo
 
 import (
-	"context"
 	"errors"
-	"gitlab.bbdev.team/vh/vh-srv-profile/common"
 	"testing"
 
 	uuid "github.com/satori/go.uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"gitlab.bbdev.team/vh/vh-srv-profile/common"
 )
 
 func Test_ProfileDB_delete_succeeds(t *testing.T) {
-	checkIntegrationTest(t)
-	db := newTestProfileDB(t)
-	defer newTestProfileDB(t)
-	_, err := db.Exec(context.Background(), `
-	INSERT into users (user_id, keycloak_id, first_name_vernacular, last_name_vernacular, primary_email) 
-	VALUES ('22000000-0000-0000-0000-000000000000', '11000000-0000-0000-0000-000000000000', 'first name', 'last name', 
+	db := newTestProfileDBIsolated(t)
+	ctx := testContext()
+
+	_, err := db.Exec(ctx, `
+	INSERT into users (user_id, keycloak_id, first_name_vernacular, last_name_vernacular, primary_email)
+	VALUES ('22000000-0000-0000-0000-000000000000', '11000000-0000-0000-0000-000000000000', 'first name', 'last name',
 	'someemail@email.email')`)
 	require.NoError(t, err)
 
-	assert.NoError(t, db.DeleteProfile(context.Background(), uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000")))
+	assert.NoError(t, db.DeleteProfile(ctx, uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000")))
 
 	var deleted bool
-	require.NoError(t, db.QueryRow(context.Background(), `SELECT deleted FROM users WHERE keycloak_id=$1`,
+	require.NoError(t, db.QueryRow(ctx, `SELECT deleted FROM users WHERE keycloak_id=$1`,
 		"11000000-0000-0000-0000-000000000000").Scan(&deleted))
 	assert.True(t, deleted)
 }
 
 func Test_ProfileDB_delete_inexistant_user_returns_error(t *testing.T) {
-	checkIntegrationTest(t)
-	db := newTestProfileDB(t)
-	defer newTestProfileDB(t)
+	db := newTestProfileDBIsolated(t)
+	ctx := testContext()
 
-	err := db.DeleteProfile(context.Background(), uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000"))
+	err := db.DeleteProfile(ctx, uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000"))
 	assert.Error(t, err)
 	assert.True(t, errors.Is(err, common.ErrProfileNotFound))
 }

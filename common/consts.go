@@ -33,6 +33,10 @@ const (
 	WhatsApp = "WhatsApp"
 	Telegram = "Telegram"
 
+	MaritalStatusSingle   = "Single"
+	MaritalStatusMarried  = "Married"
+	MaritalStatusDivorced = "Divorced"
+
 	MembershipGracePeriodInDays = 7
 )
 

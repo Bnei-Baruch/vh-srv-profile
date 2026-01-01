@@ -3,6 +3,8 @@ package api
 import (
 	"time"
 
+	"github.com/volatiletech/null/v9"
+
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/keycloak"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/orders"
 	"gitlab.bbdev.team/vh/vh-srv-profile/repo"
@@ -45,26 +47,26 @@ type profileRequest struct {
 		Convention     *bool   `json:"convention,omitempty"`
 		Galaxy         *bool   `json:"galaxy,omitempty"`
 	} `json:"status,omitempty"`
-	Gender            *string    `json:"gender,omitempty"`
-	MaritalStatus     *string    `json:"marital_status,omitempty"`
-	DateOfBirth       *time.Time `json:"date_of_birth,omitempty"`
-	PrimaryEmail      *string    `json:"primary_email,omitempty"`
-	AlternateEmail1   *string    `json:"alternate_email_1,omitempty"`
-	AlternateEmail2   *string    `json:"alternate_email_2,omitempty"`
-	MobileNumber      *string    `json:"mobile_number,omitempty"`
-	WhatsAppNumber    *string    `json:"whats_app_number,omitempty"`
-	TelegramNumber    *string    `json:"telegram_number,omitempty"`
-	FirstLanguage     *string    `json:"first_language,omitempty"`
-	OtherLanguage1    *string    `json:"other_language_1,omitempty"`
-	OtherLanguage2    *string    `json:"other_language_2,omitempty"`
-	OtherLanguage3    *string    `json:"other_language_3,omitempty"`
-	OtherLanguage4    *string    `json:"other_language_4,omitempty"`
-	ListeningLanguage *string    `json:"listening_language,omitempty"`
-	ReadingLanguage   *string    `json:"reading_language,omitempty"`
-	EmailLanguage     *string    `json:"email_language,omitempty"`
-	StudyStartYear    *int       `json:"study_start_year,omitempty"`
-	StudyFramework    *string    `json:"study_framework,omitempty"`
-	HasGroup          *bool      `json:"has_ten_group,omitempty"`
-	WantsGroup        *bool      `json:"wants_ten_group,omitempty"`
-	NameOfGroup       *string    `json:"name_ten_group,omitempty"`
+	Gender            *string     `json:"gender,omitempty"`
+	MaritalStatus     null.String `json:"marital_status"`
+	DateOfBirth       *time.Time  `json:"date_of_birth,omitempty"`
+	PrimaryEmail      *string     `json:"primary_email,omitempty"`
+	AlternateEmail1   *string     `json:"alternate_email_1,omitempty"`
+	AlternateEmail2   *string     `json:"alternate_email_2,omitempty"`
+	MobileNumber      *string     `json:"mobile_number,omitempty"`
+	WhatsAppNumber    *string     `json:"whats_app_number,omitempty"`
+	TelegramNumber    *string     `json:"telegram_number,omitempty"`
+	FirstLanguage     *string     `json:"first_language,omitempty"`
+	OtherLanguage1    *string     `json:"other_language_1,omitempty"`
+	OtherLanguage2    *string     `json:"other_language_2,omitempty"`
+	OtherLanguage3    *string     `json:"other_language_3,omitempty"`
+	OtherLanguage4    *string     `json:"other_language_4,omitempty"`
+	ListeningLanguage *string     `json:"listening_language,omitempty"`
+	ReadingLanguage   *string     `json:"reading_language,omitempty"`
+	EmailLanguage     *string     `json:"email_language,omitempty"`
+	StudyStartYear    *int        `json:"study_start_year,omitempty"`
+	StudyFramework    *string     `json:"study_framework,omitempty"`
+	HasGroup          *bool       `json:"has_ten_group,omitempty"`
+	WantsGroup        *bool       `json:"wants_ten_group,omitempty"`
+	NameOfGroup       *string     `json:"name_ten_group,omitempty"`
 }
