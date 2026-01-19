@@ -16,6 +16,7 @@ import (
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
 	"gitlab.bbdev.team/vh/vh-srv-profile/events"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/orders"
+	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/utils"
 )
 
 type ProfileRepository interface {
@@ -102,4 +103,33 @@ func (db *ProfileDB) emitEvent(ctx context.Context, eventType string, payload ma
 	builder := ctx.Value(common.CtxEventBuilder).(events.EventBuilder)
 	event := builder.BuildEvent(eventType, payload)
 	db.eventEmitter.Emit(ctx, event)
+}
+
+// emitUpdateProfileEvents emits update_profile events for the given keycloak IDs.
+// It fetches user_ids in a single query and emits one event per user.
+func (db *ProfileDB) emitUpdateProfileEvents(ctx context.Context, affectedKeycloakStringIDs []string) {
+	if len(affectedKeycloakStringIDs) == 0 {
+		return
+	}
+
+	rows, err := db.Query(ctx, `SELECT keycloak_id, user_id FROM users WHERE keycloak_id::text = ANY($1)`, affectedKeycloakStringIDs)
+	if err != nil {
+		utils.LogFor(ctx).Error("emitUpdateProfileEvents: Query", slog.Any("err", err))
+		utils.SentryFor(ctx).CaptureException(err)
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var keycloakID, userID string
+		if err := rows.Scan(&keycloakID, &userID); err != nil {
+			utils.LogFor(ctx).Error("emitUpdateProfileEvents: Scan", slog.Any("err", err))
+			utils.SentryFor(ctx).CaptureException(err)
+			continue
+		}
+		db.emitEvent(ctx, events.TypeUpdateProfile, map[string]interface{}{
+			"keycloak_id": keycloakID,
+			"user_id":     userID,
+		})
+	}
 }

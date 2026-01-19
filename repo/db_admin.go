@@ -22,7 +22,7 @@ func (db *ProfileDB) HardDeleteProfile(ctx context.Context, keycloakID uuid.UUID
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Unlink spouse if there is one
-	err = db.SetSpouseWithTx(ctx, tx, keycloakID, uuid.Nil, false)
+	affectedKeycloakStringIDs, err := db.SetSpouseWithTx(ctx, tx, keycloakID, uuid.Nil, false)
 	if err != nil && !errors.Is(err, common.ErrUserNotFound) {
 		return fmt.Errorf("failed to unlink spouse: %w", err)
 	}
@@ -95,6 +95,16 @@ func (db *ProfileDB) HardDeleteProfile(ctx context.Context, keycloakID uuid.UUID
 	if err != nil {
 		return fmt.Errorf("tx.commit: %w", err)
 	}
+
+	// Emit update_profile for the ex-spouse (exclude the deleted user)
+	keycloakIDStr := keycloakID.String()
+	var spousesToNotify []string
+	for _, kcID := range affectedKeycloakStringIDs {
+		if kcID != keycloakIDStr {
+			spousesToNotify = append(spousesToNotify, kcID)
+		}
+	}
+	db.emitUpdateProfileEvents(ctx, spousesToNotify)
 
 	db.emitEvent(ctx, events.TypeHardDeleteProfile, map[string]interface{}{
 		"keycloak_id": keycloakID,
