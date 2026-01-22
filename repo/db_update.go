@@ -282,27 +282,34 @@ func (db *ProfileDB) SetSpouse(ctx context.Context, keycloakID1, keycloakID2 uui
 	}
 	defer tx.Rollback(ctx)
 
-	err = db.SetSpouseWithTx(ctx, tx, keycloakID1, keycloakID2, forceUpdate)
+	affectedKeycloakStringIDs, err := db.SetSpouseWithTx(ctx, tx, keycloakID1, keycloakID2, forceUpdate)
 	if err != nil {
 		return err
 	}
 
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("tx.Commit: %w", err)
+	}
+
+	db.emitUpdateProfileEvents(ctx, affectedKeycloakStringIDs)
+	return nil
 }
 
-func (db *ProfileDB) SetSpouseWithTx(ctx context.Context, tx pgx.Tx, keycloakID1, keycloakID2 uuid.UUID, forceUpdate bool) error {
+func (db *ProfileDB) SetSpouseWithTx(ctx context.Context, tx pgx.Tx, keycloakID1, keycloakID2 uuid.UUID, forceUpdate bool) ([]string, error) {
 	if keycloakID1 == keycloakID2 {
-		return common.ErrSpouseSelf
+		return nil, common.ErrSpouseSelf
 	}
+
+	var affectedKeycloakStringIDs []string
 
 	// Get user 1's current spouse
 	var spouse1_id *string
 	err := tx.QueryRow(ctx, "SELECT spouse_keycloak_id FROM users WHERE keycloak_id = $1 FOR UPDATE", keycloakID1).Scan(&spouse1_id)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return fmt.Errorf("user %s: %w", keycloakID1, common.ErrUserNotFound)
+			return nil, fmt.Errorf("user %s: %w", keycloakID1, common.ErrUserNotFound)
 		}
-		return fmt.Errorf("failed to get user 1: %w", err)
+		return nil, fmt.Errorf("failed to get user 1: %w", err)
 	}
 
 	// Handle cancellation
@@ -314,20 +321,25 @@ func (db *ProfileDB) SetSpouseWithTx(ctx context.Context, tx pgx.Tx, keycloakID1
 			// Unlink user 1 and set marital status to Divorced
 			_, err := tx.Exec(ctx, "UPDATE users SET spouse_keycloak_id = NULL, marital_status = $1 WHERE keycloak_id = $2", common.MaritalStatusDivorced, keycloakID1)
 			if err != nil {
-				return err
+				return nil, err
 			}
+			affectedKeycloakStringIDs = append(affectedKeycloakStringIDs, keycloakID1.String())
 			// Unlink old spouse and set marital status to Divorced
 			_, err = tx.Exec(ctx, "UPDATE users SET spouse_keycloak_id = NULL, marital_status = $1 WHERE keycloak_id = $2", common.MaritalStatusDivorced, *spouse1_id)
 			if err != nil {
-				return err
+				return nil, err
 			}
+			affectedKeycloakStringIDs = append(affectedKeycloakStringIDs, *spouse1_id)
 		} else { // If there was no spouse before, just set current user to Divorced if they were not already.
-			_, err := tx.Exec(ctx, "UPDATE users SET marital_status = $1 WHERE keycloak_id = $2 AND marital_status != $1", common.MaritalStatusDivorced, keycloakID1)
+			res, err := tx.Exec(ctx, "UPDATE users SET marital_status = $1 WHERE keycloak_id = $2 AND marital_status != $1", common.MaritalStatusDivorced, keycloakID1)
 			if err != nil {
-				return err
+				return nil, err
+			}
+			if res.RowsAffected() > 0 {
+				affectedKeycloakStringIDs = append(affectedKeycloakStringIDs, keycloakID1.String())
 			}
 		}
-		return nil
+		return affectedKeycloakStringIDs, nil
 	}
 
 	// Get user 2's current spouse
@@ -335,9 +347,9 @@ func (db *ProfileDB) SetSpouseWithTx(ctx context.Context, tx pgx.Tx, keycloakID1
 	err = tx.QueryRow(ctx, "SELECT spouse_keycloak_id FROM users WHERE keycloak_id = $1 FOR UPDATE", keycloakID2).Scan(&spouse2_id)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return fmt.Errorf("user %s: %w", keycloakID2, common.ErrUserNotFound)
+			return nil, fmt.Errorf("user %s: %w", keycloakID2, common.ErrUserNotFound)
 		}
-		return fmt.Errorf("failed to get user 2: %w", err)
+		return nil, fmt.Errorf("failed to get user 2: %w", err)
 	}
 
 	// Conflict check for non-forced updates
@@ -345,7 +357,7 @@ func (db *ProfileDB) SetSpouseWithTx(ctx context.Context, tx pgx.Tx, keycloakID1
 		isUser1Ok := spouse1_id == nil || *spouse1_id == keycloakID2.String()
 		isUser2Ok := spouse2_id == nil || *spouse2_id == keycloakID1.String()
 		if !isUser1Ok || !isUser2Ok {
-			return common.ErrSpouseConflict
+			return nil, common.ErrSpouseConflict
 		}
 	}
 
@@ -354,15 +366,17 @@ func (db *ProfileDB) SetSpouseWithTx(ctx context.Context, tx pgx.Tx, keycloakID1
 		// Only unlink if current spouse is not the new spouse
 		_, err := tx.Exec(ctx, "UPDATE users SET spouse_keycloak_id = NULL, marital_status = $1 WHERE keycloak_id = $2", common.MaritalStatusDivorced, *spouse1_id)
 		if err != nil {
-			return err
+			return nil, err
 		}
+		affectedKeycloakStringIDs = append(affectedKeycloakStringIDs, *spouse1_id)
 	}
 	if spouse2_id != nil && *spouse2_id != keycloakID1.String() {
 		// Only unlink if current spouse is not the new spouse
 		_, err := tx.Exec(ctx, "UPDATE users SET spouse_keycloak_id = NULL, marital_status = $1 WHERE keycloak_id = $2", common.MaritalStatusDivorced, *spouse2_id)
 		if err != nil {
-			return err
+			return nil, err
 		}
+		affectedKeycloakStringIDs = append(affectedKeycloakStringIDs, *spouse2_id)
 	}
 
 	// Set new spouse relationship and marital status to Married
@@ -370,13 +384,14 @@ func (db *ProfileDB) SetSpouseWithTx(ctx context.Context, tx pgx.Tx, keycloakID1
 	s2 := keycloakID2.String()
 	_, err = tx.Exec(ctx, "UPDATE users SET spouse_keycloak_id = $1, marital_status = $2 WHERE keycloak_id = $3", s2, common.MaritalStatusMarried, keycloakID1)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	_, err = tx.Exec(ctx, "UPDATE users SET spouse_keycloak_id = $1, marital_status = $2 WHERE keycloak_id = $3", s1, common.MaritalStatusMarried, keycloakID2)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	affectedKeycloakStringIDs = append(affectedKeycloakStringIDs, s1, s2)
 
-	return nil
+	return affectedKeycloakStringIDs, nil
 }
 
