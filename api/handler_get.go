@@ -73,6 +73,7 @@ type ShortProfile struct {
 	FirstName *string   `json:"first_name"`
 	LastName  *string   `json:"last_name"`
 	Email     string    `json:"email"`
+	Country   *string   `json:"country"`
 	Active    bool      `json:"active"`
 	CreatedAt time.Time `json:"created_at"`
 }
@@ -426,6 +427,7 @@ func (p *ProfileManager) getProfileShort(c *gin.Context) {
 		FirstName: profile.UserInput.FirstNameVernacular,
 		LastName:  profile.UserInput.LastNameVernacular,
 		Email:     *profile.UserInput.Emails.Primary,
+		Country:   profile.UserInput.Address.Country,
 		Active:    profile.UserInput.MembershipActive != nil && *profile.UserInput.MembershipActive,
 		CreatedAt: profile.CreatedAt,
 	}
