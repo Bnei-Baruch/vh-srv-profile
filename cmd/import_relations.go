@@ -8,7 +8,9 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+	"strings"
 
+	"github.com/jackc/pgx/v4"
 	uuid "github.com/satori/go.uuid"
 	"github.com/spf13/cobra"
 
@@ -54,6 +56,7 @@ type Person struct {
 	Email     string
 	FoundInDB bool
 	Error     string // Set when person has inconsistent data in CSV
+	Lines     []int  // CSV line numbers where this person appears
 }
 
 func (p Person) Equals(other Person) bool {
@@ -69,6 +72,7 @@ type Relation struct {
 	MatchStatus    string
 	PersonA        Person
 	PersonB        Person
+	LineNumber     int // Line number in CSV (1-based, accounting for header)
 }
 
 func importRelationsFn(cmd *cobra.Command, args []string) {
@@ -118,12 +122,15 @@ func (ri *RelationImporter) close() {
 }
 
 func (ri *RelationImporter) run(filePath string, dryRun bool) error {
-	relations, err := ri.readCSV(filePath)
+	relations, sameIDUserIDs, err := ri.readCSV(filePath)
 	if err != nil {
 		return errors.Join(errors.New("readCSV"), err)
 	}
 
-	people := ri.collectUniquePeople(relations)
+	// Attempt to resolve missing user IDs (placeholder for future implementation)
+	relations = ri.resolveIDs(relations)
+
+	people := ri.collectUniquePeople(relations, sameIDUserIDs)
 
 	ri.printCSVStatistics(relations, people)
 
@@ -140,10 +147,10 @@ func (ri *RelationImporter) run(filePath string, dryRun bool) error {
 	return nil
 }
 
-func (ri *RelationImporter) readCSV(filePath string) ([]Relation, error) {
+func (ri *RelationImporter) readCSV(filePath string) ([]Relation, map[string]bool, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return nil, errors.Join(errors.New("os.Open"), err)
+		return nil, nil, errors.Join(errors.New("os.Open"), err)
 	}
 	defer file.Close()
 
@@ -151,7 +158,7 @@ func (ri *RelationImporter) readCSV(filePath string) ([]Relation, error) {
 
 	header, err := reader.Read()
 	if err != nil {
-		return nil, errors.Join(errors.New("read header"), err)
+		return nil, nil, errors.Join(errors.New("read header"), err)
 	}
 
 	// Check for unknown columns
@@ -173,6 +180,7 @@ func (ri *RelationImporter) readCSV(filePath string) ([]Relation, error) {
 	}
 
 	var relations []Relation
+	sameIDUserIDs := make(map[string]bool) // Track UserIDs where PersonA == PersonB in same relation
 	lineNum := 1
 
 	for {
@@ -181,7 +189,7 @@ func (ri *RelationImporter) readCSV(filePath string) ([]Relation, error) {
 			break
 		}
 		if err != nil {
-			return nil, errors.Join(errors.New("read line "+strconv.Itoa(lineNum)), err)
+			return nil, nil, errors.Join(errors.New("read line "+strconv.Itoa(lineNum)), err)
 		}
 
 		getField := func(fieldName string) string {
@@ -194,6 +202,7 @@ func (ri *RelationImporter) readCSV(filePath string) ([]Relation, error) {
 		relation := Relation{
 			RelationshipID: getField("relationship_id"),
 			MatchStatus:    getField("match_status"),
+			LineNumber:     lineNum + 1, // +1 to account for header
 			PersonA: Person{
 				ContactID: getField("contact_id_a"),
 				UserID:    getField("vh_user_id_a"),
@@ -212,7 +221,15 @@ func (ri *RelationImporter) readCSV(filePath string) ([]Relation, error) {
 
 		// Validate that PersonA and PersonB are not the same user
 		if relation.PersonA.UserID != "" && relation.PersonA.UserID == relation.PersonB.UserID {
-			return nil, errors.New("line " + strconv.Itoa(lineNum+1) + ": PersonA and PersonB cannot be the same user (UserID: " + relation.PersonA.UserID + ")")
+			slog.Warn("PersonA and PersonB have the same UserID - will skip this relation",
+				slog.Int("line", relation.LineNumber),
+				slog.String("user_id", relation.PersonA.UserID))
+			errorMsg := "Same user ID for both PersonA and PersonB: " + relation.PersonA.UserID
+			relation.PersonA.Error = errorMsg
+			relation.PersonB.Error = errorMsg
+			relation.PersonA.Lines = []int{relation.LineNumber}
+			relation.PersonB.Lines = []int{relation.LineNumber}
+			sameIDUserIDs[relation.PersonA.UserID] = true
 		}
 
 		relations = append(relations, relation)
@@ -220,61 +237,264 @@ func (ri *RelationImporter) readCSV(filePath string) ([]Relation, error) {
 	}
 
 	slog.Info("CSV file read successfully", slog.Int("total_relations", len(relations)))
-	return relations, nil
+	return relations, sameIDUserIDs, nil
 }
 
-func (ri *RelationImporter) collectUniquePeople(relations []Relation) map[string]Person {
-	people := make(map[string]Person)
-	inconsistentCount := 0
+func (ri *RelationImporter) resolveIDs(relations []Relation) []Relation {
+	ctx := context.TODO()
 
+	resolvedPersonA := 0
+	resolvedPersonB := 0
+	duplicateWarningsA := 0
+	duplicateWarningsB := 0
+	notFoundA := 0
+	notFoundB := 0
+	failedPersonA := 0
+	failedPersonB := 0
+
+	// First pass: Log all records with empty user IDs
+	emptyUserIDPersonA := 0
+	emptyUserIDPersonB := 0
+	emptyUserIDNoEmailA := 0
+	emptyUserIDNoEmailB := 0
+
+	slog.Info("Scanning CSV for records with empty user IDs")
 	for _, rel := range relations {
-		// Process PersonA
-		if rel.PersonA.UserID != "" {
-			if existing, exists := people[rel.PersonA.UserID]; exists {
-				if !existing.Equals(rel.PersonA) {
-					if existing.Error == "" {
-						// First time we detected inconsistency for this user
-						inconsistentCount++
-					}
-					errorMsg := "Data mismatch - Existing: {ContactID: " + existing.ContactID + ", Name: " + existing.FirstName + " " + existing.LastName + ", Email: " + existing.Email + "} vs New: {ContactID: " + rel.PersonA.ContactID + ", Name: " + rel.PersonA.FirstName + " " + rel.PersonA.LastName + ", Email: " + rel.PersonA.Email + "}"
-					existing.Error = errorMsg
-					people[rel.PersonA.UserID] = existing
-					slog.Warn("Inconsistent data detected", slog.String("user_id", rel.PersonA.UserID))
-				}
+		if rel.PersonA.UserID == "" {
+			emptyUserIDPersonA++
+			if rel.PersonA.Email == "" {
+				emptyUserIDNoEmailA++
+				slog.Warn("PersonA missing both UserID and Email - cannot resolve",
+					slog.Int("line", rel.LineNumber),
+					slog.String("name", rel.PersonA.FirstName+" "+rel.PersonA.LastName),
+					slog.String("contact_id", rel.PersonA.ContactID))
 			} else {
-				people[rel.PersonA.UserID] = rel.PersonA
+				slog.Debug("PersonA missing UserID - will attempt email resolution",
+					slog.Int("line", rel.LineNumber),
+					slog.String("email", rel.PersonA.Email),
+					slog.String("name", rel.PersonA.FirstName+" "+rel.PersonA.LastName))
 			}
 		}
 
-		// Process PersonB
-		if rel.PersonB.UserID != "" {
-			if existing, exists := people[rel.PersonB.UserID]; exists {
-				if !existing.Equals(rel.PersonB) {
-					if existing.Error == "" {
-						// First time we detected inconsistency for this user
-						inconsistentCount++
-					}
-					errorMsg := "Data mismatch - Existing: {ContactID: " + existing.ContactID + ", Name: " + existing.FirstName + " " + existing.LastName + ", Email: " + existing.Email + "} vs New: {ContactID: " + rel.PersonB.ContactID + ", Name: " + rel.PersonB.FirstName + " " + rel.PersonB.LastName + ", Email: " + rel.PersonB.Email + "}"
-					existing.Error = errorMsg
-					people[rel.PersonB.UserID] = existing
-					slog.Warn("Inconsistent data detected", slog.String("user_id", rel.PersonB.UserID))
-				}
+		if rel.PersonB.UserID == "" {
+			emptyUserIDPersonB++
+			if rel.PersonB.Email == "" {
+				emptyUserIDNoEmailB++
+				slog.Warn("PersonB missing both UserID and Email - cannot resolve",
+					slog.Int("line", rel.LineNumber),
+					slog.String("name", rel.PersonB.FirstName+" "+rel.PersonB.LastName),
+					slog.String("contact_id", rel.PersonB.ContactID))
 			} else {
-				people[rel.PersonB.UserID] = rel.PersonB
+				slog.Debug("PersonB missing UserID - will attempt email resolution",
+					slog.Int("line", rel.LineNumber),
+					slog.String("email", rel.PersonB.Email),
+					slog.String("name", rel.PersonB.FirstName+" "+rel.PersonB.LastName))
 			}
 		}
 	}
 
-	if inconsistentCount > 0 {
-		slog.Warn("Found people with inconsistent data across relations (will be skipped)", slog.Int("count", inconsistentCount))
-		for userID, person := range people {
-			if person.Error != "" {
-				slog.Warn("Inconsistent person details",
-					slog.String("user_id", userID),
-					slog.String("name", person.FirstName+" "+person.LastName),
-					slog.String("email", person.Email),
-					slog.String("error", person.Error))
+	slog.Info("Empty UserID scan completed",
+		slog.Int("empty_userid_person_a", emptyUserIDPersonA),
+		slog.Int("empty_userid_person_b", emptyUserIDPersonB),
+		slog.Int("with_email_person_a", emptyUserIDPersonA-emptyUserIDNoEmailA),
+		slog.Int("with_email_person_b", emptyUserIDPersonB-emptyUserIDNoEmailB),
+		slog.Int("no_email_person_a", emptyUserIDNoEmailA),
+		slog.Int("no_email_person_b", emptyUserIDNoEmailB),
+		slog.Int("total_resolvable", (emptyUserIDPersonA-emptyUserIDNoEmailA)+(emptyUserIDPersonB-emptyUserIDNoEmailB)))
+
+	slog.Info("Starting ID resolution by email lookup (profiles database only)")
+
+	for i := range relations {
+		// Resolve PersonA if UserID is empty but Email exists
+		if relations[i].PersonA.UserID == "" && relations[i].PersonA.Email != "" {
+			userID, hasDuplicates, err := ri.lookupUserIDByEmail(ctx, relations[i].PersonA.Email)
+			if err != nil {
+				slog.Warn("Failed to lookup PersonA by email",
+					slog.Int("line", relations[i].LineNumber),
+					slog.String("email", relations[i].PersonA.Email),
+					slog.Any("err", err))
+				failedPersonA++
+			} else if userID != "" {
+				relations[i].PersonA.UserID = userID
+				resolvedPersonA++
+
+				if hasDuplicates {
+					duplicateWarningsA++
+					slog.Warn("PersonA email matches multiple users - using oldest account",
+						slog.Int("line", relations[i].LineNumber),
+						slog.String("email", relations[i].PersonA.Email),
+						slog.String("user_id", userID))
+				} else {
+					slog.Debug("Resolved PersonA UserID by email",
+						slog.Int("line", relations[i].LineNumber),
+						slog.String("email", relations[i].PersonA.Email),
+						slog.String("user_id", userID))
+				}
+			} else {
+				notFoundA++
+				slog.Debug("PersonA email not found in database",
+					slog.Int("line", relations[i].LineNumber),
+					slog.String("email", relations[i].PersonA.Email))
 			}
+		}
+
+		// Resolve PersonB if UserID is empty but Email exists
+		if relations[i].PersonB.UserID == "" && relations[i].PersonB.Email != "" {
+			userID, hasDuplicates, err := ri.lookupUserIDByEmail(ctx, relations[i].PersonB.Email)
+			if err != nil {
+				slog.Warn("Failed to lookup PersonB by email",
+					slog.Int("line", relations[i].LineNumber),
+					slog.String("email", relations[i].PersonB.Email),
+					slog.Any("err", err))
+				failedPersonB++
+			} else if userID != "" {
+				relations[i].PersonB.UserID = userID
+				resolvedPersonB++
+
+				if hasDuplicates {
+					duplicateWarningsB++
+					slog.Warn("PersonB email matches multiple users - using oldest account",
+						slog.Int("line", relations[i].LineNumber),
+						slog.String("email", relations[i].PersonB.Email),
+						slog.String("user_id", userID))
+				} else {
+					slog.Debug("Resolved PersonB UserID by email",
+						slog.Int("line", relations[i].LineNumber),
+						slog.String("email", relations[i].PersonB.Email),
+						slog.String("user_id", userID))
+				}
+			} else {
+				notFoundB++
+				slog.Debug("PersonB email not found in database",
+					slog.Int("line", relations[i].LineNumber),
+					slog.String("email", relations[i].PersonB.Email))
+			}
+		}
+	}
+
+	slog.Info("ID resolution completed",
+		slog.Int("resolved_person_a", resolvedPersonA),
+		slog.Int("resolved_person_b", resolvedPersonB),
+		slog.Int("not_found_person_a", notFoundA),
+		slog.Int("not_found_person_b", notFoundB),
+		slog.Int("duplicate_warnings_a", duplicateWarningsA),
+		slog.Int("duplicate_warnings_b", duplicateWarningsB),
+		slog.Int("failed_person_a", failedPersonA),
+		slog.Int("failed_person_b", failedPersonB),
+		slog.Int("total_resolved", resolvedPersonA+resolvedPersonB))
+
+	return relations
+}
+
+func (ri *RelationImporter) collectUniquePeople(relations []Relation, sameIDUserIDs map[string]bool) map[string]Person {
+	people := make(map[string]Person)
+	inconsistentCount := 0
+	emptyUserIDCountA := 0
+	emptyUserIDCountB := 0
+
+	for _, rel := range relations {
+		// Process PersonA
+		if rel.PersonA.UserID != "" {
+			// Skip data mismatch checking if this UserID has "same ID for two people" error
+			if sameIDUserIDs[rel.PersonA.UserID] {
+				// Just add/update with the error already set from readCSV
+				if existing, exists := people[rel.PersonA.UserID]; !exists {
+					people[rel.PersonA.UserID] = rel.PersonA
+				} else {
+					// Accumulate line numbers
+					existing.Lines = append(existing.Lines, rel.LineNumber)
+					people[rel.PersonA.UserID] = existing
+				}
+			} else {
+				if existing, exists := people[rel.PersonA.UserID]; exists {
+					// Accumulate line numbers
+					existing.Lines = append(existing.Lines, rel.LineNumber)
+					if !existing.Equals(rel.PersonA) {
+						if existing.Error == "" {
+							// First time we detected inconsistency for this user
+							inconsistentCount++
+						}
+						errorMsg := "Data mismatch - Existing: {ContactID: " + existing.ContactID + ", Name: " + existing.FirstName + " " + existing.LastName + ", Email: " + existing.Email + "} vs New: {ContactID: " + rel.PersonA.ContactID + ", Name: " + rel.PersonA.FirstName + " " + rel.PersonA.LastName + ", Email: " + rel.PersonA.Email + "}"
+						existing.Error = errorMsg
+						slog.Warn("Inconsistent data detected", slog.String("user_id", rel.PersonA.UserID), slog.Int("line", rel.LineNumber))
+					}
+					people[rel.PersonA.UserID] = existing
+				} else {
+					rel.PersonA.Lines = []int{rel.LineNumber}
+					people[rel.PersonA.UserID] = rel.PersonA
+				}
+			}
+		} else {
+			emptyUserIDCountA++
+		}
+
+		// Process PersonB
+		if rel.PersonB.UserID != "" {
+			// Skip data mismatch checking if this UserID has "same ID for two people" error
+			if sameIDUserIDs[rel.PersonB.UserID] {
+				// Just add/update with the error already set from readCSV
+				if existing, exists := people[rel.PersonB.UserID]; !exists {
+					people[rel.PersonB.UserID] = rel.PersonB
+				} else {
+					// Accumulate line numbers
+					existing.Lines = append(existing.Lines, rel.LineNumber)
+					people[rel.PersonB.UserID] = existing
+				}
+			} else {
+				if existing, exists := people[rel.PersonB.UserID]; exists {
+					// Accumulate line numbers
+					existing.Lines = append(existing.Lines, rel.LineNumber)
+					if !existing.Equals(rel.PersonB) {
+						if existing.Error == "" {
+							// First time we detected inconsistency for this user
+							inconsistentCount++
+						}
+						errorMsg := "Data mismatch - Existing: {ContactID: " + existing.ContactID + ", Name: " + existing.FirstName + " " + existing.LastName + ", Email: " + existing.Email + "} vs New: {ContactID: " + rel.PersonB.ContactID + ", Name: " + rel.PersonB.FirstName + " " + rel.PersonB.LastName + ", Email: " + rel.PersonB.Email + "}"
+						existing.Error = errorMsg
+						slog.Warn("Inconsistent data detected", slog.String("user_id", rel.PersonB.UserID), slog.Int("line", rel.LineNumber))
+					}
+					people[rel.PersonB.UserID] = existing
+				} else {
+					rel.PersonB.Lines = []int{rel.LineNumber}
+					people[rel.PersonB.UserID] = rel.PersonB
+				}
+			}
+		} else {
+			emptyUserIDCountB++
+		}
+	}
+
+	// Count same ID people separately
+	sameIDCount := 0
+	for _, person := range people {
+		if person.Error != "" && strings.HasPrefix(person.Error, "Same user ID for both PersonA and PersonB: ") {
+			sameIDCount++
+		}
+	}
+
+	// Log inconsistent data people (data mismatch errors)
+	slog.Info("Found people with inconsistent data across relations (will be skipped)", slog.Int("count", inconsistentCount))
+	for userID, person := range people {
+		if person.Error != "" && !strings.HasPrefix(person.Error, "Same user ID for both PersonA and PersonB: ") {
+			slog.Warn("Inconsistent person details",
+				slog.String("user_id", userID),
+				slog.String("name", person.FirstName+" "+person.LastName),
+				slog.String("email", person.Email),
+				slog.Any("csv_lines", person.Lines),
+				slog.String("error", person.Error))
+		}
+	}
+
+	// Log same ID people separately
+	slog.Info("Found people with same ID for both PersonA and PersonB (will be skipped)", slog.Int("count", sameIDCount))
+	for userID, person := range people {
+		if person.Error != "" && strings.HasPrefix(person.Error, "Same user ID for both PersonA and PersonB: ") {
+			slog.Warn("Same ID person details",
+				slog.String("user_id", userID),
+				slog.String("name", person.FirstName+" "+person.LastName),
+				slog.String("email", person.Email),
+				slog.Any("csv_lines", person.Lines),
+				slog.String("error", person.Error))
 		}
 	}
 
@@ -283,16 +503,43 @@ func (ri *RelationImporter) collectUniquePeople(relations []Relation) map[string
 
 func (ri *RelationImporter) printCSVStatistics(relations []Relation, people map[string]Person) {
 	inconsistentPeople := 0
-	for _, person := range people {
-		if person.Error != "" {
-			inconsistentPeople++
+	sameIDPeople := 0
+	emptyUserIDCountA := 0
+	emptyUserIDCountB := 0
+	totalPersonRecords := len(relations) * 2
+
+	// Count empty UserIDs
+	for _, rel := range relations {
+		if rel.PersonA.UserID == "" {
+			emptyUserIDCountA++
+		}
+		if rel.PersonB.UserID == "" {
+			emptyUserIDCountB++
 		}
 	}
 
-	slog.Info("CSV Statistics",
-		slog.Int("total_relations", len(relations)),
-		slog.Int("unique_people", len(people)),
-		slog.Int("inconsistent_people", inconsistentPeople))
+	// Count error types
+	for _, person := range people {
+		if person.Error != "" {
+			// Check if this is a "same ID" error
+			if strings.HasPrefix(person.Error, "Same user ID for both PersonA and PersonB: ") {
+				sameIDPeople++
+			} else {
+				inconsistentPeople++
+			}
+		}
+	}
+
+	slog.Info("CSV Statistics:")
+	slog.Info("  total_relations", slog.Int("count", len(relations)))
+	slog.Info("  total_person_records", slog.Int("count", totalPersonRecords))
+	slog.Info("  empty_user_id_person_a", slog.Int("count", emptyUserIDCountA))
+	slog.Info("  empty_user_id_person_b", slog.Int("count", emptyUserIDCountB))
+	slog.Info("  total_empty_user_ids", slog.Int("count", emptyUserIDCountA+emptyUserIDCountB))
+	slog.Info("  unique_people", slog.Int("count", len(people)))
+	slog.Info("  people_with_errors", slog.Int("count", inconsistentPeople+sameIDPeople))
+	slog.Info("    - data_mismatch_errors", slog.Int("count", inconsistentPeople))
+	slog.Info("    - same_id_errors", slog.Int("count", sameIDPeople))
 }
 
 func (ri *RelationImporter) validateUsers(relations []Relation, people map[string]Person) error {
@@ -343,6 +590,58 @@ func (ri *RelationImporter) userExistsInDB(ctx context.Context, userID uuid.UUID
 		return false, err
 	}
 	return exists, nil
+}
+
+// lookupUserIDByEmail attempts to find a user_id by searching for the email
+// in primary_email, alternate_email_1, and alternate_email_2 fields.
+// Returns: (user_id, hasDuplicates, error)
+func (ri *RelationImporter) lookupUserIDByEmail(ctx context.Context, email string) (string, bool, error) {
+	if email == "" {
+		return "", false, errors.New("email is empty")
+	}
+
+	var userID string
+
+	// Case-insensitive email lookup across all email fields
+	// Note: Multiple users may have the same email (41 duplicates exist in production)
+	// We take the first match (oldest account) and return a flag indicating duplicates
+	query := `
+		SELECT user_id::text
+		FROM users
+		WHERE deleted = false
+		AND (
+			LOWER(primary_email) = LOWER($1)
+			OR LOWER(alternate_email_1) = LOWER($1)
+			OR LOWER(alternate_email_2) = LOWER($1)
+		)
+		ORDER BY created_at ASC
+		LIMIT 1
+	`
+
+	err := ri.repo.QueryRow(ctx, query, email).Scan(&userID)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return "", false, nil // Not found, but not an error
+		}
+		return "", false, err
+	}
+
+	// Check if there are duplicate emails (for warning purposes)
+	var duplicateCount int
+	countQuery := `
+		SELECT COUNT(*)
+		FROM users
+		WHERE deleted = false
+		AND (
+			LOWER(primary_email) = LOWER($1)
+			OR LOWER(alternate_email_1) = LOWER($1)
+			OR LOWER(alternate_email_2) = LOWER($1)
+		)
+	`
+	_ = ri.repo.QueryRow(ctx, countQuery, email).Scan(&duplicateCount)
+	hasDuplicates := duplicateCount > 1
+
+	return userID, hasDuplicates, nil
 }
 
 func (ri *RelationImporter) getSpouseKeycloakID(ctx context.Context, userID uuid.UUID) (*string, error) {
@@ -579,12 +878,18 @@ func (ri *RelationImporter) printFinalStatistics(relations []Relation, people ma
 	peopleFound := 0
 	peopleNotFound := 0
 	peopleInconsistent := 0
+	peopleSameID := 0
 	peopleInvalidUUID := 0
 
 	// Count people statistics
 	for userID, person := range people {
 		if person.Error != "" {
-			peopleInconsistent++
+			// Check if this is a "same ID" error
+			if strings.HasPrefix(person.Error, "Same user ID for both PersonA and PersonB: ") {
+				peopleSameID++
+			} else {
+				peopleInconsistent++
+			}
 			continue
 		}
 
@@ -638,6 +943,7 @@ func (ri *RelationImporter) printFinalStatistics(relations []Relation, people ma
 			slog.Int("found_in_db", peopleFound),
 			slog.Int("not_found_in_db", peopleNotFound),
 			slog.Int("inconsistent_data", peopleInconsistent),
+			slog.Int("same_id_errors", peopleSameID),
 			slog.Int("invalid_uuid", peopleInvalidUUID)),
 		slog.Group("relations",
 			slog.Int("both_found", bothFound),
