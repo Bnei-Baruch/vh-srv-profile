@@ -217,8 +217,12 @@ func (api *OrdersAPI) GetPaymentByID(ctx context.Context, paymentID int) (*Payme
 		return nil, err
 	}
 
-	if err = respError(resp); err != nil {
-		return nil, err
+	// Handle 404 gracefully - payment not found is acceptable
+	if resp.IsError() {
+		if resp.StatusCode() == http.StatusNotFound {
+			return nil, nil
+		}
+		return nil, respError(resp)
 	}
 
 	payment := resp.Result().(*PaymentRes).Data

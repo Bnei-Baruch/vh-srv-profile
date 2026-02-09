@@ -853,16 +853,31 @@ func (db *ProfileDB) GetMembershipByUserID(ctx context.Context, userID string) (
 
 		payment, err := ordersService.GetPaymentByID(ctx, *autoMembership.PaymentID)
 		if err != nil {
+			slog.ErrorContext(ctx, "Failed to fetch payment from orders service",
+				slog.Int("payment_id", *autoMembership.PaymentID),
+				slog.Int("order_id", *autoMembership.OrderID),
+				slog.String("user_id", userID),
+				slog.String("membership_type", "automatic"),
+				slog.String("error", err.Error()))
 			return UserMembershipRes{},
 				fmt.Errorf("ordersService.GetPaymentByID [%d]: %w", *autoMembership.PaymentID, err)
 		}
 
-		membership.Details.Payment.Amount = &payment.Amount
-		membership.Details.Payment.Currency = &payment.Currency
-		membership.Details.Payment.Status = &payment.PaymentStatus
-		membership.Details.Payment.Date = &payment.CreatedAt
-		membership.Details.Payment.PaymentMethod = &payment.CCNumber
-		membership.Details.Payment.PaymentType = &payment.PaymentType
+		// Handle missing payment gracefully (404 response)
+		if payment != nil {
+			membership.Details.Payment.Amount = &payment.Amount
+			membership.Details.Payment.Currency = &payment.Currency
+			membership.Details.Payment.Status = &payment.PaymentStatus
+			membership.Details.Payment.Date = &payment.CreatedAt
+			membership.Details.Payment.PaymentMethod = &payment.CCNumber
+			membership.Details.Payment.PaymentType = &payment.PaymentType
+		} else {
+			slog.WarnContext(ctx, "Payment not found in orders service - returning membership without payment details (possible data sync issue)",
+				slog.Int("payment_id", *autoMembership.PaymentID),
+				slog.Int("order_id", *autoMembership.OrderID),
+				slog.String("user_id", userID),
+				slog.String("membership_type", "automatic"))
+		}
 
 	} else if *membership.Type == "helphaver" {
 		helphaverMembership, err := db.getHelphaverMembershipByMembershipID(ctx, *membership.ID)
@@ -883,16 +898,31 @@ func (db *ProfileDB) GetMembershipByUserID(ctx context.Context, userID string) (
 
 		payment, err := ordersService.GetPaymentByID(ctx, *manualMembership.PaymentID)
 		if err != nil {
+			slog.ErrorContext(ctx, "Failed to fetch payment from orders service",
+				slog.Int("payment_id", *manualMembership.PaymentID),
+				slog.Int("order_id", *manualMembership.OrderID),
+				slog.String("user_id", userID),
+				slog.String("membership_type", "manual"),
+				slog.String("error", err.Error()))
 			return UserMembershipRes{},
 				fmt.Errorf("ordersService.GetPaymentByID [%d]: %w", *manualMembership.PaymentID, err)
 		}
 
-		membership.Details.Payment.Amount = &payment.Amount
-		membership.Details.Payment.Currency = &payment.Currency
-		membership.Details.Payment.Status = &payment.PaymentStatus
-		membership.Details.Payment.Date = &payment.CreatedAt
-		membership.Details.Payment.PaymentMethod = &payment.CCNumber
-		membership.Details.Payment.PaymentType = &payment.PaymentType
+		// Handle missing payment gracefully (404 response)
+		if payment != nil {
+			membership.Details.Payment.Amount = &payment.Amount
+			membership.Details.Payment.Currency = &payment.Currency
+			membership.Details.Payment.Status = &payment.PaymentStatus
+			membership.Details.Payment.Date = &payment.CreatedAt
+			membership.Details.Payment.PaymentMethod = &payment.CCNumber
+			membership.Details.Payment.PaymentType = &payment.PaymentType
+		} else {
+			slog.WarnContext(ctx, "Payment not found in orders service - returning membership without payment details (possible data sync issue)",
+				slog.Int("payment_id", *manualMembership.PaymentID),
+				slog.Int("order_id", *manualMembership.OrderID),
+				slog.String("user_id", userID),
+				slog.String("membership_type", "manual"))
+		}
 
 	} else if *membership.Type == "special" {
 		var email string
