@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/csv"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"strconv"
+	"strings"
 
 	uuid "github.com/satori/go.uuid"
 	"github.com/spf13/cobra"
@@ -21,6 +23,7 @@ func init() {
 	importRelationsCmd.Flags().StringP("file", "f", "", "Path to CSV file containing relations")
 	importRelationsCmd.MarkFlagRequired("file")
 	importRelationsCmd.Flags().Bool("dry-run", true, "Perform validation without actually applying spouse relationships (default: true for safety)")
+	importRelationsCmd.Flags().String("report", "", "Path to write markdown report file (optional)")
 }
 
 var importRelationsCmd = &cobra.Command{
@@ -74,6 +77,7 @@ type Relation struct {
 func importRelationsFn(cmd *cobra.Command, args []string) {
 	filePath, _ := cmd.Flags().GetString("file")
 	dryRun, _ := cmd.Flags().GetBool("dry-run")
+	reportPath, _ := cmd.Flags().GetString("report")
 
 	slog.Info("starting import-relations", slog.String("file", filePath))
 	if dryRun {
@@ -87,7 +91,7 @@ func importRelationsFn(cmd *cobra.Command, args []string) {
 	}
 	defer importer.close()
 
-	if err := importer.run(filePath, dryRun); err != nil {
+	if err := importer.run(filePath, dryRun, reportPath); err != nil {
 		slog.Error("failed to run import", slog.Any("err", err))
 		os.Exit(1)
 	}
@@ -117,7 +121,12 @@ func (ri *RelationImporter) close() {
 	ri.repo.Close()
 }
 
-func (ri *RelationImporter) run(filePath string, dryRun bool) error {
+func (ri *RelationImporter) run(filePath string, dryRun bool, reportPath string) error {
+	var report *ImportReport
+	if reportPath != "" {
+		report = NewImportReport(filePath, dryRun)
+	}
+
 	relations, err := ri.readCSV(filePath)
 	if err != nil {
 		return errors.Join(errors.New("readCSV"), err)
@@ -133,8 +142,23 @@ func (ri *RelationImporter) run(filePath string, dryRun bool) error {
 
 	ri.printFinalStatistics(relations, people)
 
-	if err := ri.applySpouseRelationships(relations, people, dryRun); err != nil {
+	if err := ri.applySpouseRelationships(relations, people, dryRun, report); err != nil {
+		if report != nil {
+			if werr := report.Write(reportPath); werr != nil {
+				slog.Error("failed to write report", slog.Any("err", werr))
+			} else {
+				slog.Info("report written", slog.String("path", reportPath))
+			}
+		}
 		return errors.Join(errors.New("applySpouseRelationships"), err)
+	}
+
+	if report != nil {
+		if werr := report.Write(reportPath); werr != nil {
+			slog.Error("failed to write report", slog.Any("err", werr))
+		} else {
+			slog.Info("report written", slog.String("path", reportPath))
+		}
 	}
 
 	return nil
@@ -354,6 +378,31 @@ func (ri *RelationImporter) getSpouseKeycloakID(ctx context.Context, userID uuid
 	return spouseKeycloakID, nil
 }
 
+func (ri *RelationImporter) getExistingSpouseDetail(ctx context.Context, userID uuid.UUID, intendedSpouseKeycloakID string) string {
+	spouseKeycloakID, err := ri.getSpouseKeycloakID(ctx, userID)
+	if err != nil {
+		return "(lookup error: " + err.Error() + ")"
+	}
+	if spouseKeycloakID == nil {
+		return "(none)"
+	}
+	if *spouseKeycloakID == intendedSpouseKeycloakID {
+		return "(same as intended)"
+	}
+	var firstName, lastName, email, spouseUserID string
+	lookupErr := ri.repo.QueryRow(ctx,
+		`SELECT COALESCE(first_name_latin, ''), COALESCE(last_name_latin, ''), COALESCE(primary_email, ''), user_id::text FROM users WHERE keycloak_id::text = $1 AND deleted = false`,
+		*spouseKeycloakID).Scan(&firstName, &lastName, &email, &spouseUserID)
+	if lookupErr != nil {
+		return fmt.Sprintf("keycloak_id=%s (info lookup failed)", *spouseKeycloakID)
+	}
+	name := strings.TrimSpace(firstName + " " + lastName)
+	if name == "" {
+		name = "(empty)"
+	}
+	return fmt.Sprintf("%s <%s> (user_id=%s)", name, email, spouseUserID)
+}
+
 func (ri *RelationImporter) getKeycloakID(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
 	var keycloakID *string
 	err := ri.repo.QueryRow(ctx, `SELECT keycloak_id FROM users WHERE user_id = $1 AND deleted = false`, userID).Scan(&keycloakID)
@@ -375,7 +424,7 @@ func (ri *RelationImporter) getKeycloakID(ctx context.Context, userID uuid.UUID)
 	return parsedUUID, nil
 }
 
-func (ri *RelationImporter) applySpouseRelationships(relations []Relation, people map[string]Person, dryRun bool) error {
+func (ri *RelationImporter) applySpouseRelationships(relations []Relation, people map[string]Person, dryRun bool, report *ImportReport) error {
 	ctx := context.TODO()
 
 	mode := "APPLYING"
@@ -386,6 +435,7 @@ func (ri *RelationImporter) applySpouseRelationships(relations []Relation, peopl
 	slog.Info("Starting to apply spouse relationships", slog.String("mode", mode))
 
 	applied := 0
+	alreadyLinked := 0
 	errorPersonAInconsistent := 0
 	errorPersonBInconsistent := 0
 	errorInvalidUUID := 0
@@ -408,6 +458,9 @@ func (ri *RelationImporter) applySpouseRelationships(relations []Relation, peopl
 				slog.String("user_id", rel.PersonA.UserID),
 				slog.String("name", rel.PersonA.FirstName+" "+rel.PersonA.LastName))
 			errorPersonAInconsistent++
+			if report != nil {
+				report.addSkipped(rel, "Person A has inconsistent data", people[rel.PersonA.UserID].Error)
+			}
 			continue
 		}
 
@@ -417,10 +470,35 @@ func (ri *RelationImporter) applySpouseRelationships(relations []Relation, peopl
 				slog.String("user_id", rel.PersonB.UserID),
 				slog.String("name", rel.PersonB.FirstName+" "+rel.PersonB.LastName))
 			errorPersonBInconsistent++
+			if report != nil {
+				report.addSkipped(rel, "Person B has inconsistent data", people[rel.PersonB.UserID].Error)
+			}
 			continue
 		}
 
-		// Check for invalid UUIDs
+		// Check for empty UserIDs (no VH match in CSV — not a UUID error)
+		if rel.PersonA.UserID == "" {
+			slog.Warn("SKIP - Person A has no VH match",
+				slog.Int("line", lineNum),
+				slog.String("relationship_id", rel.RelationshipID))
+			errorPersonANotFound++
+			if report != nil {
+				report.addSkipped(rel, "Person A not found in DB", "no VH match in CSV (empty user_id)")
+			}
+			continue
+		}
+		if rel.PersonB.UserID == "" {
+			slog.Warn("SKIP - Person B has no VH match",
+				slog.Int("line", lineNum),
+				slog.String("relationship_id", rel.RelationshipID))
+			errorPersonBNotFound++
+			if report != nil {
+				report.addSkipped(rel, "Person B not found in DB", "no VH match in CSV (empty user_id)")
+			}
+			continue
+		}
+
+		// Check for invalid UUIDs (non-empty but malformed)
 		userIDA, errA := uuid.FromString(rel.PersonA.UserID)
 		userIDB, errB := uuid.FromString(rel.PersonB.UserID)
 		if errA != nil || errB != nil {
@@ -429,6 +507,9 @@ func (ri *RelationImporter) applySpouseRelationships(relations []Relation, peopl
 				slog.String("user_id_a", rel.PersonA.UserID),
 				slog.String("user_id_b", rel.PersonB.UserID))
 			errorInvalidUUID++
+			if report != nil {
+				report.addSkipped(rel, "Invalid UUID", "user_id_a: "+rel.PersonA.UserID+", user_id_b: "+rel.PersonB.UserID)
+			}
 			continue
 		}
 
@@ -443,6 +524,9 @@ func (ri *RelationImporter) applySpouseRelationships(relations []Relation, peopl
 				slog.String("name", rel.PersonA.FirstName+" "+rel.PersonA.LastName),
 				slog.String("email", rel.PersonA.Email))
 			errorPersonANotFound++
+			if report != nil {
+				report.addSkipped(rel, "Person A not found in DB", "user_id: "+rel.PersonA.UserID)
+			}
 			continue
 		}
 
@@ -453,6 +537,9 @@ func (ri *RelationImporter) applySpouseRelationships(relations []Relation, peopl
 				slog.String("name", rel.PersonB.FirstName+" "+rel.PersonB.LastName),
 				slog.String("email", rel.PersonB.Email))
 			errorPersonBNotFound++
+			if report != nil {
+				report.addSkipped(rel, "Person B not found in DB", "user_id: "+rel.PersonB.UserID)
+			}
 			continue
 		}
 
@@ -464,6 +551,9 @@ func (ri *RelationImporter) applySpouseRelationships(relations []Relation, peopl
 				slog.String("user_id", rel.PersonA.UserID),
 				slog.Any("err", err))
 			errorGetKeycloakIDA++
+			if report != nil {
+				report.addFailed(rel, "Failed to get keycloak_id for Person A", err, "")
+			}
 			continue
 		}
 
@@ -474,6 +564,9 @@ func (ri *RelationImporter) applySpouseRelationships(relations []Relation, peopl
 				slog.String("user_id", rel.PersonB.UserID),
 				slog.Any("err", err))
 			errorGetKeycloakIDB++
+			if report != nil {
+				report.addFailed(rel, "Failed to get keycloak_id for Person B", err, "")
+			}
 			continue
 		}
 
@@ -484,22 +577,41 @@ func (ri *RelationImporter) applySpouseRelationships(relations []Relation, peopl
 				slog.String("person_a", rel.PersonA.FirstName+" "+rel.PersonA.LastName+" ("+rel.PersonA.UserID+")"),
 				slog.String("person_b", rel.PersonB.FirstName+" "+rel.PersonB.LastName+" ("+rel.PersonB.UserID+")"))
 			applied++
+			if report != nil {
+				report.addApplied(rel)
+			}
 		} else {
+			// Pre-check: if A already points to B, the link is correct — skip without re-writing
+			existingSpouseA, checkErr := ri.getSpouseKeycloakID(ctx, userIDA)
+			if checkErr == nil && existingSpouseA != nil && *existingSpouseA == keycloakIDB.String() {
+				slog.Info("SKIP - Spouse relationship already exists",
+					slog.Int("line", lineNum),
+					slog.String("person_a", rel.PersonA.FirstName+" "+rel.PersonA.LastName+" ("+rel.PersonA.UserID+")"),
+					slog.String("person_b", rel.PersonB.FirstName+" "+rel.PersonB.LastName+" ("+rel.PersonB.UserID+")"))
+				alreadyLinked++
+				if report != nil {
+					report.addAlreadyLinked(rel)
+				}
+				continue
+			}
+
 			err = ri.repo.SetSpouse(ctx, keycloakIDA, keycloakIDB, false)
 			if err != nil {
-				// Handle idempotency: if relationship already exists with same spouse, skip gracefully
 				if errors.Is(err, common.ErrSpouseConflict) {
-					existingSpouseA, checkErr := ri.getSpouseKeycloakID(ctx, userIDA)
-					if checkErr == nil && existingSpouseA != nil && *existingSpouseA == keycloakIDB.String() {
-						// Relationship already exists - skip gracefully
-						slog.Info("SKIP - Spouse relationship already exists",
-							slog.Int("line", lineNum),
-							slog.String("person_a", rel.PersonA.FirstName+" "+rel.PersonA.LastName+" ("+rel.PersonA.UserID+")"),
-							slog.String("person_b", rel.PersonB.FirstName+" "+rel.PersonB.LastName+" ("+rel.PersonB.UserID+")"))
-						applied++
-						continue
+					// Conflict with different spouse - look up who they are linked to
+					slog.Error("Spouse conflict: already linked to different person",
+						slog.Int("line", lineNum),
+						slog.String("relationship_id", rel.RelationshipID),
+						slog.String("user_a", rel.PersonA.UserID),
+						slog.String("user_b", rel.PersonB.UserID))
+					errorSetSpouse++
+					if report != nil {
+						spouseADetail := ri.getExistingSpouseDetail(ctx, userIDA, keycloakIDB.String())
+						spouseBDetail := ri.getExistingSpouseDetail(ctx, userIDB, keycloakIDA.String())
+						detail := "Existing spouse of Person A: " + spouseADetail + "; Existing spouse of Person B: " + spouseBDetail
+						report.addFailed(rel, "Spouse conflict: already linked to different person", err, detail)
 					}
-					// Conflict with different spouse - real error, fall through
+					continue
 				}
 
 				slog.Error("Failed to set spouse relationship",
@@ -509,7 +621,11 @@ func (ri *RelationImporter) applySpouseRelationships(relations []Relation, peopl
 					slog.String("user_b", rel.PersonB.UserID),
 					slog.Any("err", err))
 				errorSetSpouse++
+				if report != nil {
+					report.addFailed(rel, "Failed to set spouse relationship", err, "")
+				}
 				continue
+			
 			}
 
 			slog.Info("SUCCESS - Set spouse",
@@ -517,6 +633,9 @@ func (ri *RelationImporter) applySpouseRelationships(relations []Relation, peopl
 				slog.String("person_a", rel.PersonA.FirstName+" "+rel.PersonA.LastName+" ("+rel.PersonA.UserID+")"),
 				slog.String("person_b", rel.PersonB.FirstName+" "+rel.PersonB.LastName+" ("+rel.PersonB.UserID+")"))
 			applied++
+			if report != nil {
+				report.addApplied(rel)
+			}
 		}
 
 		slog.Debug("Spouse relationship processed",
@@ -544,6 +663,7 @@ func (ri *RelationImporter) applySpouseRelationships(relations []Relation, peopl
 	} else {
 		slog.Info("Spouse relationship statistics",
 			slog.Int("successfully_applied", applied),
+			slog.Int("already_linked", alreadyLinked),
 			slog.Int("person_a_inconsistent", errorPersonAInconsistent),
 			slog.Int("person_b_inconsistent", errorPersonBInconsistent),
 			slog.Int("invalid_uuid", errorInvalidUUID),
@@ -558,6 +678,7 @@ func (ri *RelationImporter) applySpouseRelationships(relations []Relation, peopl
 
 	slog.Info("Spouse relationship application completed",
 		slog.Int("applied", applied),
+		slog.Int("already_linked", alreadyLinked),
 		slog.Int("total_errors", totalErrors),
 		slog.Bool("dry_run", dryRun))
 

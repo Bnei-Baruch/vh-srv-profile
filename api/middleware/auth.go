@@ -114,6 +114,23 @@ func (v *FailoverOIDCTokenVerifier) Verify(ctx context.Context, tokenStr string)
 
 func Authentication(tokenVerifier OIDCTokenVerifier) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Debug mode: Skip authentication and create fake admin claims
+		if common.Config.DebugDisableAuth {
+			fakeClaims := &IDTokenClaims{
+				Sub:               "debug-user-00000000-0000-0000-0000-000000000000",
+				Email:             "debug@example.com",
+				PreferredUsername: "debug-user",
+				GivenName:         "Debug",
+				FamilyName:        "User",
+				RealmAccess: Roles{
+					Roles: []string{common.RoleRoot, common.RoleAdmin},
+				},
+			}
+			c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), common.CtxAuthClaims, fakeClaims))
+			c.Next()
+			return
+		}
+
 		auth := parseToken(c.Request)
 		if auth == "" {
 			c.Header("WWW-Authenticate", "Bearer realm=\"main\"")

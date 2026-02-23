@@ -24,6 +24,9 @@ type envConfig struct {
 
 	OrdersServiceUrl   string `envconfig:"ORDERS_SERVICE_URL"`
 	HandleOrdersEvents bool   `envconfig:"HANDLE_ORDERS_EVENTS" default:"true"`
+
+	// Debug flag: Disable authentication for debugging (DANGEROUS - never use in production!)
+	DebugDisableAuth bool `envconfig:"DEBUG_DISABLE_AUTH" default:"false"`
 }
 
 var Config = new(envConfig)
