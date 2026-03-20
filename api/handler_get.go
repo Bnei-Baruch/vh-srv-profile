@@ -69,12 +69,13 @@ type userResponse struct {
 }
 
 type ShortProfile struct {
-	UserID    uuid.UUID `json:"id"`
-	FirstName *string   `json:"first_name"`
-	LastName  *string   `json:"last_name"`
-	Email     string    `json:"email"`
-	Active    bool      `json:"active"`
-	CreatedAt time.Time `json:"created_at"`
+	UserID         uuid.UUID `json:"id"`
+	FirstName      *string   `json:"first_name"`
+	LastName       *string   `json:"last_name"`
+	Email          string    `json:"email"`
+	Active         bool      `json:"active"`
+	CreatedAt      time.Time `json:"created_at"`
+	Country        *string   `json:"country"`
 }
 
 func (p *ProfileManager) getProfiles(c *gin.Context) {
@@ -428,6 +429,7 @@ func (p *ProfileManager) getProfileShort(c *gin.Context) {
 		Email:     *profile.UserInput.Emails.Primary,
 		Active:    profile.UserInput.MembershipActive != nil && *profile.UserInput.MembershipActive,
 		CreatedAt: profile.CreatedAt,
+		Country:   profile.UserInput.Address.Country,
 	}
 
 	c.JSON(http.StatusOK, result)

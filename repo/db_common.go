@@ -108,6 +108,10 @@ func (db *ProfileDB) emitEvent(ctx context.Context, eventType string, payload ma
 // emitUpdateProfileEvents emits update_profile events for the given keycloak IDs.
 // It fetches user_ids in a single query and emits one event per user.
 func (db *ProfileDB) emitUpdateProfileEvents(ctx context.Context, affectedKeycloakStringIDs []string) {
+	// Uncomment when running manual imports to suppress event emission.
+	// if db.eventEmitter == nil {
+	// 	return
+	// }
 	if len(affectedKeycloakStringIDs) == 0 {
 		return
 	}
