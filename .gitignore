@@ -6,3 +6,8 @@ vh-srv-profile
 bulk_eval.csv
 
 __debug*
+
+# Test coverage
+coverage.out
+coverage.html
+coverage.txt
