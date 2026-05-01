@@ -13,7 +13,10 @@ const (
 	RoleAdmin          = "vh_admin"
 	RoleHelpHaverAdmin = "vh_helphaver_admin"
 
-	RequestTypeHelpHaver   = "hhmembership"
+	RequestTypeHelpHaverLegacy = "hhmembership"
+	RequestTypeHHGimlaj  = "hh-gimlaj"
+	RequestTypeHHHayal   = "hh-hayal"
+	RequestTypeHHOther   = "hh-other"
 	RequestStatusRequested = "REQUESTED"
 	RequestStatusApproved  = "APPROVED"
 	RequestStatusDenied    = "DENIED"
@@ -41,6 +44,18 @@ const (
 )
 
 var RoleAnyAdmin = []string{RoleRoot, RoleAdmin, RoleHelpHaverAdmin}
+
+// All HH membership request types (legacy + new)
+var RequestTypeHHAll = []string{RequestTypeHelpHaverLegacy, RequestTypeHHGimlaj, RequestTypeHHHayal, RequestTypeHHOther}
+
+func IsValidHHType(t string) bool {
+	for _, v := range RequestTypeHHAll {
+		if t == v {
+			return true
+		}
+	}
+	return false
+}
 
 // This gets set at build time via `-ldflags "-X ..."`
 var GitSHA string = "local"

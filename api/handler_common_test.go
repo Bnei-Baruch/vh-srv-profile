@@ -80,12 +80,12 @@ func (m *storageMock) GetRequestByID(ctx context.Context, id int) (*repo.NewRequ
 	return args.Get(0).(*repo.NewRequest), args.Error(1)
 }
 
-func (m *storageMock) GetMultipleRequest(ctx context.Context, intSkip int, intLimit int, kcid string, status string, name string, email string, typeFilter string, orderByCreatedAt string) ([]repo.RequestAndGrant, error) {
+func (m *storageMock) GetMultipleRequest(ctx context.Context, intSkip int, intLimit int, kcid string, status string, name string, email string, typeFilters []string, orderByCreatedAt string) ([]repo.RequestAndGrant, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (m *storageMock) GetMultipleRequestCount(ctx context.Context, kcid string, status string, name string, email string, typeFilter string, orderByCreatedAt string) (int, error) {
+func (m *storageMock) GetMultipleRequestCount(ctx context.Context, kcid string, status string, name string, email string, typeFilters []string, orderByCreatedAt string) (int, error) {
 	panic("implement me")
 }
 

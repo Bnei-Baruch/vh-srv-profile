@@ -22,7 +22,9 @@ type createRequestStorage interface {
 
 func (db *ProfileDB) CreateRequest(ctx context.Context, req NewRequest) error {
 	req.Status = utils.PointerString(common.RequestStatusRequested)
-	req.Type = utils.PointerString(common.RequestTypeHelpHaver)
+	if req.Type == nil || !common.IsValidHHType(*req.Type) {
+		req.Type = utils.PointerString(common.RequestTypeHHOther)
+	}
 
 	createString, numString, createQueryArgs := prepareRequestCreateQuery(req)
 	if len(createQueryArgs) == 0 {
@@ -107,8 +109,18 @@ func (db *ProfileDB) approveRequest(ctx context.Context, user User, req NewReque
 		return fmt.Errorf("cancel previous grants db.Exec: %w", err)
 	}
 
-	// create new grant
-	props, _ := json.Marshal(map[string]interface{}{"months": conclusion.Months})
+	// create new grant — merge conclusion properties with type
+	var grantProps map[string]interface{}
+	if conclusion.Properties.Valid {
+		_ = conclusion.Properties.Unmarshal(&grantProps)
+	}
+	if grantProps == nil {
+		grantProps = map[string]interface{}{}
+	}
+	if conclusion.Type != nil {
+		grantProps["type"] = *conclusion.Type
+	}
+	props, _ := json.Marshal(grantProps)
 	var grant = Grant{
 		UserID:     user.UserID,
 		RequestID:  req.ID,
@@ -244,10 +256,10 @@ func prepareRequestCreateQuery(req NewRequest) (string, string, []interface{}) {
 		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
 		args = append(args, *req.Type)
 	}
-	if req.Months != nil {
-		createStrings = append(createStrings, "months")
+	if req.Properties.Valid {
+		createStrings = append(createStrings, "properties")
 		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.Months)
+		args = append(args, req.Properties)
 	}
 
 	concatedCreateString := strings.Join(createStrings, ",")
@@ -279,6 +291,10 @@ func prepareRequestUpdate(req NewRequest) (string, []interface{}) {
 	if req.Type != nil {
 		updateStrings = append(updateStrings, fmt.Sprintf("type=$%d", len(updateStrings)+1))
 		args = append(args, *req.Type)
+	}
+	if req.Properties.Valid {
+		updateStrings = append(updateStrings, fmt.Sprintf("properties=$%d", len(updateStrings)+1))
+		args = append(args, req.Properties)
 	}
 
 	if len(args) != 0 {

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v4"
+	"github.com/volatiletech/null/v9"
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
 )
 
@@ -20,14 +21,14 @@ type readMultipleRequestStorage interface {
 		status string,
 		name string,
 		email string,
-		typeFilter string,
+		typeFilters []string,
 		orderByCreatedAt string) ([]RequestAndGrant, error)
 	GetMultipleRequestCount(ctx context.Context,
 		kcid string,
 		status string,
 		name string,
 		email string,
-		typeFilter string,
+		typeFilters []string,
 		orderByCreatedAt string) (int, error)
 }
 
@@ -37,7 +38,7 @@ type NewRequest struct {
 	KeycloakId    *string    `json:"keycloak_id"`
 	Status        *string    `json:"status"`
 	Type          *string    `json:"type"`
-	Months        *int       `json:"nb_month"`
+	Properties    null.JSON  `json:"properties"`
 	RequestNote   *string    `json:"request_note,omitempty"`
 	RejectionNote *string    `json:"rejection_note,omitempty"`
 	CreatedAt     *time.Time `json:"created_at"`
@@ -50,20 +51,22 @@ type RequestAndGrant struct {
 }
 
 type RequestConclusion struct {
-	Approved      bool    `json:"approved"`
-	RejectionNote *string `json:"rejection_note"`
-	Months        *int    `json:"months"`
+	Approved      bool      `json:"approved"`
+	RejectionNote *string   `json:"rejection_note"`
+	Type          *string   `json:"type"`
+	Properties    null.JSON `json:"properties"`
 }
 
 func (db *ProfileDB) GetRequestByID(ctx context.Context, id int) (*NewRequest, error) {
 	var request NewRequest
 
-	err := db.QueryRow(ctx, `SELECT name, keycloak_id, status, type, request_note, rejection_note, created_at, updated_at 
+	err := db.QueryRow(ctx, `SELECT name, keycloak_id, status, type, properties, request_note, rejection_note, created_at, updated_at
 	FROM request WHERE id=$1`, id).
 		Scan(&request.RequestName,
 			&request.KeycloakId,
 			&request.Status,
 			&request.Type,
+			&request.Properties,
 			&request.RequestNote,
 			&request.RejectionNote,
 			&request.CreatedAt,
@@ -81,12 +84,11 @@ func (db *ProfileDB) GetRequestByID(ctx context.Context, id int) (*NewRequest, e
 	return &request, nil
 }
 
-func (db *ProfileDB) GetMultipleRequest(ctx context.Context, intSkip int, intLimit int, kcid string, status string, name string, email string, typeFilter string, orderByCreatedAt string) ([]RequestAndGrant, error) {
+func (db *ProfileDB) GetMultipleRequest(ctx context.Context, intSkip int, intLimit int, kcid string, status string, name string, email string, typeFilters []string, orderByCreatedAt string) ([]RequestAndGrant, error) {
 	requests := []RequestAndGrant{}
 
-	userDbWhereQuery, orderByQuery := buildAndGetWhereRequestQuery(kcid, status, name, typeFilter, orderByCreatedAt, email)
-	queryString := `SELECT r.id, r.name, r.keycloak_id, r.status, r.type, r.request_note, r.rejection_note, r.created_at, r.updated_at, r.months, g.id, g.user_id, g.request_id, g.type, g.created_at, g.updated_at, g.cancelled_at, g.properties" +
-		"FROM request r LEFT JOIN "grant" g ON g.request_id=r.id`
+	userDbWhereQuery, orderByQuery := buildAndGetWhereRequestQuery(kcid, status, name, typeFilters, orderByCreatedAt, email)
+	queryString := `SELECT r.id, r.name, r.keycloak_id, r.status, r.type, r.properties, r.request_note, r.rejection_note, r.created_at, r.updated_at, g.id, g.user_id, g.request_id, g.type, g.created_at, g.updated_at, g.cancelled_at, g.properties FROM request r LEFT JOIN "grant" g ON g.request_id=r.id`
 	if email != "" {
 		queryString += ` LEFT JOIN "users" u ON u.keycloak_id=r.keycloak_id `
 
@@ -104,11 +106,11 @@ func (db *ProfileDB) GetMultipleRequest(ctx context.Context, intSkip int, intLim
 			&r.Request.KeycloakId,
 			&r.Request.Status,
 			&r.Request.Type,
+			&r.Request.Properties,
 			&r.Request.RequestNote,
 			&r.Request.RejectionNote,
 			&r.Request.CreatedAt,
 			&r.Request.UpdatedAt,
-			&r.Request.Months,
 			&r.Grant.ID,
 			&r.Grant.UserID,
 			&r.Grant.RequestID,
@@ -131,9 +133,9 @@ func (db *ProfileDB) GetMultipleRequest(ctx context.Context, intSkip int, intLim
 	return requests, nil
 }
 
-func (db *ProfileDB) GetMultipleRequestCount(ctx context.Context, kcid string, status string, name string, email string, typeFilter string, orderByCreatedAt string) (int, error) {
+func (db *ProfileDB) GetMultipleRequestCount(ctx context.Context, kcid string, status string, name string, email string, typeFilters []string, orderByCreatedAt string) (int, error) {
 
-	userDbWhereQuery, _ := buildAndGetWhereRequestQuery(kcid, status, name, typeFilter, orderByCreatedAt, email)
+	userDbWhereQuery, _ := buildAndGetWhereRequestQuery(kcid, status, name, typeFilters, orderByCreatedAt, email)
 	queryString := `SELECT COUNT(*) FROM request r`
 	queryStringJoin := ""
 	if email != "" {
@@ -149,7 +151,7 @@ func (db *ProfileDB) GetMultipleRequestCount(ctx context.Context, kcid string, s
 	return count, nil
 }
 
-func buildAndGetWhereRequestQuery(kcid string, status string, name string, typeFilter string, orderByCreatedAt string, email string) (string, string) {
+func buildAndGetWhereRequestQuery(kcid string, status string, name string, typeFilters []string, orderByCreatedAt string, email string) (string, string) {
 
 	var whereString strings.Builder
 	var orderBy strings.Builder
@@ -178,11 +180,16 @@ func buildAndGetWhereRequestQuery(kcid string, status string, name string, typeF
 		}
 	}
 
-	if typeFilter != "" {
+	if len(typeFilters) > 0 {
+		quoted := make([]string, len(typeFilters))
+		for i, t := range typeFilters {
+			quoted[i] = "'" + t + "'"
+		}
+		typeCondition := fmt.Sprintf("r.type IN (%s)", strings.Join(quoted, ","))
 		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND r.type='%s'", typeFilter))
+			whereCondition.WriteString(" AND " + typeCondition)
 		} else {
-			whereCondition.WriteString(fmt.Sprintf(" r.type='%s'", typeFilter))
+			whereCondition.WriteString(typeCondition)
 		}
 	}
 

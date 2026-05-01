@@ -23,6 +23,11 @@ func (p *ProfileManager) getRequests(c *gin.Context) {
 	typeFilter := c.Query("type")
 	orderByCreatedAt := c.Query("o_created_at")
 
+	var typeFilters []string
+	if typeFilter != "" {
+		typeFilters = []string{typeFilter}
+	}
+
 	if orderByCreatedAt != "" && orderByCreatedAt != "asc" && orderByCreatedAt != "desc" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid value for o_created_at"})
 		return
@@ -50,7 +55,7 @@ func (p *ProfileManager) getRequests(c *gin.Context) {
 		return
 	}
 
-	res, err := p.repo.GetMultipleRequest(c.Request.Context(), intSkip, intLimit, kcid, status, name, email, typeFilter, orderByCreatedAt)
+	res, err := p.repo.GetMultipleRequest(c.Request.Context(), intSkip, intLimit, kcid, status, name, email, typeFilters, orderByCreatedAt)
 	if err != nil {
 		if errors.Is(err, common.ErrNotFound) {
 			c.Status(http.StatusNotFound)
@@ -62,7 +67,7 @@ func (p *ProfileManager) getRequests(c *gin.Context) {
 	}
 	totalCount := len(res)
 	if totalCount > 0 {
-		totalCount, err = p.repo.GetMultipleRequestCount(c.Request.Context(), kcid, status, name, email, typeFilter, orderByCreatedAt)
+		totalCount, err = p.repo.GetMultipleRequestCount(c.Request.Context(), kcid, status, name, email, typeFilters, orderByCreatedAt)
 		if err != nil {
 			c.Status(http.StatusInternalServerError)
 			_ = c.Error(fmt.Errorf("repo.GetMultipleRequestCount: %w", err))

@@ -75,6 +75,8 @@ type MembershipHelpHaver struct {
 	GrantID      *int       `json:"grant_id"`
 	MembershipID *int       `json:"membership_id"`
 	NbMonths     *int       `json:"nb_months,omitempty"`
+	DiscountPct  *int       `json:"discount_pct,omitempty"`
+	Type         *string    `json:"type,omitempty"`
 	CreatedAt    *time.Time `json:"created_at"`
 	UpdatedAt    *time.Time `json:"updated_at"`
 	DeletedAt    *time.Time `json:"deleted_at"`
@@ -106,8 +108,10 @@ type UserMembershipRes struct {
 			Type       *string `json:"type,omitempty"`
 		} `json:"special,omitempty"`
 		HelpHaver struct {
-			CreatedAt *time.Time `json:"created_at,omitempty"`
-			NbMonths  *int       `json:"nb_months,omitempty"`
+			CreatedAt   *time.Time `json:"created_at,omitempty"`
+			NbMonths    *int       `json:"nb_months,omitempty"`
+			DiscountPct *int       `json:"discount_pct,omitempty"`
+			Type        *string    `json:"type,omitempty"`
 		} `json:"help_haver,omitempty"`
 	} `json:"details,omitempty"`
 }
@@ -191,7 +195,7 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 		return UserMembershipRes{}, fmt.Errorf("ordersService.GetOrders: %w", err)
 	}
 
-	approvedRequests, err := db.GetMultipleRequest(ctx, 0, 1, userKeycloakID, common.RequestStatusApproved, "", "", common.RequestTypeHelpHaver, "desc")
+	approvedRequests, err := db.GetMultipleRequest(ctx, 0, 1, userKeycloakID, common.RequestStatusApproved, "", "", common.RequestTypeHHAll, "desc")
 	if err != nil {
 		return UserMembershipRes{}, fmt.Errorf("db.GetMultipleRequest: %w", err)
 	}
@@ -871,6 +875,8 @@ func (db *ProfileDB) GetMembershipByUserID(ctx context.Context, userID string) (
 		}
 		membership.Details.HelpHaver.CreatedAt = helphaverMembership.CreatedAt
 		membership.Details.HelpHaver.NbMonths = helphaverMembership.NbMonths
+		membership.Details.HelpHaver.DiscountPct = helphaverMembership.DiscountPct
+		membership.Details.HelpHaver.Type = helphaverMembership.Type
 	} else if *membership.Type == "manual" {
 		manualMembership, err := db.getManualMembershipByMembershipID(ctx, *membership.ID)
 		if err != nil {
@@ -1034,20 +1040,24 @@ func (db *ProfileDB) getHelphaverMembershipByMembershipID(ctx context.Context, m
 	var helphaverMembership MembershipHelpHaver
 
 	if err := db.QueryRow(ctx, `
-		SELECT 
+		SELECT
 		mh.id,
 		mh.grant_id,
 		mh.membership_id,
 		(g.properties->>'months')::integer,
+		(g.properties->>'discount_pct')::integer,
+		g.properties->>'type',
 		mh.created_at,
 		mh.updated_at,
-		mh.deleted_at 
-		from membership_helphaver mh LEFT JOIN "grant" g ON mh.grant_id = g.id 
+		mh.deleted_at
+		from membership_helphaver mh LEFT JOIN "grant" g ON mh.grant_id = g.id
 		WHERE mh.membership_id = $1`, membershipID).Scan(
 		&helphaverMembership.ID,
 		&helphaverMembership.GrantID,
 		&helphaverMembership.MembershipID,
 		&helphaverMembership.NbMonths,
+		&helphaverMembership.DiscountPct,
+		&helphaverMembership.Type,
 		&helphaverMembership.CreatedAt,
 		&helphaverMembership.UpdatedAt,
 		&helphaverMembership.DeletedAt,
