@@ -1,0 +1,177 @@
+name: CI/CD
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:12
+        env:
+          POSTGRES_DB: profile_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.21'
+
+      # GitHub Actions service containers cannot override the container command,
+      # so NATS (which needs -js and auth flags) runs via docker directly.
+      - name: Start NATS (JetStream)
+        run: |
+          docker run -d --name nats -p 4222:4222 nats:2.10-alpine \
+            -js -user testuser -pass testpass
+          for i in $(seq 1 15); do
+            nc -z localhost 4222 && break
+            sleep 2
+          done
+          nc -z localhost 4222
+
+      - name: Add pgcrypto to template1 (new test databases inherit it)
+        run: PGPASSWORD=postgres psql -h localhost -U postgres -d template1 -c 'CREATE EXTENSION IF NOT EXISTS pgcrypto;'
+
+      - name: Run tests
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: profile_test
+          DB_SSLMODE: disable
+          NATS_URL: nats://testuser:testpass@localhost:4222
+          APP_ENV: test
+          APP_MODE: debug
+        run: |
+          go mod download
+          set -o pipefail
+          go test -v -race -coverprofile=coverage.out ./... | tee test.log
+          go tool cover -func=coverage.out
+
+      - name: Upload test log on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-log
+          path: test.log
+          retention-days: 7
+
+  build:
+    needs: test
+    if: ${{ success() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set SHORT_SHA
+        run: echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/bnei-baruch/vh-srv-profile:latest
+            ghcr.io/bnei-baruch/vh-srv-profile:${{ env.SHORT_SHA }}
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set environment variables
+        run: |
+          if [[ "${{ inputs.environment }}" == "production" ]]; then
+            echo "SSH_HOST=${{ secrets.VH_HOST_PRODUCTION }}" >> $GITHUB_ENV
+          else
+            echo "SSH_HOST=${{ secrets.VH_HOST_STAGING }}" >> $GITHUB_ENV
+          fi
+          echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
+          echo "DEPLOY_ENV=${{ inputs.environment }}" >> $GITHUB_ENV
+
+      - name: Copy docker-compose.yml to VM
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ env.SSH_HOST }}
+          username: root
+          key: ${{ secrets.BBDEPLOYMENT_SSH_PRIVATE_KEY }}
+          source: "docker-compose.yml"
+          target: /opt/vh/vh-srv-profile/
+
+      - name: Deploy to VM
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ env.SSH_HOST }}
+          username: root
+          key: ${{ secrets.BBDEPLOYMENT_SSH_PRIVATE_KEY }}
+          envs: SHORT_SHA,DEPLOY_ENV
+          script: |
+            set -e
+            cd /opt/vh/vh-srv-profile
+
+            if [ ! -f .env ]; then
+              echo "ERROR: .env file missing at /opt/vh/vh-srv-profile/.env"
+              exit 1
+            fi
+
+            export IMAGE_NAME=ghcr.io/bnei-baruch/vh-srv-profile:$SHORT_SHA
+
+            if [ "$DEPLOY_ENV" = "staging" ]; then
+              mkdir -p /opt/srv-profile-db
+              export COMPOSE_PROFILES=staging
+            fi
+
+            docker compose pull vh-srv-profile
+            docker compose up -d --remove-orphans
+
+            # Health check: /health may require auth, so 401 also means service is up
+            sleep 5
+            for i in 1 2 3; do
+              HTTP_CODE=$(curl -so /dev/null -w '%{http_code}' http://localhost:7471/health || true)
+              if [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "200" ]; then
+                echo "Health check passed (HTTP $HTTP_CODE)"
+                exit 0
+              fi
+              echo "Health check attempt $i: HTTP $HTTP_CODE, retrying in 5s..."
+              sleep 5
+            done
+            echo "WARNING: health check failed after 3 attempts"
+            docker logs vh-srv-profile --tail 20

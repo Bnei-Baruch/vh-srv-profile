@@ -1,0 +1,74 @@
+name: Pull Request Tests
+
+on:
+  pull_request:
+    branches: [ master ]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:12
+        env:
+          POSTGRES_DB: profile_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.21'
+
+      # GitHub Actions service containers cannot override the container command,
+      # so NATS (which needs -js and auth flags) runs via docker directly.
+      - name: Start NATS (JetStream)
+        run: |
+          docker run -d --name nats -p 4222:4222 nats:2.10-alpine \
+            -js -user testuser -pass testpass
+          for i in $(seq 1 15); do
+            nc -z localhost 4222 && break
+            sleep 2
+          done
+          nc -z localhost 4222
+
+      - name: Add pgcrypto to template1 (new test databases inherit it)
+        run: PGPASSWORD=postgres psql -h localhost -U postgres -d template1 -c 'CREATE EXTENSION IF NOT EXISTS pgcrypto;'
+
+      - name: Run tests
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: profile_test
+          DB_SSLMODE: disable
+          NATS_URL: nats://testuser:testpass@localhost:4222
+          APP_ENV: test
+          APP_MODE: debug
+        run: |
+          go mod download
+          set -o pipefail
+          go test -v -race -coverprofile=coverage.out ./... | tee test.log
+          go tool cover -func=coverage.out
+
+      - name: Upload test log on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-log
+          path: test.log
+          retention-days: 7
