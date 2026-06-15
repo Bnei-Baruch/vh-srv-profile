@@ -18,6 +18,24 @@ import (
 type createRequestStorage interface {
 	CreateRequest(ctx context.Context, request NewRequest) error
 	ConcludeRequest(ctx context.Context, reqID int, conclusion RequestConclusion) error
+	NotifyHHRequest(ctx context.Context, keycloakID string, slug string) error
+}
+
+// NotifyHHRequest creates an in-app HH notification for the member, deactivating any
+// previous HH notification first. Used by the orders-events handler so v2 Help Haver
+// requests (stored in orders) produce the same member notifications as v1.
+func (db *ProfileDB) NotifyHHRequest(ctx context.Context, keycloakID string, slug string) error {
+	kcID, err := uuid.FromString(keycloakID)
+	if err != nil {
+		return fmt.Errorf("malformed keycloak_id [%s]: %w", keycloakID, err)
+	}
+
+	user, err := db.GetProfile(ctx, kcID)
+	if err != nil {
+		return fmt.Errorf("db.GetProfile: %w", err)
+	}
+
+	return db.requestNotification(ctx, user, slug)
 }
 
 func (db *ProfileDB) CreateRequest(ctx context.Context, req NewRequest) error {

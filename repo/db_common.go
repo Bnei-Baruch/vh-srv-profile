@@ -81,8 +81,14 @@ func MakeDBURL() string {
 }
 
 func SyncDBStructInsertionAndMigrations() error {
-	slog.Info("running db migrations")
-	m, err := migrate.New("file://./db/migrations", MakeDBURL()+"?sslmode=disable")
+	dbURL := MakeDBURL() + "?sslmode=disable"
+	if u, err := url.Parse(dbURL); err == nil {
+		u.User = url.UserPassword(u.User.Username(), "****")
+		slog.Info("running db migrations", slog.String("url", u.String()))
+	} else {
+		slog.Info("running db migrations", slog.String("raw", dbURL))
+	}
+	m, err := migrate.New("file://./db/migrations", dbURL)
 	if err != nil {
 		return fmt.Errorf("migrate.New: %w", err)
 	}

@@ -70,6 +70,11 @@ func (m *storageMock) CreateRequest(ctx context.Context, request repo.NewRequest
 	return args.Error(0)
 }
 
+func (m *storageMock) NotifyHHRequest(ctx context.Context, keycloakID string, slug string) error {
+	args := m.Called(ctx, keycloakID, slug)
+	return args.Error(0)
+}
+
 func (m *storageMock) ConcludeRequest(ctx context.Context, reqID int, conclusion repo.RequestConclusion) error {
 	args := m.Called(ctx, reqID, conclusion)
 	return args.Error(0)
