@@ -51,6 +51,13 @@ func NewEventsHandler(repo repo.ProfileRepository) *EventsHandler {
 func (eh *EventsHandler) HandleOrdersEvent(event orders.Event) {
 	ctx := eh.newContext(event)
 
+	// v2 Help Haver requests live in orders; notify the member here so the
+	// in-app notification matches v1. These events don't affect membership.
+	if event.Type == orders.TypeHHRequestCreated || event.Type == orders.TypeHHRequestConcluded {
+		eh.handleHHRequestEvent(ctx, event)
+		return
+	}
+
 	if eh.shouldSkip(event) {
 		return
 	}
@@ -85,6 +92,33 @@ func (eh *EventsHandler) HandleOrdersEvent(event orders.Event) {
 	_, err = eh.repo.EvaluateMembershipByUserID(ctx, *userIDs)
 	if err != nil {
 		utils.LogFor(ctx).Error("membership.EventsHandler.HandleOrdersEvent repo.EvaluateMembershipByUserID", slog.Any("err", err))
+		sentry.CaptureException(err)
+	}
+}
+
+func (eh *EventsHandler) handleHHRequestEvent(ctx context.Context, event orders.Event) {
+	kcVal, ok := event.Payload["keycloak_id"].(string)
+	if !ok || kcVal == "" {
+		utils.LogFor(ctx).Warn("handleHHRequestEvent: missing keycloak_id", slog.Any("payload", event.Payload))
+		return
+	}
+
+	slug := common.NotificationSlugHHRequestReceived
+	if event.Type == orders.TypeHHRequestConcluded {
+		approved, ok := event.Payload["approved"].(bool)
+		if !ok {
+			utils.LogFor(ctx).Warn("handleHHRequestEvent: missing or non-bool 'approved' in concluded event, defaulting to refused",
+				slog.Any("payload", event.Payload))
+		}
+		if approved {
+			slug = common.NotificationSlugHHRequestApproved
+		} else {
+			slug = common.NotificationSlugHHRequestRefused
+		}
+	}
+
+	if err := eh.repo.NotifyHHRequest(ctx, kcVal, slug); err != nil {
+		utils.LogFor(ctx).Error("handleHHRequestEvent: NotifyHHRequest", slog.Any("err", err))
 		sentry.CaptureException(err)
 	}
 }
