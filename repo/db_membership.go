@@ -481,26 +481,8 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 		notificationSlugs = append(notificationSlugs, common.NotificationSlugMBNew)
 	}
 
-	// Deactivate previous user notifications
-	updateAllUserNotificationToInactiveErr := db.deactivateUserNotifications(ctx, userID, allMembershipNotifications...)
-	if updateAllUserNotificationToInactiveErr != nil {
-		return UserMembershipRes{}, fmt.Errorf("db.deactivateUserNotifications: %w", updateAllUserNotificationToInactiveErr)
-	}
-
-	if len(notificationSlugs) != 0 {
-		// loop through all the slugs and add notification
-		for _, slug := range notificationSlugs {
-			err := db.CreateUserNotification(ctx, UserNotification{
-				UserID:         &userID,
-				NotificationID: NotificationsRegistry.BySlug[slug].ID,
-				Active:         utils.PointerBool(true),
-				SeenAt:         nil,
-			})
-
-			if err != nil {
-				return UserMembershipRes{}, fmt.Errorf("db.CreateUserNotification [%s]: %w", slug, err)
-			}
-		}
+	if err := db.applyMembershipNotifications(ctx, userID, notificationSlugs, *membershipInsertData.Active); err != nil {
+		return UserMembershipRes{}, err
 	}
 
 	userMembershipResponse, userMembershipResponseErr := db.GetMembershipByUserID(ctx, userID)
@@ -509,6 +491,35 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 	}
 
 	return userMembershipResponse, nil
+}
+
+// applyMembershipNotifications replaces the previous mb_* notifications with the newly
+// computed ones. A valid membership also clears a stale HH refusal — hh_request_refused
+// otherwise only falls when the member files a new HH request. Other hh_* slugs are left
+// alone: approved/received stay accurate alongside a valid membership.
+func (db *ProfileDB) applyMembershipNotifications(ctx context.Context, userID string, slugs []string, membershipActive bool) error {
+	if err := db.deactivateUserNotifications(ctx, userID, allMembershipNotifications...); err != nil {
+		return fmt.Errorf("db.deactivateUserNotifications: %w", err)
+	}
+
+	if membershipActive {
+		if err := db.deactivateUserNotifications(ctx, userID, common.NotificationSlugHHRequestRefused); err != nil {
+			return fmt.Errorf("db.deactivateUserNotifications [hh_request_refused]: %w", err)
+		}
+	}
+
+	for _, slug := range slugs {
+		if err := db.CreateUserNotification(ctx, UserNotification{
+			UserID:         &userID,
+			NotificationID: NotificationsRegistry.BySlug[slug].ID,
+			Active:         utils.PointerBool(true),
+			SeenAt:         nil,
+		}); err != nil {
+			return fmt.Errorf("db.CreateUserNotification [%s]: %w", slug, err)
+		}
+	}
+
+	return nil
 }
 
 func getUserSpecial(ctx context.Context, ordersService orders.OrdersService, email string) (*orders.Special, bool, error) {
