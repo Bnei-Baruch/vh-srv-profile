@@ -1143,8 +1143,7 @@ func (db *ProfileDB) CancelMembership(ctx context.Context, membBody EmailKeycloa
 		}
 	}
 
-	// Remove from the 'special' table if it exists.
-	// Remove all specials by keycloakID
+	// Revoke the user's currently-active special, if any (future spans stay scheduled).
 	if err = ordersService.DeleteSpecialIfExist(ctx, *membBody.KeycloakID); err != nil {
 		return fmt.Errorf("ordersService.DeleteSpecialIfExist : %w", err)
 	}
