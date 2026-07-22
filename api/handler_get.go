@@ -78,6 +78,9 @@ type ShortProfile struct {
 	Country        *string   `json:"country"`
 }
 
+// maxKeycloakIDsPerRequest caps the comma-separated keycloak_id filter list.
+const maxKeycloakIDsPerRequest = 100
+
 func (p *ProfileManager) getProfiles(c *gin.Context) {
 
 	if !p.HasAnyRole(c, common.RoleAnyAdmin...) {
@@ -91,6 +94,12 @@ func (p *ProfileManager) getProfiles(c *gin.Context) {
 	email := c.Query("email")
 	name := c.Query("name")
 	keycloakID := c.Query("keycloak_id")
+	// keycloak_id accepts a comma-separated list; cap it so a huge list can't
+	// blow up URL parsing and query planning.
+	if strings.Count(keycloakID, ",")+1 > maxKeycloakIDsPerRequest {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("too many keycloak_ids; maximum is %d", maxKeycloakIDsPerRequest)})
+		return
+	}
 	tenGroupName := c.Query("ten-group-name")
 	language := c.Query("language")
 	firstLanguage := c.Query("first-language")

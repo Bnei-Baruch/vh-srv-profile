@@ -341,8 +341,14 @@ func buildAndGetWhereUserQuery(country string, email string, name string, keyclo
 	}
 
 	if keycloakID != "" {
-		conditions = append(conditions, fmt.Sprintf(" keycloak_id=$%d", paramNum))
-		args = append(args, keycloakID)
+		// A single id, or a comma-separated list (admin tables fetch profile briefs in bulk).
+		if strings.Contains(keycloakID, ",") {
+			conditions = append(conditions, fmt.Sprintf(" keycloak_id = ANY($%d)", paramNum))
+			args = append(args, strings.Split(keycloakID, ","))
+		} else {
+			conditions = append(conditions, fmt.Sprintf(" keycloak_id=$%d", paramNum))
+			args = append(args, keycloakID)
+		}
 		paramNum++
 	}
 
