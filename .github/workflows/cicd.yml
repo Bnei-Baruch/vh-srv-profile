@@ -142,6 +142,10 @@ jobs:
           host: ${{ env.SSH_HOST }}
           username: root
           key: ${{ secrets.BBDEPLOYMENT_SSH_PRIVATE_KEY }}
+          # The on-prem VMs are only reachable through the bastion.
+          proxy_host: ${{ secrets.SSH_PROXY_HOST }}
+          proxy_username: ${{ secrets.SSH_PROXY_USERNAME }}
+          proxy_key: ${{ secrets.BBDEPLOYMENT_SSH_PRIVATE_KEY }}
           source: "docker-compose.yml"
           target: /root/vh-docker/apps/vh-srv-profile/
 
@@ -151,6 +155,10 @@ jobs:
           host: ${{ env.SSH_HOST }}
           username: root
           key: ${{ secrets.BBDEPLOYMENT_SSH_PRIVATE_KEY }}
+          # The on-prem VMs are only reachable through the bastion.
+          proxy_host: ${{ secrets.SSH_PROXY_HOST }}
+          proxy_username: ${{ secrets.SSH_PROXY_USERNAME }}
+          proxy_key: ${{ secrets.BBDEPLOYMENT_SSH_PRIVATE_KEY }}
           envs: SHORT_SHA,DEPLOY_ENV
           script: |
             set -e
