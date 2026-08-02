@@ -1,16 +1,4 @@
 services:
-  profiledb:
-    image: postgres:9.6
-    container_name: profiledb
-    restart: unless-stopped
-    profiles:
-      - staging
-    environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    volumes:
-      - /opt/srv-profile-db:/docker-entrypoint-initdb.d
   vh-srv-profile:
     image: "${IMAGE_NAME}"
     container_name: 'vh-srv-profile'
@@ -19,7 +7,11 @@ services:
     cpus: '0.5'
     mem_limit: 250M
     ports:
-      - 7471:7471
+      # Bound to loopback: host nginx is the only thing that talks to this, and
+      # firewalld is disabled on the Rocky 9 hosts, so a 0.0.0.0 mapping would
+      # publish the service straight onto the VM's public IP, bypassing the
+      # edge LB and nginx entirely.
+      - 127.0.0.1:7471:7471
 networks:
   default:
     name: vh

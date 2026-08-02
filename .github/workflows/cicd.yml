@@ -10,7 +10,9 @@ on:
         type: choice
         options:
           - staging
+          - staging-new
           - production
+          - production-new
 
 permissions:
   contents: read
@@ -21,7 +23,9 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:12
+        # Matches the on-prem vh-db (PG 18) so version differences surface in CI
+        # rather than during the cutover window.
+        image: postgres:18
         env:
           POSTGRES_DB: profile_test
           POSTGRES_USER: postgres
@@ -119,11 +123,16 @@ jobs:
 
       - name: Set environment variables
         run: |
-          if [[ "${{ inputs.environment }}" == "production" ]]; then
-            echo "SSH_HOST=${{ secrets.VH_HOST_PRODUCTION }}" >> $GITHUB_ENV
-          else
-            echo "SSH_HOST=${{ secrets.VH_HOST_STAGING }}" >> $GITHUB_ENV
-          fi
+          # Explicit per-environment selection with no fall-through. The previous
+          # if/else sent anything that was not "production" to the staging host,
+          # so a new option would have silently deployed to the wrong VM.
+          case "${{ inputs.environment }}" in
+            production)     echo "SSH_HOST=${{ secrets.VH_HOST_PRODUCTION }}"     >> $GITHUB_ENV ;;
+            production-new) echo "SSH_HOST=${{ secrets.VH_HOST_PRODUCTION_NEW }}" >> $GITHUB_ENV ;;
+            staging)        echo "SSH_HOST=${{ secrets.VH_HOST_STAGING }}"        >> $GITHUB_ENV ;;
+            staging-new)    echo "SSH_HOST=${{ secrets.VH_HOST_STAGING_NEW }}"    >> $GITHUB_ENV ;;
+            *) echo "Unknown environment: ${{ inputs.environment }}" >&2; exit 1 ;;
+          esac
           echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
           echo "DEPLOY_ENV=${{ inputs.environment }}" >> $GITHUB_ENV
 
@@ -134,7 +143,7 @@ jobs:
           username: root
           key: ${{ secrets.BBDEPLOYMENT_SSH_PRIVATE_KEY }}
           source: "docker-compose.yml"
-          target: /opt/vh/vh-srv-profile/
+          target: /root/vh-docker/apps/vh-srv-profile/
 
       - name: Deploy to VM
         uses: appleboy/ssh-action@v1
@@ -145,19 +154,18 @@ jobs:
           envs: SHORT_SHA,DEPLOY_ENV
           script: |
             set -e
-            cd /opt/vh/vh-srv-profile
+            cd /root/vh-docker/apps/vh-srv-profile
 
             if [ ! -f .env ]; then
-              echo "ERROR: .env file missing at /opt/vh/vh-srv-profile/.env"
+              echo "ERROR: .env file missing at /root/vh-docker/apps/vh-srv-profile/.env"
               exit 1
             fi
 
             export IMAGE_NAME=ghcr.io/bnei-baruch/vh-srv-profile:$SHORT_SHA
 
-            if [ "$DEPLOY_ENV" = "staging" ]; then
-              mkdir -p /opt/srv-profile-db
-              export COMPOSE_PROFILES=staging
-            fi
+            # No staging-DB choreography: staging now uses the shared vh-db host
+            # (pgsql4) like production, so the on-box profiledb container and its
+            # /opt/srv-profile-db seed mount are gone.
 
             docker compose pull vh-srv-profile
             docker compose up -d --remove-orphans
