@@ -481,7 +481,7 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 		notificationSlugs = append(notificationSlugs, common.NotificationSlugMBNew)
 	}
 
-	if err := db.applyMembershipNotifications(ctx, userID, notificationSlugs, *membershipInsertData.Active); err != nil {
+	if err := db.applyMembershipNotifications(ctx, userID, notificationSlugs, *membershipInsertData.Active, currentMembership); err != nil {
 		return UserMembershipRes{}, err
 	}
 
@@ -494,10 +494,10 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 }
 
 // applyMembershipNotifications replaces the previous mb_* notifications with the newly
-// computed ones. A valid membership also clears a stale HH refusal — hh_request_refused
-// otherwise only falls when the member files a new HH request. Other hh_* slugs are left
-// alone: approved/received stay accurate alongside a valid membership.
-func (db *ProfileDB) applyMembershipNotifications(ctx context.Context, userID string, slugs []string, membershipActive bool) error {
+// computed ones. A valid membership also clears a stale HH refusal. The HH "approved"
+// notice is cleared unless the current membership is actually help-haver-backed —
+// otherwise a cancelled/superseded grant leaves a stale "approved" notice behind.
+func (db *ProfileDB) applyMembershipNotifications(ctx context.Context, userID string, slugs []string, membershipActive bool, currentMembership string) error {
 	if err := db.deactivateUserNotifications(ctx, userID, allMembershipNotifications...); err != nil {
 		return fmt.Errorf("db.deactivateUserNotifications: %w", err)
 	}
@@ -505,6 +505,14 @@ func (db *ProfileDB) applyMembershipNotifications(ctx context.Context, userID st
 	if membershipActive {
 		if err := db.deactivateUserNotifications(ctx, userID, common.NotificationSlugHHRequestRefused); err != nil {
 			return fmt.Errorf("db.deactivateUserNotifications [hh_request_refused]: %w", err)
+		}
+	}
+
+	// Clear a stale "help-haver approved" notice unless the membership is genuinely
+	// help-haver-backed; a cancelled or superseded grant must not leave it active.
+	if currentMembership != "helphaver" {
+		if err := db.deactivateUserNotifications(ctx, userID, common.NotificationSlugHHRequestApproved); err != nil {
+			return fmt.Errorf("db.deactivateUserNotifications [hh_request_approved]: %w", err)
 		}
 	}
 
