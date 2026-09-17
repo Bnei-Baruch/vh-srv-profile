@@ -1211,10 +1211,11 @@ func (db *ProfileDB) deleteAllMembershipSubTableByMembershipID(ctx context.Conte
 func (db *ProfileDB) GetMultipleMembership(ctx context.Context, intSkip int, intLimit int, userID string) ([]Membership, error) {
 	memberships := []Membership{}
 
-	userDbWhereQuery, orderByQuery := buildAndGetWhereMembershipQuery(userID)
+	whereQuery, orderByQuery, args := buildAndGetWhereMembershipQuery(userID)
+	args = append(args, intLimit, intSkip)
 
 	rows, err := db.Query(ctx, `
-		SELECT 
+		SELECT
 		id,
 		active,
 		user_id,
@@ -1223,9 +1224,8 @@ func (db *ProfileDB) GetMultipleMembership(ctx context.Context, intSkip int, int
 		created_at,
 		updated_at,
 		deleted_at
-		FROM membership `+userDbWhereQuery+
-		orderByQuery+
-		" LIMIT $1 OFFSET $2", intLimit, intSkip)
+		FROM membership `+whereQuery+orderByQuery+
+		fmt.Sprintf(" LIMIT $%d OFFSET $%d", len(args)-1, len(args)), args...)
 	if err != nil {
 		return []Membership{}, fmt.Errorf("db.Query: %w", err)
 	}
@@ -1291,30 +1291,23 @@ func (db *ProfileDB) GetExpiredMemberships(ctx context.Context, intSkip int, int
 	return memberships, nil
 }
 
-func buildAndGetWhereMembershipQuery(userID string) (string, string) {
-
-	var whereString strings.Builder
-	var orderBy strings.Builder
-	var whereCondition strings.Builder
-	whereString.WriteString(" WHERE")
-	whereCondition.WriteString("")
+// buildAndGetWhereMembershipQuery builds a parameterized WHERE clause and its
+// bound args (never interpolating caller input), plus a fixed ORDER BY.
+func buildAndGetWhereMembershipQuery(userID string) (string, string, []interface{}) {
+	var conditions []string
+	var args []interface{}
 
 	if userID != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND user_id='%s'", userID))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" user_id='%s'", userID))
-		}
+		args = append(args, userID)
+		conditions = append(conditions, fmt.Sprintf("user_id=$%d", len(args)))
 	}
 
-	orderBy.WriteString(fmt.Sprintf(" ORDER BY updated_at %s", "desc"))
-
-	if whereCondition.String() != "" {
-		whereString.WriteString(whereCondition.String())
-	} else {
-		whereString.Reset()
+	var whereString string
+	if len(conditions) > 0 {
+		whereString = " WHERE " + strings.Join(conditions, " AND ")
 	}
-	return whereString.String(), orderBy.String()
+
+	return whereString, " ORDER BY updated_at desc", args
 }
 
 func prepareMembershipUpdateQuery(req Membership) (string, []interface{}) {
