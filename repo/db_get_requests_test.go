@@ -82,3 +82,81 @@ func Test_GetMultipleRequest_ReturnsRequestWithGrant(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, res)
 }
+
+// newProfileForQuery creates a profile and returns its user_id, wiring the
+// order-service mock the evaluation needs.
+func newProfileForQuery(t *testing.T, db *ProfileDB, kc, email string) string {
+	t.Helper()
+	ctx := testContext()
+	osMock := &orderServiceMock{}
+	db.SetOrdersServiceFactory(func() orders.OrdersService { return osMock })
+	osMock.On("GetOrders", mock.Anything, mock.Anything, "globalmembership", true, "desc",
+		mock.Anything, mock.Anything).Return([]orders.Order{}, nil)
+	osMock.On("GetSpecial", mock.Anything, mock.Anything).Return(nil, nil)
+	osMock.On("GetSpecials", mock.Anything, mock.Anything).Return([]orders.Special{}, nil)
+	require.NoError(t, db.CreateProfile(ctx, UserInput{
+		KeycloakID:          utils.PointerUUID(uuid.FromStringOrNil(kc)),
+		FirstNameVernacular: utils.PointerString("f"),
+		LastNameVernacular:  utils.PointerString("l"),
+		Emails:              Emails{Primary: utils.PointerString(email)},
+	}))
+	var userID string
+	require.NoError(t, db.QueryRow(ctx, `SELECT user_id::text FROM users WHERE keycloak_id=$1`, kc).Scan(&userID))
+	return userID
+}
+
+// The parameterized grant query runs against real Postgres: returns the seeded
+// grant filtered by user + type, and a type-filter injection matches nothing.
+func Test_GetMultipleGrant_ReturnsGrant(t *testing.T) {
+	db := newTestProfileDBIsolated(t)
+	ctx := testContext()
+
+	kc := "33000000-0000-0000-0000-000000000010"
+	userID := newProfileForQuery(t, db, kc, "grant@test.test")
+
+	var reqID int
+	require.NoError(t, db.QueryRow(ctx,
+		`INSERT INTO request (keycloak_id, name, status, type, months, created_at, updated_at)
+		 VALUES ($1, 'test', 'APPROVED', 'hhmembership', 6, now(), now()) RETURNING id`, kc).Scan(&reqID))
+	_, err := db.Exec(ctx,
+		`INSERT INTO "grant" (request_id, user_id, type, properties, created_at, updated_at)
+		 VALUES ($1, $2, 'mb_months', '{"months":6}', now(), now())`, reqID, userID)
+	require.NoError(t, err)
+
+	grants, err := db.GetMultipleGrant(ctx, 0, 10, nil, userID, "mb_months", "desc")
+	require.NoError(t, err)
+	require.Len(t, grants, 1)
+	require.NotNil(t, grants[0].UserID)
+	assert.Equal(t, userID, grants[0].UserID.String())
+
+	// Injection through the type filter (a text column) is bound, not executed.
+	grants, err = db.GetMultipleGrant(ctx, 0, 10, nil, "", "' OR '1'='1", "desc")
+	require.NoError(t, err)
+	assert.Empty(t, grants)
+}
+
+// The parameterized membership query runs against real Postgres: returns the
+// user's membership (created by CreateProfile's evaluation) and filters by user_id.
+func Test_GetMultipleMembership_ReturnsMembership(t *testing.T) {
+	db := newTestProfileDBIsolated(t)
+	ctx := testContext()
+
+	kc := "33000000-0000-0000-0000-000000000011"
+	userID := newProfileForQuery(t, db, kc, "memb@test.test")
+
+	memberships, err := db.GetMultipleMembership(ctx, 0, 10, userID)
+	require.NoError(t, err)
+	require.NotEmpty(t, memberships)
+	require.NotNil(t, memberships[0].UserID)
+	assert.Equal(t, userID, memberships[0].UserID.String())
+
+	// A different (valid) user id returns nothing — the filter is bound and applied.
+	memberships, err = db.GetMultipleMembership(ctx, 0, 10, "44444444-4444-4444-4444-444444444444")
+	require.NoError(t, err)
+	assert.Empty(t, memberships)
+
+	// Injection is bound as a value: a non-uuid payload is rejected by the uuid
+	// column rather than altering the query.
+	_, err = db.GetMultipleMembership(ctx, 0, 10, "' OR '1'='1")
+	require.Error(t, err)
+}
