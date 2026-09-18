@@ -195,7 +195,12 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 	if err != nil {
 		return UserMembershipRes{}, fmt.Errorf("db.GetMultipleRequest: %w", err)
 	}
-	if len(approvedRequests) > 0 {
+	// The LEFT JOIN in GetMultipleRequest can return an approved request with no
+	// grant row (legacy requests predating the grant table, or a hand-removed
+	// grant), leaving every Grant.* field nil. The block below dereferences those
+	// (Grant.CreatedAt/ID, and the helphaver branch), so treat a grant-less request
+	// as "no help-haver grant" to keep the LEFT JOIN semantics honest and avoid a panic.
+	if len(approvedRequests) > 0 && approvedRequests[0].Grant.ID != nil {
 		lastApprovedRequest = &approvedRequests[0]
 	}
 
