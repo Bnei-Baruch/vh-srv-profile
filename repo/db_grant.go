@@ -57,10 +57,11 @@ func (db *ProfileDB) GetMultipleGrant(ctx context.Context, intSkip int, intLimit
 	createdAt string) ([]Grant, error) {
 	grants := []Grant{}
 
-	userDbWhereQuery, orderByQuery := buildAndGetWhereGrantQuery(cancelled, userID, grantType, createdAt)
+	whereQuery, orderByQuery, args := buildAndGetWhereGrantQuery(cancelled, userID, grantType, createdAt)
+	args = append(args, intLimit, intSkip)
 
 	rows, err := db.Query(ctx, `
-		SELECT 
+		SELECT
 		id,
 		user_id,
 		request_id,
@@ -69,7 +70,7 @@ func (db *ProfileDB) GetMultipleGrant(ctx context.Context, intSkip int, intLimit
 		created_at,
 		updated_at,
 		cancelled_at
-		FROM "grant" `+userDbWhereQuery+orderByQuery+" LIMIT $1 OFFSET $2", intLimit, intSkip)
+		FROM "grant" `+whereQuery+orderByQuery+fmt.Sprintf(" LIMIT $%d OFFSET $%d", len(args)-1, len(args)), args...)
 	if err != nil {
 		return []Grant{}, fmt.Errorf("db.Query: %w", err)
 	}
@@ -115,63 +116,50 @@ func (db *ProfileDB) createGrant(ctx context.Context, req Grant) (int, error) {
 	return ID, nil
 }
 
-func buildAndGetWhereGrantQuery(cancelled *bool, userID string, grantType string, createdAt string) (string, string) {
+// buildAndGetWhereGrantQuery builds a parameterized WHERE clause and its bound
+// args (never interpolating caller input), plus a safe ORDER BY. Returns the
+// WHERE string, the ORDER BY string, and the positional args in placeholder order.
+func buildAndGetWhereGrantQuery(cancelled *bool, userID string, grantType string, createdAt string) (string, string, []interface{}) {
+	var conditions []string
+	var args []interface{}
 
-	var whereString strings.Builder
-	var orderBy strings.Builder
-	var whereCondition strings.Builder
-	whereString.WriteString(" WHERE")
-	whereCondition.WriteString("")
+	// eq appends "col=$N" bound to the next positional placeholder.
+	eq := func(col, val string) {
+		args = append(args, val)
+		conditions = append(conditions, fmt.Sprintf("%s=$%d", col, len(args)))
+	}
 
-	// Add where conditions when required
-
+	// cancelled is a typed bool, not caller text — its SQL is a fixed literal.
 	if cancelled != nil {
-		if whereCondition.String() != "" {
-			if *cancelled {
-				whereCondition.WriteString(" AND cancelled_at IS NOT NULL")
-			} else {
-				whereCondition.WriteString(" AND cancelled_at IS NULL")
-			}
+		if *cancelled {
+			conditions = append(conditions, "cancelled_at IS NOT NULL")
 		} else {
-			if *cancelled {
-				whereCondition.WriteString(" cancelled_at IS NOT NULL")
-			} else {
-				whereCondition.WriteString(" cancelled_at IS NULL")
-			}
+			conditions = append(conditions, "cancelled_at IS NULL")
 		}
 	}
-
 	if grantType != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND type='%s'", grantType))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" type='%s'", grantType))
-		}
+		eq("type", grantType)
 	}
-
 	if userID != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND user_id='%s'", userID))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" user_id='%s'", userID))
-		}
+		eq("user_id", userID)
 	}
 
+	var whereString string
+	if len(conditions) > 0 {
+		whereString = " WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	// createdAt is reduced to a fixed asc/desc literal — never interpolated user data.
+	orderColumn, orderDir := "updated_at", "desc"
 	if createdAt != "" {
-		if strings.ToLower(createdAt) != "desc" && strings.ToLower(createdAt) != "asc" {
-			createdAt = "asc"
+		orderColumn = "created_at"
+		if strings.ToLower(createdAt) != "desc" {
+			orderDir = "asc"
 		}
-		orderBy.WriteString(fmt.Sprintf(" ORDER BY created_at %s", createdAt))
-	} else {
-		orderBy.WriteString(fmt.Sprintf(" ORDER BY updated_at %s", "desc"))
 	}
+	orderBy := fmt.Sprintf(" ORDER BY %s %s", orderColumn, orderDir)
 
-	if whereCondition.String() != "" {
-		whereString.WriteString(whereCondition.String())
-	} else {
-		whereString.Reset()
-	}
-	return whereString.String(), orderBy.String()
+	return whereString, orderBy, args
 }
 
 func prepareGrantCreateQuery(req Grant) (string, string, []interface{}) {
