@@ -200,7 +200,7 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 	// grant), leaving every Grant.* field nil. The block below dereferences those
 	// (Grant.CreatedAt/ID, and the helphaver branch), so treat a grant-less request
 	// as "no help-haver grant" to keep the LEFT JOIN semantics honest and avoid a panic.
-	if len(approvedRequests) > 0 && approvedRequests[0].Grant.ID != nil {
+	if len(approvedRequests) > 0 && approvedRequests[0].Grant.ID != nil && approvedRequests[0].Grant.CreatedAt != nil {
 		lastApprovedRequest = &approvedRequests[0]
 	}
 

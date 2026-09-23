@@ -25,7 +25,6 @@ func Test_EvaluateMembership_ApprovedRequestWithoutGrant_NoPanic(t *testing.T) {
 	db.SetOrdersServiceFactory(func() orders.OrdersService { return osMock })
 	osMock.On("GetOrders", mock.Anything, mock.Anything, "globalmembership", true, "desc",
 		mock.Anything, mock.Anything).Return([]orders.Order{}, nil)
-	osMock.On("GetSpecial", mock.Anything, mock.Anything).Return(nil, nil)
 	osMock.On("GetSpecials", mock.Anything, mock.Anything).Return([]orders.Special{}, nil)
 	require.NoError(t, db.CreateProfile(ctx, UserInput{
 		KeycloakID:          utils.PointerUUID(uuid.FromStringOrNil(kc)),
@@ -44,6 +43,11 @@ func Test_EvaluateMembership_ApprovedRequestWithoutGrant_NoPanic(t *testing.T) {
 
 	res, err := db.EvaluateMembershipByUserID(ctx, EmailKeycloakAndUserIDBody{UserID: &userID})
 	require.NoError(t, err) // guard prevents the nil-grant panic
+	// A grant-less approved request is dropped, so with no orders the user falls
+	// to the "new" classification (inactive) rather than yielding a help-haver
+	// membership from a nil grant.
 	require.NotNil(t, res.Type)
-	assert.NotEqual(t, "helphaver", *res.Type, "a grant-less approved request must not yield a help-haver membership")
+	assert.Equal(t, "new", *res.Type)
+	require.NotNil(t, res.Active)
+	assert.False(t, *res.Active)
 }
