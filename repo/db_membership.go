@@ -481,7 +481,12 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 		notificationSlugs = append(notificationSlugs, common.NotificationSlugMBNew)
 	}
 
-	if err := db.applyMembershipNotifications(ctx, userID, notificationSlugs, *membershipInsertData.Active); err != nil {
+	// Clear the stale HH "approved" banner only for a V1 profile grant that is now
+	// cancelled/superseded (the member paid, so the grant was cancelled above). A live
+	// V1 grant keeps it; a V2 help-haver has no profile grant (lastApprovedRequest==nil)
+	// so its discount-notice banner is left untouched.
+	clearStaleHHApproved := lastApprovedRequest != nil && lastApprovedRequest.Grant.CancelledAt != nil
+	if err := db.applyMembershipNotifications(ctx, userID, notificationSlugs, *membershipInsertData.Active, clearStaleHHApproved); err != nil {
 		return UserMembershipRes{}, err
 	}
 
@@ -494,10 +499,12 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 }
 
 // applyMembershipNotifications replaces the previous mb_* notifications with the newly
-// computed ones. A valid membership also clears a stale HH refusal — hh_request_refused
-// otherwise only falls when the member files a new HH request. Other hh_* slugs are left
-// alone: approved/received stay accurate alongside a valid membership.
-func (db *ProfileDB) applyMembershipNotifications(ctx context.Context, userID string, slugs []string, membershipActive bool) error {
+// computed ones. A valid membership also clears a stale HH refusal. The HH "approved"
+// notice is cleared only when clearStaleHHApproved is set — i.e. a V1 profile grant
+// that justified it exists but is now cancelled/superseded. It is keyed off the grant,
+// not the membership type: a V2 help-haver has no profile grant (its "approved" banner
+// is a discount notice, not a membership signal) and must never be cleared here.
+func (db *ProfileDB) applyMembershipNotifications(ctx context.Context, userID string, slugs []string, membershipActive bool, clearStaleHHApproved bool) error {
 	if err := db.deactivateUserNotifications(ctx, userID, allMembershipNotifications...); err != nil {
 		return fmt.Errorf("db.deactivateUserNotifications: %w", err)
 	}
@@ -505,6 +512,12 @@ func (db *ProfileDB) applyMembershipNotifications(ctx context.Context, userID st
 	if membershipActive {
 		if err := db.deactivateUserNotifications(ctx, userID, common.NotificationSlugHHRequestRefused); err != nil {
 			return fmt.Errorf("db.deactivateUserNotifications [hh_request_refused]: %w", err)
+		}
+	}
+
+	if clearStaleHHApproved {
+		if err := db.deactivateUserNotifications(ctx, userID, common.NotificationSlugHHRequestApproved); err != nil {
+			return fmt.Errorf("db.deactivateUserNotifications [hh_request_approved]: %w", err)
 		}
 	}
 
