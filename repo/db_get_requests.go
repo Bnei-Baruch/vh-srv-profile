@@ -84,15 +84,15 @@ func (db *ProfileDB) GetRequestByID(ctx context.Context, id int) (*NewRequest, e
 func (db *ProfileDB) GetMultipleRequest(ctx context.Context, intSkip int, intLimit int, kcid string, status string, name string, email string, typeFilter string, orderByCreatedAt string) ([]RequestAndGrant, error) {
 	requests := []RequestAndGrant{}
 
-	userDbWhereQuery, orderByQuery := buildAndGetWhereRequestQuery(kcid, status, name, typeFilter, orderByCreatedAt, email)
-	queryString := `SELECT r.id, r.name, r.keycloak_id, r.status, r.type, r.request_note, r.rejection_note, r.created_at, r.updated_at, r.months, g.id, g.user_id, g.request_id, g.type, g.created_at, g.updated_at, g.cancelled_at, g.properties" +
-		"FROM request r LEFT JOIN "grant" g ON g.request_id=r.id`
+	whereQuery, orderByQuery, args := buildAndGetWhereRequestQuery(kcid, status, name, typeFilter, orderByCreatedAt, email)
+	queryString := `SELECT r.id, r.name, r.keycloak_id, r.status, r.type, r.request_note, r.rejection_note, r.created_at, r.updated_at, r.months, g.id, g.user_id, g.request_id, g.type, g.created_at, g.updated_at, g.cancelled_at, g.properties
+		FROM request r LEFT JOIN "grant" g ON g.request_id=r.id`
 	if email != "" {
 		queryString += ` LEFT JOIN "users" u ON u.keycloak_id=r.keycloak_id `
-
 	}
-	finalQueryString := fmt.Sprintf("%s %s %s  LIMIT $1 OFFSET $2", queryString, userDbWhereQuery, orderByQuery)
-	rows, err := db.Query(ctx, finalQueryString, intLimit, intSkip)
+	args = append(args, intLimit, intSkip)
+	finalQueryString := fmt.Sprintf("%s %s %s LIMIT $%d OFFSET $%d", queryString, whereQuery, orderByQuery, len(args)-1, len(args))
+	rows, err := db.Query(ctx, finalQueryString, args...)
 	if err != nil {
 		return []RequestAndGrant{}, fmt.Errorf("db.Query: %w", err)
 	}
@@ -133,15 +133,15 @@ func (db *ProfileDB) GetMultipleRequest(ctx context.Context, intSkip int, intLim
 
 func (db *ProfileDB) GetMultipleRequestCount(ctx context.Context, kcid string, status string, name string, email string, typeFilter string, orderByCreatedAt string) (int, error) {
 
-	userDbWhereQuery, _ := buildAndGetWhereRequestQuery(kcid, status, name, typeFilter, orderByCreatedAt, email)
+	whereQuery, _, args := buildAndGetWhereRequestQuery(kcid, status, name, typeFilter, orderByCreatedAt, email)
 	queryString := `SELECT COUNT(*) FROM request r`
 	queryStringJoin := ""
 	if email != "" {
 		queryStringJoin = ` LEFT JOIN "users" u ON u.keycloak_id=r.keycloak_id `
 	}
-	queryStringFinal := fmt.Sprintf("%s %s %s", queryString, queryStringJoin, userDbWhereQuery)
+	queryStringFinal := fmt.Sprintf("%s %s %s", queryString, queryStringJoin, whereQuery)
 	var count int
-	err := db.QueryRow(ctx, queryStringFinal).Scan(&count)
+	err := db.QueryRow(ctx, queryStringFinal, args...).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("db.QueryRow get count: %w", err)
 	}
@@ -149,64 +149,55 @@ func (db *ProfileDB) GetMultipleRequestCount(ctx context.Context, kcid string, s
 	return count, nil
 }
 
-func buildAndGetWhereRequestQuery(kcid string, status string, name string, typeFilter string, orderByCreatedAt string, email string) (string, string) {
+// buildAndGetWhereRequestQuery builds a parameterized WHERE clause and its bound
+// args (never interpolating caller input), plus a safe ORDER BY. It returns the
+// WHERE string, the ORDER BY string, and the positional args in placeholder order.
+func buildAndGetWhereRequestQuery(kcid string, status string, name string, typeFilter string, orderByCreatedAt string, email string) (string, string, []interface{}) {
+	var conditions []string
+	var args []interface{}
 
-	var whereString strings.Builder
-	var orderBy strings.Builder
-	var whereCondition strings.Builder
-	whereString.WriteString(" WHERE")
-	whereCondition.WriteString("")
+	// eq appends "col=$N" bound to the next positional placeholder.
+	eq := func(col, val string) {
+		args = append(args, val)
+		conditions = append(conditions, fmt.Sprintf("%s=$%d", col, len(args)))
+	}
 
-	// WHERE query generation based on parameters
 	if kcid != "" {
-		whereCondition.WriteString(fmt.Sprintf(" r.keycloak_id='%s'", kcid))
+		eq("r.keycloak_id", kcid)
 	}
-
 	if status != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND r.status='%s'", status))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" r.status='%s'", status))
-		}
+		eq("r.status", status)
 	}
-
 	if name != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND lower(r.name) like lower('%%%s%%')", name))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" lower(r.name) like lower('%%%s%%')", name))
-		}
+		args = append(args, "%"+name+"%")
+		conditions = append(conditions, fmt.Sprintf("lower(r.name) like lower($%d)", len(args)))
 	}
-
 	if typeFilter != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND r.type='%s'", typeFilter))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" r.type='%s'", typeFilter))
-		}
+		eq("r.type", typeFilter)
 	}
-
 	if email != "" {
-		if whereCondition.String() != "" {
-			whereCondition.WriteString(fmt.Sprintf(" AND (lower(u.primary_email) like lower('%%%[1]s%%') OR lower(u.alternate_email_1) like lower('%%%[1]s%%') OR lower(u.alternate_email_2) like lower('%%%[1]s%%')) ", email))
-		} else {
-			whereCondition.WriteString(fmt.Sprintf(" (lower(u.primary_email) like lower('%%%[1]s%%') OR lower(u.alternate_email_1) like lower('%%%[1]s%%') OR lower(u.alternate_email_2) like lower('%%%[1]s%%')) ", email))
-		}
+		args = append(args, "%"+email+"%")
+		n := len(args)
+		conditions = append(conditions, fmt.Sprintf(
+			"(lower(u.primary_email) like lower($%[1]d) OR lower(u.alternate_email_1) like lower($%[1]d) OR lower(u.alternate_email_2) like lower($%[1]d))", n))
 	}
 
+	var whereString string
+	if len(conditions) > 0 {
+		whereString = " WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	// orderByCreatedAt is reduced to a fixed asc/desc literal — never interpolated user data.
+	orderColumn, orderDir := "r.updated_at", "desc"
 	if orderByCreatedAt != "" {
-		if strings.ToLower(orderByCreatedAt) != "desc" && strings.ToLower(orderByCreatedAt) != "asc" {
-			orderByCreatedAt = "asc"
+		orderColumn = "r.created_at"
+		if strings.ToLower(orderByCreatedAt) == "desc" {
+			orderDir = "desc"
+		} else {
+			orderDir = "asc"
 		}
-		orderBy.WriteString(fmt.Sprintf(" ORDER BY r.created_at %s", orderByCreatedAt))
-	} else {
-		orderBy.WriteString(fmt.Sprintf(" ORDER BY r.updated_at %s", "desc"))
 	}
+	orderBy := fmt.Sprintf(" ORDER BY %s %s", orderColumn, orderDir)
 
-	if whereCondition.String() != "" {
-		whereString.WriteString(whereCondition.String())
-	} else {
-		whereString.Reset()
-	}
-	return whereString.String(), orderBy.String()
+	return whereString, orderBy, args
 }
