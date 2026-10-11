@@ -167,10 +167,16 @@ func (eh *EventsHandler) shouldSkip(event orders.Event) bool {
 func (eh *EventsHandler) getUserIDs(ctx context.Context, event orders.Event) (*repo.EmailKeycloakAndUserIDBody, error) {
 	switch event.Type {
 	case orders.TypeCreateOrder, orders.TypeUpdateOrder, orders.TypeDeleteOrder:
-		orderID := event.Payload["order_id"].(float64)
+		orderID, ok := event.Payload["order_id"].(float64)
+		if !ok {
+			return nil, fmt.Errorf("no order_id in %q event", event.Type)
+		}
 		return eh.getUserIDsFromOrder(ctx, int(orderID))
 	case orders.TypeCreatePayment, orders.TypeUpdatePayment, orders.TypeDeletePayment:
-		paymentID := event.Payload["payment_id"].(float64)
+		paymentID, ok := event.Payload["payment_id"].(float64)
+		if !ok {
+			return nil, fmt.Errorf("no payment_id in %q event", event.Type)
+		}
 		return eh.getUserIDsFromPayment(ctx, event, int(paymentID))
 	case orders.TypeCreateSpecial, orders.TypeDeleteSpecial:
 		return specialUserIDs(event)
@@ -182,8 +188,9 @@ func (eh *EventsHandler) getUserIDs(ctx context.Context, event orders.Event) (*r
 // specialUserIDs reads the user of a create_special or delete_special event.
 // Orders stores an absent identifier as NULL, so either field may be missing,
 // null or "" — none of which may panic the consumer, which would lose the
-// already-acked event. delete_special carries keycloak_id since orders#39;
-// before that, a special with no email could not be found here.
+// already-acked event. delete_special carries only email until
+// vh-srv-orders#39 is deployed, which adds keycloak_id; until then a special
+// with no email cannot be found here.
 func specialUserIDs(event orders.Event) (*repo.EmailKeycloakAndUserIDBody, error) {
 	email, _ := event.Payload["email"].(string)
 	keycloakID, _ := event.Payload["keycloak_id"].(string)
@@ -202,9 +209,14 @@ func specialUserIDs(event orders.Event) (*repo.EmailKeycloakAndUserIDBody, error
 }
 
 func (eh *EventsHandler) mergeAccounts(ctx context.Context, event orders.Event) (*repo.EmailKeycloakAndUserIDBody, error) {
+	sourceID, _ := event.Payload["source_account_id"].(string)
+	destinationID, _ := event.Payload["destination_account_id"].(string)
+	if sourceID == "" || destinationID == "" {
+		return nil, fmt.Errorf("EventsHandler.mergeAccounts: no source_account_id or destination_account_id in %q event", event.Type)
+	}
 	var mergeData = repo.AccountsMergeData{
-		SourceId:      event.Payload["source_account_id"].(string),
-		DestinationId: event.Payload["destination_account_id"].(string),
+		SourceId:      sourceID,
+		DestinationId: destinationID,
 	}
 	res, err := eh.repo.MergeAccounts(ctx, mergeData)
 	if err != nil {

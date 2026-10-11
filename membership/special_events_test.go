@@ -86,3 +86,33 @@ func TestGetUserIDs_SpecialEvents(t *testing.T) {
 		})
 	}
 }
+
+// Every id in an orders event is read with a checked assertion: a missing or
+// null id is an error for that event, not a panic that loses it.
+func TestOrdersEvents_MissingIDsAreErrors(t *testing.T) {
+	for _, raw := range []string{
+		`{"type":"create_order","payload":{}}`,
+		`{"type":"update_order","payload":{"order_id":null}}`,
+		`{"type":"create_payment","payload":{}}`,
+		`{"type":"delete_payment","payload":{"payment_id":null}}`,
+	} {
+		var event orders.Event
+		require.NoError(t, json.Unmarshal([]byte(raw), &event))
+		eh := &EventsHandler{}
+		_, err := eh.getUserIDs(context.Background(), event)
+		assert.Error(t, err, raw)
+	}
+
+	for _, raw := range []string{
+		`{"type":"merge_account","payload":{}}`,
+		`{"type":"merge_account","payload":{"source_account_id":"1","destination_account_id":null}}`,
+		`{"type":"merge_account","payload":{"source_account_id":null,"destination_account_id":"2"}}`,
+	} {
+		var event orders.Event
+		require.NoError(t, json.Unmarshal([]byte(raw), &event))
+		// No repo: reaching MergeAccounts would panic on the nil interface.
+		eh := &EventsHandler{}
+		_, err := eh.mergeAccounts(context.Background(), event)
+		assert.Error(t, err, raw)
+	}
+}
