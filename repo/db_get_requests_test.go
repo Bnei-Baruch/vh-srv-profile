@@ -51,6 +51,7 @@ func Test_GetMultipleRequest_ReturnsRequestWithGrant(t *testing.T) {
 		mock.Anything, mock.Anything).Return([]orders.Order{}, nil)
 	osMock.On("GetSpecial", mock.Anything, mock.Anything).Return(nil, nil)
 	osMock.On("GetSpecials", mock.Anything, mock.Anything).Return([]orders.Special{}, nil)
+	osMock.On("GetSpecialsByKeycloakID", mock.Anything, mock.Anything).Return([]orders.Special{}, nil)
 	require.NoError(t, db.CreateProfile(ctx, UserInput{
 		KeycloakID:          utils.PointerUUID(uuid.FromStringOrNil(kc)),
 		FirstNameVernacular: utils.PointerString("f"),
@@ -94,6 +95,7 @@ func newProfileForQuery(t *testing.T, db *ProfileDB, kc, email string) string {
 		mock.Anything, mock.Anything).Return([]orders.Order{}, nil)
 	osMock.On("GetSpecial", mock.Anything, mock.Anything).Return(nil, nil)
 	osMock.On("GetSpecials", mock.Anything, mock.Anything).Return([]orders.Special{}, nil)
+	osMock.On("GetSpecialsByKeycloakID", mock.Anything, mock.Anything).Return([]orders.Special{}, nil)
 	require.NoError(t, db.CreateProfile(ctx, UserInput{
 		KeycloakID:          utils.PointerUUID(uuid.FromStringOrNil(kc)),
 		FirstNameVernacular: utils.PointerString("f"),

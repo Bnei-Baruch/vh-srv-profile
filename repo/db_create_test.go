@@ -23,6 +23,7 @@ func Test_ProfileDB_createUser_with_minimum_info_succeeds(t *testing.T) {
 		mock.Anything, mock.Anything).Return([]orders.Order{}, nil)
 	osMock.On("GetSpecial", mock.Anything, "someemail@email.email").Return(nil, nil)
 	osMock.On("GetSpecials", mock.Anything, "someemail@email.email").Return([]orders.Special{}, nil)
+	osMock.On("GetSpecialsByKeycloakID", mock.Anything, mock.Anything).Return([]orders.Special{}, nil)
 
 	err := db.CreateProfile(ctx, UserInput{
 		KeycloakID:          utils.PointerUUID(uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000")),
@@ -62,6 +63,7 @@ func Test_ProfileDB_createUser_with_language_info_succeeds(t *testing.T) {
 		mock.Anything, mock.Anything).Return([]orders.Order{}, nil)
 	osMock.On("GetSpecial", mock.Anything, "someemail@email.email").Return(nil, nil)
 	osMock.On("GetSpecials", mock.Anything, "someemail@email.email").Return([]orders.Special{}, nil)
+	osMock.On("GetSpecialsByKeycloakID", mock.Anything, mock.Anything).Return([]orders.Special{}, nil)
 
 	err := db.CreateProfile(ctx, UserInput{
 		KeycloakID:          utils.PointerUUID(uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000")),
@@ -126,6 +128,7 @@ func Test_ProfileDB_createUser_with_phone_number_succeeds(t *testing.T) {
 		mock.Anything, mock.Anything).Return([]orders.Order{}, nil)
 	osMock.On("GetSpecial", mock.Anything, "someemail@email.email").Return(nil, nil)
 	osMock.On("GetSpecials", mock.Anything, "someemail@email.email").Return([]orders.Special{}, nil)
+	osMock.On("GetSpecialsByKeycloakID", mock.Anything, mock.Anything).Return([]orders.Special{}, nil)
 
 	mobile := "0100000000"
 	whatsApp := "0200000000"

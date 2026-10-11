@@ -95,6 +95,14 @@ func (m *orderServiceMock) GetSpecial(ctx context.Context, email string) (*order
 	return nil, args.Error(1)
 }
 
+func (m *orderServiceMock) GetSpecialsByKeycloakID(ctx context.Context, keycloakID string) ([]orders.Special, error) {
+	args := m.Called(ctx, keycloakID)
+	if args.Get(0) != nil {
+		return args.Get(0).([]orders.Special), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func (m *orderServiceMock) GetSpecials(ctx context.Context, email string) ([]orders.Special, error) {
 	args := m.Called(ctx, email)
 	if args.Get(0) != nil {

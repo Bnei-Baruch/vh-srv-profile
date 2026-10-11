@@ -97,8 +97,8 @@ func (eh *EventsHandler) HandleOrdersEvent(event orders.Event) {
 }
 
 func (eh *EventsHandler) handleHHRequestEvent(ctx context.Context, event orders.Event) {
-	kcVal, ok := event.Payload["keycloak_id"].(string)
-	if !ok || kcVal == "" {
+	kcVal := payloadString(event, "keycloak_id")
+	if kcVal == "" {
 		utils.LogFor(ctx).Warn("handleHHRequestEvent: missing keycloak_id", slog.Any("payload", event.Payload))
 		return
 	}
@@ -167,19 +167,27 @@ func (eh *EventsHandler) shouldSkip(event orders.Event) bool {
 func (eh *EventsHandler) getUserIDs(ctx context.Context, event orders.Event) (*repo.EmailKeycloakAndUserIDBody, error) {
 	switch event.Type {
 	case orders.TypeCreateOrder, orders.TypeUpdateOrder, orders.TypeDeleteOrder:
-		orderID, ok := event.Payload["order_id"].(float64)
+		orderID, ok := payloadFloat(event, "order_id")
 		if !ok {
 			return nil, fmt.Errorf("no order_id in %q event", event.Type)
 		}
 		return eh.getUserIDsFromOrder(ctx, int(orderID))
 	case orders.TypeCreatePayment, orders.TypeUpdatePayment, orders.TypeDeletePayment:
-		paymentID, ok := event.Payload["payment_id"].(float64)
+		paymentID, ok := payloadFloat(event, "payment_id")
 		if !ok {
 			return nil, fmt.Errorf("no payment_id in %q event", event.Type)
 		}
 		return eh.getUserIDsFromPayment(ctx, event, int(paymentID))
 	case orders.TypeCreateSpecial, orders.TypeDeleteSpecial:
-		return specialUserIDs(event)
+		ids, err := specialUserIDs(event)
+		if err != nil {
+			// Expected for a special with no email until vh-srv-orders#39 is
+			// deployed: nothing here can act on it, so it is not a Sentry error.
+			utils.LogFor(ctx).Warn("membership.EventsHandler: special event without a user",
+				slog.String("event_type", event.Type), slog.Any("event_payload", event.Payload), slog.Any("err", err))
+			return nil, errSkip
+		}
+		return ids, nil
 	}
 
 	return nil, fmt.Errorf("unsupported event type: %s", event.Type)
@@ -192,8 +200,8 @@ func (eh *EventsHandler) getUserIDs(ctx context.Context, event orders.Event) (*r
 // vh-srv-orders#39 is deployed, which adds keycloak_id; until then a special
 // with no email cannot be found here.
 func specialUserIDs(event orders.Event) (*repo.EmailKeycloakAndUserIDBody, error) {
-	email, _ := event.Payload["email"].(string)
-	keycloakID, _ := event.Payload["keycloak_id"].(string)
+	email := payloadString(event, "email")
+	keycloakID := payloadString(event, "keycloak_id")
 	if email == "" && keycloakID == "" {
 		return nil, fmt.Errorf("no keycloak_id or email in %q event", event.Type)
 	}
@@ -209,8 +217,8 @@ func specialUserIDs(event orders.Event) (*repo.EmailKeycloakAndUserIDBody, error
 }
 
 func (eh *EventsHandler) mergeAccounts(ctx context.Context, event orders.Event) (*repo.EmailKeycloakAndUserIDBody, error) {
-	sourceID, _ := event.Payload["source_account_id"].(string)
-	destinationID, _ := event.Payload["destination_account_id"].(string)
+	sourceID := payloadString(event, "source_account_id")
+	destinationID := payloadString(event, "destination_account_id")
 	if sourceID == "" || destinationID == "" {
 		return nil, fmt.Errorf("EventsHandler.mergeAccounts: no source_account_id or destination_account_id in %q event", event.Type)
 	}
@@ -254,4 +262,18 @@ func (eh *EventsHandler) getUserIDsFromPayment(ctx context.Context, event orders
 	}
 
 	return eh.getUserIDsFromOrder(ctx, payment.OrderID)
+}
+
+// payloadString reads a string field of an orders event; missing, null and a
+// non-string value all read as "". Payload fields are never asserted
+// unchecked: a panic would lose the already-acked event.
+func payloadString(event orders.Event, key string) string {
+	s, _ := event.Payload[key].(string)
+	return s
+}
+
+// payloadFloat reads a JSON number field of an orders event.
+func payloadFloat(event orders.Event, key string) (float64, bool) {
+	f, ok := event.Payload[key].(float64)
+	return f, ok
 }

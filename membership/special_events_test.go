@@ -116,3 +116,14 @@ func TestOrdersEvents_MissingIDsAreErrors(t *testing.T) {
 		assert.Error(t, err, raw)
 	}
 }
+
+// A special event with no user is expected until vh-srv-orders#39 is deployed
+// (a special with no email). It is skipped with a warning, not reported to
+// Sentry as an error nobody can act on.
+func TestGetUserIDs_SpecialWithoutUserIsSkipped(t *testing.T) {
+	var event orders.Event
+	require.NoError(t, json.Unmarshal([]byte(`{"type":"delete_special","payload":{"email":null}}`), &event))
+
+	_, err := (&EventsHandler{}).getUserIDs(context.Background(), event)
+	assert.ErrorIs(t, err, errSkip)
+}

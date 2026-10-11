@@ -25,6 +25,7 @@ func newUserWithActiveNotification(t *testing.T, db *ProfileDB, slug string) str
 		mock.Anything, mock.Anything).Return([]orders.Order{}, nil)
 	osMock.On("GetSpecial", mock.Anything, mock.Anything).Return(nil, nil)
 	osMock.On("GetSpecials", mock.Anything, mock.Anything).Return([]orders.Special{}, nil)
+	osMock.On("GetSpecialsByKeycloakID", mock.Anything, mock.Anything).Return([]orders.Special{}, nil)
 
 	require.NoError(t, db.CreateProfile(ctx, UserInput{
 		KeycloakID:          utils.PointerUUID(uuid.FromStringOrNil("11000000-0000-0000-0000-000000000000")),

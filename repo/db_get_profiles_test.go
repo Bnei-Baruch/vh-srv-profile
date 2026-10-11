@@ -25,6 +25,7 @@ func Test_GetMultipleProfiles_KeycloakIDList(t *testing.T) {
 		mock.Anything, mock.Anything).Return([]orders.Order{}, nil)
 	osMock.On("GetSpecial", mock.Anything, mock.Anything).Return(nil, nil)
 	osMock.On("GetSpecials", mock.Anything, mock.Anything).Return([]orders.Special{}, nil)
+	osMock.On("GetSpecialsByKeycloakID", mock.Anything, mock.Anything).Return([]orders.Special{}, nil)
 
 	ids := []string{
 		"11000000-0000-0000-0000-000000000001",

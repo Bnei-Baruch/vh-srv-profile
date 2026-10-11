@@ -137,6 +137,11 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 		userID = *evalBody.UserID
 	} else if evalBody.KeycloakID != nil && *evalBody.KeycloakID != "" {
 		if err := db.QueryRow(ctx, `SELECT primary_email, user_id FROM users WHERE keycloak_id=$1`, *evalBody.KeycloakID).Scan(&email, &userID); err != nil {
+			// An event may carry a keycloak_id no user has (a merged-away
+			// account); its email may still find the user.
+			if errors.Is(err, pgx.ErrNoRows) && evalBody.Email != nil && *evalBody.Email != "" {
+				return db.EvaluateMembershipByUserID(ctx, EmailKeycloakAndUserIDBody{Email: evalBody.Email})
+			}
 			return UserMembershipRes{}, fmt.Errorf("db.QueryRow [email from keycloak_id]: %w", err)
 		}
 		userKeycloakID = *evalBody.KeycloakID
@@ -350,7 +355,7 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 	}
 
 	if membershipInsertData.Expiry == nil || membershipInsertData.Expiry.Before(time.Now()) {
-		aSpecial, needKeycloakIdUpdate, err := getUserSpecial(ctx, ordersService, email)
+		aSpecial, needKeycloakIdUpdate, err := getUserSpecial(ctx, ordersService, email, userKeycloakID)
 		if err != nil {
 			return UserMembershipRes{}, fmt.Errorf("ordersService.GetSpecial: %w", err)
 		}
@@ -522,10 +527,20 @@ func (db *ProfileDB) applyMembershipNotifications(ctx context.Context, userID st
 	return nil
 }
 
-func getUserSpecial(ctx context.Context, ordersService orders.OrdersService, email string) (*orders.Special, bool, error) {
+// getUserSpecial returns the user's active special. A special is found by its
+// email or by its keycloak_id: one created for a user from the back office may
+// have a keycloak_id and no email.
+func getUserSpecial(ctx context.Context, ordersService orders.OrdersService, email, keycloakID string) (*orders.Special, bool, error) {
 	specials, err := ordersService.GetSpecials(ctx, email)
 	if err != nil {
 		return nil, false, fmt.Errorf("ordersService.GetSpecial: %w", err)
+	}
+	if keycloakID != "" {
+		byKeycloakID, err := ordersService.GetSpecialsByKeycloakID(ctx, keycloakID)
+		if err != nil {
+			return nil, false, fmt.Errorf("ordersService.GetSpecialsByKeycloakID: %w", err)
+		}
+		specials = append(specials, byKeycloakID...)
 	}
 
 	if len(specials) > 0 {
@@ -906,12 +921,12 @@ func (db *ProfileDB) GetMembershipByUserID(ctx context.Context, userID string) (
 		membership.Details.Payment.PaymentType = &payment.PaymentType
 
 	} else if *membership.Type == "special" {
-		var email string
-		if err := db.QueryRow(ctx, `SELECT primary_email FROM users WHERE user_id=$1`, userID).Scan(&email); err != nil {
+		var email, keycloakID string
+		if err := db.QueryRow(ctx, `SELECT primary_email, keycloak_id FROM users WHERE user_id=$1`, userID).Scan(&email, &keycloakID); err != nil {
 			return UserMembershipRes{}, fmt.Errorf("db.QueryRow [special email]: %w", err)
 		}
 
-		special, _, err := getUserSpecial(ctx, ordersService, email)
+		special, _, err := getUserSpecial(ctx, ordersService, email, keycloakID)
 		if err != nil {
 			return UserMembershipRes{}, fmt.Errorf("ordersService.GetSpecial: %w", err)
 		}

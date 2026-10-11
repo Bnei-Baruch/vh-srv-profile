@@ -32,6 +32,7 @@ type OrdersService interface {
 		limit int, offset int) ([]Payment, error)
 	GetPaymentByID(ctx context.Context, paymentID int) (*Payment, error)
 	GetSpecials(ctx context.Context, email string) ([]Special, error)
+	GetSpecialsByKeycloakID(ctx context.Context, keycloakID string) ([]Special, error)
 	UpdateSpecialSetKeycloakIdByEmail(ctx context.Context, payload map[string]interface{}) error
 	DeleteSpecial(ctx context.Context, id int) error
 	DeleteSpecialIfExist(ctx context.Context, email string) error
@@ -231,6 +232,28 @@ func (api *OrdersAPI) GetSpecials(ctx context.Context, email string) ([]Special,
 			SetPathParam("email", email).
 			SetResult(SpecialRes{}).
 			Get("/v2/special/email/{email}")
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.IsError() {
+		if resp.StatusCode() == http.StatusNotFound {
+			return nil, nil
+		}
+		return nil, respError(resp)
+	}
+
+	specials := resp.Result().(*SpecialRes).Data
+	return specials, nil
+}
+
+func (api *OrdersAPI) GetSpecialsByKeycloakID(ctx context.Context, keycloakID string) ([]Special, error) {
+	resp, err := api.executeWithRetry(ctx, func(req *resty.Request) (*resty.Response, error) {
+		return req.
+			SetPathParam("keycloak_id", keycloakID).
+			SetResult(SpecialRes{}).
+			Get("/v2/special/keycloak_id/{keycloak_id}")
 	})
 	if err != nil {
 		return nil, err

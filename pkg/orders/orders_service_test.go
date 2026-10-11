@@ -310,6 +310,31 @@ func TestOrdersAPI_GetSpecials_NotFound(t *testing.T) {
 	assert.Nil(t, specials)
 }
 
+// A special created for a user from the back office may have no email; it is
+// found through its keycloak_id.
+func TestOrdersAPI_GetSpecialsByKeycloakID(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodGet, r.Method)
+		assert.Equal(t, "/v2/special/keycloak_id/kc-1", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"id":7,"keycloak_id":"kc-1","email":null}],"success":true}`))
+	}))
+	defer server.Close()
+
+	mockTokenSource := keycloakmocks.NewMockTokenSource(t)
+	mockTokenSource.EXPECT().Token().Return("token123", nil)
+
+	api := newTestOrdersAPI(server.URL)
+	ctx := context.WithValue(context.Background(), common.CtxTokenSource, mockTokenSource)
+
+	specials, err := api.GetSpecialsByKeycloakID(ctx, "kc-1")
+
+	require.NoError(t, err)
+	require.Len(t, specials, 1)
+	assert.Equal(t, 7, specials[0].Id)
+	assert.Equal(t, "", specials[0].Email)
+}
+
 func TestOrdersAPI_DeleteSpecial_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodDelete, r.Method)
