@@ -149,13 +149,14 @@ func prepareUserUpdate(user UserInput) (string, []interface{}) {
 		updateStrings = append(updateStrings, fmt.Sprintf("primary_email=$%d", len(updateStrings)+1))
 		args = append(args, user.Emails.Primary)
 	}
+	// An empty alternate clears it: absent is NULL, never ''.
 	if user.Emails.Alternate1 != nil {
 		updateStrings = append(updateStrings, fmt.Sprintf("alternate_email_1=$%d", len(updateStrings)+1))
-		args = append(args, user.Emails.Alternate1)
+		args = append(args, nullIfEmpty(*user.Emails.Alternate1))
 	}
 	if user.Emails.Alternate2 != nil {
 		updateStrings = append(updateStrings, fmt.Sprintf("alternate_email_2=$%d", len(updateStrings)+1))
-		args = append(args, user.Emails.Alternate2)
+		args = append(args, nullIfEmpty(*user.Emails.Alternate2))
 	}
 	if user.Languages.First != nil {
 		updateStrings = append(updateStrings, fmt.Sprintf("first_language=$%d", len(updateStrings)+1))
@@ -275,6 +276,14 @@ func prepareUserStatusUpdateQuery(user UserInput) (string, []interface{}) {
 // - Conflicts (existing spouses) are checked; forceUpdate can bypass.
 // - Unlinks any prior spouses of keycloakID1/keycloakID2, setting their marital_status to 'Single'.
 // - Returns errors for non-existent users.
+// nullIfEmpty binds "" as NULL.
+func nullIfEmpty(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
+}
+
 func (db *ProfileDB) SetSpouse(ctx context.Context, keycloakID1, keycloakID2 uuid.UUID, forceUpdate bool) error {
 	tx, err := db.Begin(ctx)
 	if err != nil {
@@ -394,4 +403,3 @@ func (db *ProfileDB) SetSpouseWithTx(ctx context.Context, tx pgx.Tx, keycloakID1
 
 	return affectedKeycloakStringIDs, nil
 }
-

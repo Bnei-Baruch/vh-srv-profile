@@ -40,13 +40,20 @@ func (db *ProfileDB) MergeAccounts(ctx context.Context, data AccountsMergeData) 
 		return nil, fmt.Errorf("db.QueryRow [Destination primary_email from keycloak_id(%s)]: %w", data.DestinationId, err)
 	}
 
-	needUpdateEmail := false
-	var destinationAlternativeEmail sql.NullString
+	// The source's email is kept as the destination's first free alternate.
+	// When both alternates are taken, neither is overwritten.
+	alternateColumn := ""
 	if sourceEmail != destinationEmail {
-		if err := db.QueryRow(ctx, `SELECT alternate_email_1 from users WHERE keycloak_id = $1`, data.DestinationId).Scan(&destinationAlternativeEmail); err != nil {
-			return nil, fmt.Errorf("db.QueryRow [alternate_email_1 from keycloak_id(%s)]: %w", data.DestinationId, err)
+		var alternate1, alternate2 sql.NullString
+		if err := db.QueryRow(ctx, `SELECT alternate_email_1, alternate_email_2 from users WHERE keycloak_id = $1`, data.DestinationId).Scan(&alternate1, &alternate2); err != nil {
+			return nil, fmt.Errorf("db.QueryRow [alternate emails from keycloak_id(%s)]: %w", data.DestinationId, err)
 		}
-		needUpdateEmail = true
+		switch {
+		case alternate1.String == "":
+			alternateColumn = "alternate_email_1"
+		case alternate2.String == "":
+			alternateColumn = "alternate_email_2"
+		}
 	}
 
 	// start transaction
@@ -61,10 +68,10 @@ func (db *ProfileDB) MergeAccounts(ctx context.Context, data AccountsMergeData) 
 		return nil
 	}()
 
-	if needUpdateEmail && destinationAlternativeEmail.Valid {
-		_, err = tx.Exec(ctx, `UPDATE users set alternate_email_1=$1  WHERE keycloak_id=$2`, sourceEmail, data.DestinationId)
+	if alternateColumn != "" {
+		_, err = tx.Exec(ctx, `UPDATE users set `+alternateColumn+`=$1 WHERE keycloak_id=$2`, sourceEmail, data.DestinationId)
 		if err != nil {
-			return nil, fmt.Errorf("tx.Exec [UPDATE users set alternate_email_1]: %w", err)
+			return nil, fmt.Errorf("tx.Exec [UPDATE users set %s]: %w", alternateColumn, err)
 		}
 	}
 	//Remove entries from the legacy table to prevent constraint issues when deleting the source account

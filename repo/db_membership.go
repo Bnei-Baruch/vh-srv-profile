@@ -141,10 +141,10 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 		}
 		userKeycloakID = *evalBody.KeycloakID
 	} else {
-		if err := db.QueryRow(ctx, `SELECT user_id, keycloak_id FROM users WHERE primary_email=$1`, *evalBody.Email).Scan(&userID, &userKeycloakID); err != nil {
-			return UserMembershipRes{}, fmt.Errorf("db.QueryRow [user_id from email]: %w", err)
+		if evalBody.Email == nil || *evalBody.Email == "" {
+			return UserMembershipRes{}, errors.New("no user_id, keycloak_id or email to evaluate")
 		}
-		email = *evalBody.Email
+		return db.evaluateMembershipsByEmail(ctx, *evalBody.Email)
 	}
 
 	utils.LogFor(ctx).Info("evaluating membership",
@@ -408,9 +408,9 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 		}
 	} else {
 		// update membership
-		membershipID, updateMembErr = db.PatchMembershipByID(ctx, membershipInsertData, *userMemb[0].ID)
+		membershipID, updateMembErr = db.replaceEvaluatedMembership(ctx, membershipInsertData, *userMemb[0].ID)
 		if updateMembErr != nil {
-			return UserMembershipRes{}, fmt.Errorf("db.PatchMembershipByID: %w", updateMembErr)
+			return UserMembershipRes{}, fmt.Errorf("db.replaceEvaluatedMembership: %w", updateMembErr)
 		}
 
 		// remove all the previous sub memberships entries as they'll be added again ( latest will be added )
@@ -1070,6 +1070,65 @@ func (db *ProfileDB) getHelphaverMembershipByMembershipID(ctx context.Context, m
 	}
 
 	return helphaverMembership, nil
+}
+
+// evaluateMembershipsByEmail evaluates every user whose primary email is email.
+// primary_email is shared by design (one person may hold several keycloak
+// accounts), so an email alone can name several users; picking one row would
+// leave the others unevaluated. It returns the first user's result.
+func (db *ProfileDB) evaluateMembershipsByEmail(ctx context.Context, email string) (UserMembershipRes, error) {
+	rows, err := db.Query(ctx, `SELECT user_id FROM users WHERE primary_email=$1 ORDER BY user_id`, email)
+	if err != nil {
+		return UserMembershipRes{}, fmt.Errorf("db.Query [user_id from email]: %w", err)
+	}
+	var userIDs []string
+	for rows.Next() {
+		var userID string
+		if err := rows.Scan(&userID); err != nil {
+			rows.Close()
+			return UserMembershipRes{}, fmt.Errorf("rows.Scan [user_id from email]: %w", err)
+		}
+		userIDs = append(userIDs, userID)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return UserMembershipRes{}, fmt.Errorf("rows.Err [user_id from email]: %w", err)
+	}
+	if len(userIDs) == 0 {
+		return UserMembershipRes{}, fmt.Errorf("db.Query [user_id from email]: %w", pgx.ErrNoRows)
+	}
+
+	var (
+		first UserMembershipRes
+		errs  []error
+	)
+	for i, userID := range userIDs {
+		res, err := db.EvaluateMembershipByUserID(ctx, EmailKeycloakAndUserIDBody{UserID: &userID})
+		if err != nil {
+			errs = append(errs, fmt.Errorf("user %s: %w", userID, err))
+		}
+		if i == 0 {
+			first = res
+		}
+	}
+	return first, errors.Join(errs...)
+}
+
+// replaceEvaluatedMembership writes an evaluation's result over the user's
+// membership row. Unlike PatchMembershipByID, where a nil field means "leave it
+// alone", every evaluated field is written: a type without a fixed expiry must
+// clear the previous type's date, or the invalidator keeps selecting the row.
+func (db *ProfileDB) replaceEvaluatedMembership(ctx context.Context, membership Membership, id int) (int, error) {
+	var membershipID int
+	if err := db.QueryRow(ctx,
+		`UPDATE membership SET active=$1, type=$2, expiry=$3, updated_at=$4 WHERE id=$5 RETURNING id`,
+		membership.Active, membership.Type, membership.Expiry, time.Now(), id).Scan(&membershipID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, common.ErrNotFound
+		}
+		return 0, err
+	}
+	return membershipID, nil
 }
 
 func (db *ProfileDB) PatchMembershipByID(ctx context.Context, membership Membership, id int) (int, error) {

@@ -63,8 +63,9 @@ func (in *Invalidator) do() error {
 			active++
 		} else {
 			inactive++
+			// Expiry is nil for the types without a fixed one (cancelled, new).
 			slog.Info("membership is now inactive",
-				slog.String("user_id", k.String()), slog.String("type", *v.Type), slog.Time("expiry", *v.Expiry))
+				slog.String("user_id", k.String()), slog.String("type", *v.Type), slog.Any("expiry", v.Expiry))
 		}
 	}
 	slog.Info("results", slog.Int("active", active), slog.Int("inactive", inactive))
