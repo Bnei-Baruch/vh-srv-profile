@@ -172,30 +172,33 @@ func (eh *EventsHandler) getUserIDs(ctx context.Context, event orders.Event) (*r
 	case orders.TypeCreatePayment, orders.TypeUpdatePayment, orders.TypeDeletePayment:
 		paymentID := event.Payload["payment_id"].(float64)
 		return eh.getUserIDsFromPayment(ctx, event, int(paymentID))
-	case orders.TypeCreateSpecial:
-		var email string
-		var keycloakID string
-		ret := repo.EmailKeycloakAndUserIDBody{}
-		email_val, has_email := event.Payload["email"]
-		if has_email {
-			email = email_val.(string)
-			ret.Email = &email
-		}
-		kc_val, has_kc := event.Payload["keycloak_id"]
-		if has_kc {
-			keycloakID = kc_val.(string)
-			ret.KeycloakID = &keycloakID
-		}
-		if (!has_email || (email == "")) && (!has_kc || (keycloakID == "")) {
-			return nil, errors.New("no keycloak_id or email in 'CreateSpecial' event")
-		}
-		return &ret, nil
-	case orders.TypeDeleteSpecial:
-		email := event.Payload["email"].(string)
-		return &repo.EmailKeycloakAndUserIDBody{Email: &email}, nil
+	case orders.TypeCreateSpecial, orders.TypeDeleteSpecial:
+		return specialUserIDs(event)
 	}
 
 	return nil, fmt.Errorf("unsupported event type: %s", event.Type)
+}
+
+// specialUserIDs reads the user of a create_special or delete_special event.
+// Orders stores an absent identifier as NULL, so either field may be missing,
+// null or "" — none of which may panic the consumer, which would lose the
+// already-acked event. delete_special carries keycloak_id since orders#39;
+// before that, a special with no email could not be found here.
+func specialUserIDs(event orders.Event) (*repo.EmailKeycloakAndUserIDBody, error) {
+	email, _ := event.Payload["email"].(string)
+	keycloakID, _ := event.Payload["keycloak_id"].(string)
+	if email == "" && keycloakID == "" {
+		return nil, fmt.Errorf("no keycloak_id or email in %q event", event.Type)
+	}
+
+	ret := repo.EmailKeycloakAndUserIDBody{}
+	if email != "" {
+		ret.Email = &email
+	}
+	if keycloakID != "" {
+		ret.KeycloakID = &keycloakID
+	}
+	return &ret, nil
 }
 
 func (eh *EventsHandler) mergeAccounts(ctx context.Context, event orders.Event) (*repo.EmailKeycloakAndUserIDBody, error) {
