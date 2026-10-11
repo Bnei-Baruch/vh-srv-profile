@@ -144,3 +144,20 @@ func TestUpdateProfile_EmptyAlternateIsNull(t *testing.T) {
 	assert.False(t, alt1.Valid, "cleared to NULL")
 	assert.Equal(t, "a2@test.test", alt2.String, "untouched")
 }
+
+// CreateProfile stores an empty alternate as NULL as well.
+func TestCreateProfile_EmptyAlternateIsNull(t *testing.T) {
+	db := newTestProfileDBIsolated(t)
+	stubOrdersService(db)
+	kc := "41000000-0000-0000-0000-000000000000"
+	require.NoError(t, db.CreateProfile(testContext(), UserInput{
+		KeycloakID:          utils.PointerUUID(uuid.FromStringOrNil(kc)),
+		FirstNameVernacular: utils.PointerString("first"),
+		LastNameVernacular:  utils.PointerString("last"),
+		Emails:              Emails{Primary: utils.PointerString("c@test.test"), Alternate1: utils.PointerString("")},
+	}))
+
+	var alt1 sql.NullString
+	require.NoError(t, db.QueryRow(testContext(), `SELECT alternate_email_1 FROM users WHERE keycloak_id = $1`, kc).Scan(&alt1))
+	assert.False(t, alt1.Valid)
+}
