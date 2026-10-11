@@ -394,4 +394,3 @@ func (db *ProfileDB) SetSpouseWithTx(ctx context.Context, tx pgx.Tx, keycloakID1
 
 	return affectedKeycloakStringIDs, nil
 }
-

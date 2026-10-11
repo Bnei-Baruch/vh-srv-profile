@@ -35,7 +35,7 @@ func Test_profileHandler_create_succeeds_with_minimal_required_fields(t *testing
 	g := gin.New()
 	g.POST("/", profile.create)
 
-  r := NewRequestAsRoot(http.MethodPost, "/", strings.NewReader(`{
+	r := NewRequestAsRoot(http.MethodPost, "/", strings.NewReader(`{
 		"keycloak_id":"11000000-0000-0000-0000-000000000000",
 		"first_name_vernacular":"First",
 		"last_name_vernacular":"Name",

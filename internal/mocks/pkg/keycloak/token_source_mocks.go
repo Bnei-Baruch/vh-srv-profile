@@ -119,4 +119,3 @@ func (_c *MockTokenSource_Invalidate_Call) RunAndReturn(run func()) *MockTokenSo
 	_c.Call.Return(run)
 	return _c
 }
-

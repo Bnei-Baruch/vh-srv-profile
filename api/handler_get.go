@@ -69,13 +69,13 @@ type userResponse struct {
 }
 
 type ShortProfile struct {
-	UserID         uuid.UUID `json:"id"`
-	FirstName      *string   `json:"first_name"`
-	LastName       *string   `json:"last_name"`
-	Email          string    `json:"email"`
-	Active         bool      `json:"active"`
-	CreatedAt      time.Time `json:"created_at"`
-	Country        *string   `json:"country"`
+	UserID    uuid.UUID `json:"id"`
+	FirstName *string   `json:"first_name"`
+	LastName  *string   `json:"last_name"`
+	Email     string    `json:"email"`
+	Active    bool      `json:"active"`
+	CreatedAt time.Time `json:"created_at"`
+	Country   *string   `json:"country"`
 }
 
 // maxKeycloakIDsPerRequest caps the comma-separated keycloak_id filter list.
