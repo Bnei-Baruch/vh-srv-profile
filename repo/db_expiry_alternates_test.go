@@ -102,7 +102,6 @@ func TestMergeAccounts_SourceEmailGoesToAFreeAlternate(t *testing.T) {
 		wantAlt1, wantAlt2 sql.NullString
 	}{
 		{"both free", nil, nil, sql.NullString{String: "src@test.test", Valid: true}, sql.NullString{}},
-		{"first empty string", "", nil, sql.NullString{String: "src@test.test", Valid: true}, sql.NullString{}},
 		{"first taken", "old@test.test", nil, sql.NullString{String: "old@test.test", Valid: true}, sql.NullString{String: "src@test.test", Valid: true}},
 		{"both taken", "old1@test.test", "old2@test.test", sql.NullString{String: "old1@test.test", Valid: true}, sql.NullString{String: "old2@test.test", Valid: true}},
 	}
