@@ -38,13 +38,13 @@ func createTestProfile(t *testing.T, db *ProfileDB, n int, email string) (keyclo
 	return keycloakID, userID
 }
 
-// leaveStaleExpiry gives the user's membership the row a former manual,
-// helphaver or special type leaves behind: a past expiry on an active row,
-// which the invalidator selects.
+// leaveStaleExpiry gives the user a lapsed manual membership: active, with a
+// past expiry, which the invalidator selects. Re-evaluated with no grants or
+// orders, the user has a type without a fixed expiry.
 func leaveStaleExpiry(t *testing.T, db *ProfileDB, userID string) {
 	t.Helper()
 	_, err := db.Exec(testContext(),
-		`UPDATE membership SET type = 'automatic', active = true, expiry = '2021-10-23' WHERE user_id = $1`, userID)
+		`UPDATE membership SET type = 'manual', active = true, expiry = '2021-10-23' WHERE user_id = $1`, userID)
 	require.NoError(t, err)
 }
 
