@@ -140,4 +140,3 @@ func (p *ProfileManager) setSpouse(c *gin.Context) {
 
 	c.Status(http.StatusOK)
 }
-

@@ -625,7 +625,7 @@ func (ri *RelationImporter) applySpouseRelationships(relations []Relation, peopl
 					report.addFailed(rel, "Failed to set spouse relationship", err, "")
 				}
 				continue
-			
+
 			}
 
 			slog.Info("SUCCESS - Set spouse",
