@@ -2,9 +2,12 @@ package repo
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
-	"strings"
+
+	"github.com/jackc/pgx/v4"
+
+	"gitlab.bbdev.team/vh/vh-srv-profile/common"
 )
 
 type operationInterface interface {
@@ -13,30 +16,52 @@ type operationInterface interface {
 }
 
 type OperationReq struct {
-	ID            *int    `json:"id" form:"id"`
 	NewEmail      *string `json:"new_email" form:"new_email" binding:"required"`
 	OldEmail      *string `json:"old_email" form:"old_email" binding:"required"`
 	NewKeycloakID *string `json:"new_keycloak_id" form:"new_keycloak_id"`
 	OldKeycloakID *string `json:"old_keycloak_id" form:"old_keycloak_id"`
-	Input         *string `json:"input"`
 	Type          *string `json:"type" form:"type"`
-	Output        *string `json:"output"`
-	Status        *string `json:"status"`
-	Revert        *string `json:"revert"`
 }
 
-type OperationTrace struct {
-	ID     *int    `json:"id"`
-	Input  *string `json:"input"`
-	Output *string `json:"output"`
-	Type   *string `json:"type"`
-	Status *string `json:"status"`
-	Revert *string `json:"revert"`
+// sqlQuery is one parameterized statement. operation_trace keeps them as a
+// record of what ran; a revert never runs SQL read back from the table.
+type sqlQuery struct {
+	SQL  string   `json:"sql"`
+	Args []string `json:"args"`
+}
+
+func (q sqlQuery) args() []any {
+	args := make([]any, len(q.Args))
+	for i, a := range q.Args {
+		args[i] = a
+	}
+	return args
+}
+
+// renameStatements moves fromEmail to toEmail. With fromKc set, the user
+// also moves from fromKc to toKc; without it, only the email of toKc's user
+// changes. Either way the user must still have both fromEmail and the
+// starting key. A revert is the same call with the sides swapped.
+func renameStatements(fromEmail, toEmail string, fromKc *string, toKc string) []sqlQuery {
+	if fromKc == nil {
+		return []sqlQuery{{`UPDATE users SET primary_email = $1 WHERE primary_email = $2 AND keycloak_id = $3`,
+			[]string{toEmail, fromEmail, toKc}}}
+	}
+	return []sqlQuery{{`UPDATE users SET keycloak_id = $1, primary_email = $2 WHERE keycloak_id = $3 AND primary_email = $4`,
+		[]string{toKc, toEmail, *fromKc, fromEmail}}}
+}
+
+// revertStatements undoes renameStatements for the same input.
+func revertStatements(in emailInput) []sqlQuery {
+	if in.OldKeycloakID == nil {
+		return renameStatements(*in.NewEmail, *in.OldEmail, nil, *in.NewKeycloakID)
+	}
+	return renameStatements(*in.NewEmail, *in.OldEmail, in.NewKeycloakID, *in.OldKeycloakID)
 }
 
 type QueryLog struct {
-	Queries []interface{} `json:"queries"`
-	Logs    []interface{} `json:"logs"`
+	Queries []sqlQuery `json:"queries"`
+	Logs    []string   `json:"logs"`
 }
 
 type emailInput struct {
@@ -46,27 +71,16 @@ type emailInput struct {
 	OldEmail      *string `json:"old_email"`
 }
 
-func convertStructToJSONString(input interface{}) string {
-	jsonString, err := json.Marshal(input)
-	if err != nil {
-		return ""
-	}
-	return string(jsonString)
-}
-
 func (db *ProfileDB) PerformOperation(ctx context.Context, req OperationReq) (int, error) {
 
-	newKcId := req.NewKeycloakID
-	oldKcId := req.OldKeycloakID
-	newEmail := req.NewEmail
-	oldEmail := req.OldEmail
-
+	input := emailInput{
+		NewEmail:      req.NewEmail,
+		NewKeycloakID: req.NewKeycloakID,
+		OldKeycloakID: req.OldKeycloakID,
+		OldEmail:      req.OldEmail,
+	}
 	var output QueryLog
-	var input emailInput
-	var revert QueryLog
-
-	var query string
-	var revertQuery string
+	revert := QueryLog{Queries: revertStatements(input), Logs: []string{}}
 
 	tx, err := db.Begin(ctx)
 	if err != nil {
@@ -74,206 +88,86 @@ func (db *ProfileDB) PerformOperation(ctx context.Context, req OperationReq) (in
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	// migration query
-	if oldKcId == nil {
-		query = `UPDATE users SET primary_email = '` + *newEmail + `' WHERE primary_email = '` + *oldEmail + ` AND keycloak_id = ` + *newKcId + `';`
-
-		revertQuery = `UPDATE users SET primary_email = '` + *oldEmail + `' WHERE primary_email = '` + *newEmail + ` AND keycloak_id = ` + *newKcId + `';`
-	} else {
-		query = `UPDATE users SET keycloak_id = '` + *newKcId + `', primary_email = '` + *newEmail + `' WHERE keycloak_id = '` + *oldKcId + `';`
-
-		revertQuery = `UPDATE users SET keycloak_id = '` + *oldKcId + `', primary_email = '` + *oldEmail + `' WHERE keycloak_id = '` + *newKcId + `';`
-	}
-
-	updatedRes, err := tx.Exec(ctx, query)
-
-	if err != nil {
-		return 0, fmt.Errorf("problem updating users: %w", err)
-	}
-
-	output.Queries = append(output.Queries, query)
-	output.Logs = append(output.Logs, updatedRes.String())
-
-	input.NewEmail = newEmail
-	input.NewKeycloakID = newKcId
-	input.OldKeycloakID = oldKcId
-	input.OldEmail = req.OldEmail
-
-	revert.Queries = append(revert.Queries, revertQuery)
-
-	revert.Logs = []interface{}{}
-
-	var ID int
-
-	inputJson := convertStructToJSONString(input)
-	req.Input = &inputJson
-
-	outputJson := convertStructToJSONString(output)
-	req.Output = &outputJson
-
-	revertJson := convertStructToJSONString(revert)
-	req.Revert = &revertJson
-
-	success := "success"
-	req.Status = &success
-
-	emailUpdate := "email_update"
-	req.Type = &emailUpdate
-
-	createString, numString, createQueryArgs := prepareOperationCreateQuery(req)
-
-	if len(createQueryArgs) != 0 {
-		if err := tx.QueryRow(ctx, fmt.Sprintf(`INSERT INTO operation_trace (%s) VALUES (%s) RETURNING id`, createString, numString),
-			createQueryArgs...).Scan(&ID); err != nil {
-			return 0, fmt.Errorf("problem creating operation_trace: %w", err)
+	for _, query := range renameStatements(*input.OldEmail, *input.NewEmail, input.OldKeycloakID, *input.NewKeycloakID) {
+		updatedRes, err := tx.Exec(ctx, query.SQL, query.args()...)
+		if err != nil {
+			if isUniqueViolation(err) {
+				return 0, fmt.Errorf("new keycloak id: %w", common.ErrOperationConflict)
+			}
+			return 0, fmt.Errorf("problem updating users: %w", err)
 		}
-
-		return ID, tx.Commit(ctx)
-	} else {
-		return 0, fmt.Errorf("invalid values")
+		// Exactly one user must start from this email and key, or nothing changes.
+		if updatedRes.RowsAffected() != 1 {
+			return 0, common.ErrOperationNoMatch
+		}
+		output.Queries = append(output.Queries, query)
+		output.Logs = append(output.Logs, updatedRes.String())
 	}
+
+	// pgx encodes the structs as JSON for the json columns.
+	var ID int
+	if err := tx.QueryRow(ctx, `INSERT INTO operation_trace (input, output, revert, status, type)
+		VALUES ($1, $2, $3, 'success', 'email_update') RETURNING id`,
+		input, output, revert).Scan(&ID); err != nil {
+		return 0, fmt.Errorf("problem creating operation_trace: %w", err)
+	}
+
+	return ID, tx.Commit(ctx)
 }
 
+// RevertOperation undoes the latest email_update for this email pair. The
+// row is locked, so two reverts at once cannot both run.
 func (db *ProfileDB) RevertOperation(ctx context.Context, newEmail string, oldEmail string) error {
-	// get operation by id
-	var operation OperationTrace
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("db.Begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
 
-	// get operation by newEmail and oldEmail
-
-	if err := db.QueryRow(ctx, `SELECT id, status, revert FROM operation_trace WHERE input->>'new_email'=$1 AND input->>'old_email'=$2 ORDER BY id DESC LIMIT 1`, newEmail, oldEmail).Scan(
-		&operation.ID,
-		&operation.Status,
-		&operation.Revert); err != nil {
+	var (
+		id     int
+		status string
+		input  emailInput
+	)
+	if err := tx.QueryRow(ctx, `SELECT id, status, input FROM operation_trace
+		WHERE input->>'new_email'=$1 AND input->>'old_email'=$2
+		ORDER BY id DESC LIMIT 1 FOR UPDATE`, newEmail, oldEmail).Scan(&id, &status, &input); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return common.ErrOperationNotFound
+		}
 		return fmt.Errorf("problem getting operation_trace: %w", err)
 	}
 
-	if *operation.Status == "reverted" {
-		return fmt.Errorf("operation already reverted")
+	if status == "reverted" {
+		return common.ErrOperationReverted
 	}
 
-	// revert operation
-	var revert QueryLog
-	if err := json.Unmarshal([]byte(*operation.Revert), &revert); err != nil {
-		return fmt.Errorf("problem unmarshalling operation_trace: %w", err)
-	}
-
-	tx, err := db.Begin(ctx)
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	if err != nil {
-		return err
-	}
-
-	var query string
-	// first query in the Queries array is the query to revert
-	if revert.Queries != nil {
-		query = revert.Queries[0].(string)
-	}
-
-	revertRes, err := tx.Exec(ctx, query)
-	if err != nil {
-		return fmt.Errorf("problem reverting operation: %w", err)
-	}
-
-	// update operation_trace
-	revert.Logs = append(revert.Logs, revertRes.String())
-	revertJson := convertStructToJSONString(revert)
-	operation.Revert = &revertJson
-
-	var revertedStr = "reverted"
-	operation.Status = &revertedStr
-
-	updateString, updateQueryArgs := prepareOperationTraceUpdateQuery(operation)
-
-	if len(updateQueryArgs) != 0 {
-		if err := tx.QueryRow(ctx, fmt.Sprintf(`UPDATE operation_trace SET %s WHERE id='%d' RETURNING id`, updateString, *operation.ID),
-			updateQueryArgs...).Scan(&operation.ID); err != nil {
-			return fmt.Errorf("problem updating operation_trace: %w", err)
+	// The statements come from the code, built from the stored input.
+	revert := QueryLog{Queries: revertStatements(input), Logs: []string{}}
+	for _, query := range revert.Queries {
+		revertRes, err := tx.Exec(ctx, query.SQL, query.args()...)
+		if err != nil {
+			if isUniqueViolation(err) {
+				return fmt.Errorf("old keycloak id: %w", common.ErrOperationConflict)
+			}
+			return fmt.Errorf("problem reverting operation: %w", err)
 		}
-
-		return tx.Commit(ctx)
-	} else {
-		return fmt.Errorf("invalid values")
+		if revertRes.RowsAffected() != 1 {
+			return common.ErrOperationNoMatch
+		}
+		revert.Logs = append(revert.Logs, revertRes.String())
 	}
 
+	if _, err := tx.Exec(ctx, `UPDATE operation_trace SET revert = $1, status = 'reverted' WHERE id = $2`,
+		revert, id); err != nil {
+		return fmt.Errorf("problem updating operation_trace: %w", err)
+	}
+
+	return tx.Commit(ctx)
 }
 
-func prepareOperationCreateQuery(req OperationReq) (string, string, []interface{}) {
-	var createStrings []string
-	var numString []string
-	var args []interface{}
-
-	if req.Input != nil {
-		createStrings = append(createStrings, "input")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.Input)
-	}
-
-	if req.Output != nil {
-		createStrings = append(createStrings, "output")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.Output)
-	}
-
-	if req.Revert != nil {
-		createStrings = append(createStrings, "revert")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.Revert)
-	}
-
-	if req.Status != nil {
-		createStrings = append(createStrings, "status")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.Status)
-	}
-
-	if req.Type != nil {
-		createStrings = append(createStrings, "type")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.Type)
-	}
-
-	concatedCreateString := strings.Join(createStrings, ",")
-	concatedNumString := strings.Join(numString, ",")
-
-	return concatedCreateString, concatedNumString, args
-}
-
-func prepareOperationTraceUpdateQuery(req OperationTrace) (string, []interface{}) {
-	var updateStrings []string
-	var args []interface{}
-
-	if req.Input != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("input=$%d", len(updateStrings)+1))
-		args = append(args, *req.Input)
-	}
-
-	if req.Output != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("output=$%d", len(updateStrings)+1))
-		args = append(args, *req.Output)
-	}
-
-	if req.Revert != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("revert=$%d", len(updateStrings)+1))
-		args = append(args, *req.Revert)
-	}
-
-	if req.Status != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("status=$%d", len(updateStrings)+1))
-		args = append(args, *req.Status)
-	}
-
-	if req.Type != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("type=$%d", len(updateStrings)+1))
-		args = append(args, *req.Type)
-	}
-
-	// if len(args) != 0 {
-	// 	updateStrings = append(updateStrings, fmt.Sprintf("updated_at=$%d", len(updateStrings)+1))
-	// 	args = append(args, time.Now())
-	// }
-
-	updateArgument := strings.Join(updateStrings, ",")
-
-	return updateArgument, args
+// isUniqueViolation: the key or email being moved to is already taken.
+func isUniqueViolation(err error) bool {
+	var pgErr interface{ SQLState() string }
+	return errors.As(err, &pgErr) && pgErr.SQLState() == "23505"
 }

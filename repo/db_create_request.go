@@ -199,8 +199,8 @@ func (db *ProfileDB) updateRequest(ctx context.Context, request NewRequest) erro
 		return errors.New("invalid values")
 	}
 
-	_, err := db.Exec(ctx, fmt.Sprintf(`UPDATE request SET %s WHERE id='%d' RETURNING keycloak_id, type`,
-		toUpdate, *request.ID), toUpdateArgs...)
+	_, err := db.Exec(ctx, fmt.Sprintf(`UPDATE request SET %s WHERE id=$%d RETURNING keycloak_id, type`,
+		toUpdate, len(toUpdateArgs)+1), append(toUpdateArgs, *request.ID)...)
 	if err != nil {
 		return fmt.Errorf("db.Exec: %w", err)
 	}
