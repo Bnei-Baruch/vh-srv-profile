@@ -102,14 +102,19 @@ func (db *ProfileDB) GetMultipleGrant(ctx context.Context, intSkip int, intLimit
 }
 
 func (db *ProfileDB) createGrant(ctx context.Context, req Grant) (int, error) {
-	createString, numString, createQueryArgs := prepareGrantCreateQuery(req)
-	if len(createQueryArgs) == 0 {
+	var c sqlCols
+	setIf(&c, "user_id", req.UserID)
+	setIf(&c, "type", req.Type)
+	setIf(&c, "request_id", req.RequestID)
+	if req.Properties.Valid {
+		c.set("properties", req.Properties)
+	}
+	if c.empty() {
 		return 0, fmt.Errorf("invalid values")
 	}
 
 	var ID int
-	if err := db.QueryRow(ctx, fmt.Sprintf(`INSERT INTO "grant" (%s) VALUES (%s) RETURNING id`, createString, numString),
-		createQueryArgs...).Scan(&ID); err != nil {
+	if err := db.QueryRow(ctx, `INSERT INTO "grant" `+c.values()+` RETURNING id`, c.args...).Scan(&ID); err != nil {
 		return 0, err
 	}
 
@@ -160,36 +165,4 @@ func buildAndGetWhereGrantQuery(cancelled *bool, userID string, grantType string
 	orderBy := fmt.Sprintf(" ORDER BY %s %s", orderColumn, orderDir)
 
 	return whereString, orderBy, args
-}
-
-func prepareGrantCreateQuery(req Grant) (string, string, []interface{}) {
-	var createStrings []string
-	var numString []string
-	var args []interface{}
-
-	if req.UserID != nil {
-		createStrings = append(createStrings, "user_id")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.UserID)
-	}
-	if req.Type != nil {
-		createStrings = append(createStrings, "type")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.Type)
-	}
-	if req.RequestID != nil {
-		createStrings = append(createStrings, "request_id")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.RequestID)
-	}
-	if req.Properties.Valid {
-		createStrings = append(createStrings, "properties")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, req.Properties)
-	}
-
-	concatedCreateString := strings.Join(createStrings, ",")
-	concatedNumString := strings.Join(numString, ",")
-
-	return concatedCreateString, concatedNumString, args
 }
