@@ -16,4 +16,7 @@ var (
 	// ErrOperationNoMatch: no user has the email and keycloak id the rename
 	// (or its revert) starts from, so nothing was changed.
 	ErrOperationNoMatch = errors.New("no user matches this email and keycloak id")
+	// ErrOperationConflict: the keycloak id the rename (or its revert) moves
+	// to already belongs to another user.
+	ErrOperationConflict = errors.New("keycloak id already belongs to another user")
 )

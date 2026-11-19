@@ -32,7 +32,8 @@ func (p *ProfileManager) handleOperationRevert(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": revertErr.Error()})
 		return
 	}
-	if errors.Is(revertErr, common.ErrOperationReverted) || errors.Is(revertErr, common.ErrOperationNoMatch) {
+	if errors.Is(revertErr, common.ErrOperationReverted) || errors.Is(revertErr, common.ErrOperationNoMatch) ||
+		errors.Is(revertErr, common.ErrOperationConflict) {
 		c.JSON(http.StatusConflict, gin.H{"error": revertErr.Error()})
 		return
 	}
@@ -66,7 +67,7 @@ func (p *ProfileManager) handleOperationCreate(c *gin.Context) {
 
 	ID, dbErr := p.repo.PerformOperation(c.Request.Context(), opr)
 
-	if errors.Is(dbErr, common.ErrOperationNoMatch) {
+	if errors.Is(dbErr, common.ErrOperationNoMatch) || errors.Is(dbErr, common.ErrOperationConflict) {
 		c.JSON(http.StatusConflict, gin.H{"error": dbErr.Error()})
 		return
 	}
