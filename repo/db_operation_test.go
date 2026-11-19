@@ -71,9 +71,7 @@ func Test_ProfileDB_PerformOperation_RevertOperation_email_with_apostrophe(t *te
 	require.NoError(t, db.QueryRow(ctx, `SELECT status FROM operation_trace WHERE id=$1`, id).Scan(&status))
 	assert.Equal(t, "reverted", status)
 
-	err = db.RevertOperation(ctx, newEmail, oldEmail)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "already reverted")
+	require.ErrorIs(t, db.RevertOperation(ctx, newEmail, oldEmail), common.ErrOperationReverted)
 }
 
 // With an old keycloak id, both keycloak_id and email move, and revert moves them back.
@@ -197,4 +195,60 @@ func Test_ProfileDB_RevertOperation_does_not_run_stored_sql(t *testing.T) {
 	var pwned int
 	require.NoError(t, db.QueryRow(ctx, `SELECT count(*) FROM users WHERE first_name_vernacular = 'pwned'`).Scan(&pwned))
 	assert.Zero(t, pwned)
+}
+
+// A rename whose old email and key match no user changes nothing and writes
+// no trace, instead of reporting success for UPDATE 0.
+func Test_ProfileDB_PerformOperation_no_matching_user_changes_nothing(t *testing.T) {
+	db := newTestProfileDBIsolated(t)
+	ctx := testContext()
+
+	const kc = "11000000-0000-0000-0000-000000000010"
+	insertOperationUser(t, db, "22000000-0000-0000-0000-000000000010", kc, "old@test.test")
+
+	_, err := db.PerformOperation(ctx, OperationReq{
+		NewEmail:      utils.PointerString("new@test.test"),
+		OldEmail:      utils.PointerString("typo@test.test"),
+		NewKeycloakID: utils.PointerString(kc),
+		Type:          utils.PointerString("email_update"),
+	})
+	require.ErrorIs(t, err, common.ErrOperationNoMatch)
+
+	var traces int
+	require.NoError(t, db.QueryRow(ctx, `SELECT count(*) FROM operation_trace`).Scan(&traces))
+	assert.Zero(t, traces)
+}
+
+// If the user moved off the new key after the rename, the revert matches no
+// user; it is refused and the trace stays "success".
+func Test_ProfileDB_RevertOperation_user_changed_since_changes_nothing(t *testing.T) {
+	db := newTestProfileDBIsolated(t)
+	ctx := testContext()
+
+	const (
+		userID = "22000000-0000-0000-0000-000000000011"
+		oldKc  = "11000000-0000-0000-0000-000000000011"
+		newKc  = "11000000-0000-0000-0000-000000000012"
+		other  = "11000000-0000-0000-0000-000000000013"
+	)
+	insertOperationUser(t, db, userID, oldKc, "a@test.test")
+
+	_, err := db.PerformOperation(ctx, OperationReq{
+		NewEmail:      utils.PointerString("b@test.test"),
+		OldEmail:      utils.PointerString("a@test.test"),
+		OldKeycloakID: utils.PointerString(oldKc),
+		NewKeycloakID: utils.PointerString(newKc),
+		Type:          utils.PointerString("email_update"),
+	})
+	require.NoError(t, err)
+	_, err = db.Exec(ctx, `UPDATE users SET keycloak_id = $1 WHERE user_id = $2`, other, userID)
+	require.NoError(t, err)
+
+	require.ErrorIs(t, db.RevertOperation(ctx, "b@test.test", "a@test.test"), common.ErrOperationNoMatch)
+
+	email, kc := userEmailAndKc(t, db, userID)
+	assert.Equal(t, []string{"b@test.test", other}, []string{email, kc})
+	var status string
+	require.NoError(t, db.QueryRow(ctx, `SELECT status FROM operation_trace`).Scan(&status))
+	assert.Equal(t, "success", status)
 }

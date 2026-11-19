@@ -92,6 +92,10 @@ func (db *ProfileDB) PerformOperation(ctx context.Context, req OperationReq) (in
 		if err != nil {
 			return 0, fmt.Errorf("problem updating users: %w", err)
 		}
+		// Exactly one user must start from this email and key, or nothing changes.
+		if updatedRes.RowsAffected() != 1 {
+			return 0, common.ErrOperationNoMatch
+		}
 		output.Queries = append(output.Queries, query)
 		output.Logs = append(output.Logs, updatedRes.String())
 	}
@@ -131,7 +135,7 @@ func (db *ProfileDB) RevertOperation(ctx context.Context, newEmail string, oldEm
 	}
 
 	if status == "reverted" {
-		return fmt.Errorf("operation already reverted")
+		return common.ErrOperationReverted
 	}
 
 	// The statements come from the code, built from the stored input.
@@ -140,6 +144,9 @@ func (db *ProfileDB) RevertOperation(ctx context.Context, newEmail string, oldEm
 		revertRes, err := tx.Exec(ctx, query.SQL, query.args()...)
 		if err != nil {
 			return fmt.Errorf("problem reverting operation: %w", err)
+		}
+		if revertRes.RowsAffected() != 1 {
+			return common.ErrOperationNoMatch
 		}
 		revert.Logs = append(revert.Logs, revertRes.String())
 	}
