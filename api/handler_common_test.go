@@ -215,8 +215,8 @@ func (m *storageMock) PerformOperation(ctx context.Context, opr repo.OperationRe
 }
 
 func (m *storageMock) RevertOperation(ctx context.Context, newEmail string, oldEmail string) error {
-	//TODO implement me
-	panic("implement me")
+	args := m.Called(ctx, newEmail, oldEmail)
+	return args.Error(0)
 }
 
 func (m *storageMock) IsSubjectID(ctx context.Context, arg1 string, arg2 string) (bool, error) {

@@ -39,8 +39,8 @@ func (db *ProfileDB) UpdateProfile(ctx context.Context, keycloakID uuid.UUID, us
 
 	usersToUpdate, usersArgs := prepareUserUpdate(user)
 	if len(usersArgs) != 0 {
-		if _, err = tx.Exec(ctx, fmt.Sprintf(`UPDATE users SET %s WHERE user_id='%s'`, usersToUpdate, userID),
-			usersArgs...); err != nil {
+		if _, err = tx.Exec(ctx, fmt.Sprintf(`UPDATE users SET %s WHERE user_id=$%d`, usersToUpdate, len(usersArgs)+1),
+			append(usersArgs, userID)...); err != nil {
 			return fmt.Errorf("tx.Exec [user]: %w", err)
 		}
 	}
@@ -62,8 +62,8 @@ func (db *ProfileDB) UpdateProfile(ctx context.Context, keycloakID uuid.UUID, us
 	userStatusToUpdate, userStatusArgs := prepareUserStatusUpdateQuery(user)
 
 	if len(userStatusArgs) != 0 {
-		updateRes, err := tx.Exec(ctx, fmt.Sprintf(`UPDATE status SET %s WHERE user_id='%s'`, userStatusToUpdate, userID),
-			userStatusArgs...)
+		updateRes, err := tx.Exec(ctx, fmt.Sprintf(`UPDATE status SET %s WHERE user_id=$%d`, userStatusToUpdate, len(userStatusArgs)+1),
+			append(userStatusArgs, userID)...)
 		if err != nil {
 			return fmt.Errorf("tx.Exec [status]: %w", err)
 		}
@@ -218,17 +218,21 @@ func preparePhoneUpdate(userID uuid.UUID, user UserInput) (string, []interface{}
 	var updateStrings []string
 	var args []interface{}
 
+	// row adds one (user_id, phone_number, type) tuple, all three bound.
+	row := func(number *string, phoneType string) {
+		args = append(args, userID, number, phoneType)
+		n := len(args)
+		updateStrings = append(updateStrings, fmt.Sprintf("($%d, $%d, $%d)", n-2, n-1, n))
+	}
+
 	if user.Phones.MobileNumber != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("('%s', $%d, '%s')", userID, len(updateStrings)+1, common.Mobile))
-		args = append(args, user.Phones.MobileNumber)
+		row(user.Phones.MobileNumber, common.Mobile)
 	}
 	if user.Phones.WhatsAppNumber != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("('%s', $%d, '%s')", userID, len(updateStrings)+1, common.WhatsApp))
-		args = append(args, user.Phones.WhatsAppNumber)
+		row(user.Phones.WhatsAppNumber, common.WhatsApp)
 	}
 	if user.Phones.TelegramNumber != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("('%s', $%d, '%s')", userID, len(updateStrings)+1, common.Telegram))
-		args = append(args, user.Phones.TelegramNumber)
+		row(user.Phones.TelegramNumber, common.Telegram)
 	}
 
 	updateArgument := strings.Join(updateStrings, ",")

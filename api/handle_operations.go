@@ -1,11 +1,13 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 
+	"gitlab.bbdev.team/vh/vh-srv-profile/common"
 	"gitlab.bbdev.team/vh/vh-srv-profile/repo"
 )
 
@@ -26,6 +28,10 @@ func (p *ProfileManager) handleOperationRevert(c *gin.Context) {
 
 	revertErr := p.repo.RevertOperation(c.Request.Context(), *opr.NewEmail, *opr.OldEmail)
 
+	if errors.Is(revertErr, common.ErrOperationNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": revertErr.Error()})
+		return
+	}
 	if revertErr != nil {
 		_ = c.Error(fmt.Errorf("error while reverting operation: %w", revertErr))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": revertErr.Error()})
