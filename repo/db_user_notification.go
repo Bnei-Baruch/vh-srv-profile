@@ -65,14 +65,17 @@ func (db *ProfileDB) GetUserNotificationByID(ctx context.Context, id int) (UserN
 }
 
 func (db *ProfileDB) CreateUserNotification(ctx context.Context, req UserNotification) error {
-	createString, numString, createQueryArgs := prepareUserNotificationCreateQuery(req)
-	if len(createQueryArgs) != 0 {
-		_, err := db.Exec(ctx, fmt.Sprintf(`INSERT INTO user_notification (%s) VALUES (%s)`, createString, numString),
-			createQueryArgs...)
-		return err
-	} else {
+	var c sqlCols
+	setIf(&c, "active", req.Active)
+	setIf(&c, "user_id", req.UserID)
+	setIf(&c, "notification_id", req.NotificationID)
+	setIf(&c, "seen_at", req.SeenAt)
+	if c.empty() {
 		return fmt.Errorf("invalid values")
 	}
+
+	_, err := db.Exec(ctx, `INSERT INTO user_notification `+c.values(), c.args...)
+	return err
 }
 
 func (db *ProfileDB) GetMultipleUserNotification(ctx context.Context, intSkip int, intLimit int) ([]UserNotification, error) {
@@ -174,17 +177,21 @@ func (db *ProfileDB) GetActiveUserNotificationByUserID(ctx context.Context, user
 }
 
 func (db *ProfileDB) PatchUserNotification(ctx context.Context, noti UserNotification, id int) (int, error) {
-	var ID int
-
-	toUpdate, toUpdateArgs := prepareUserNotificationUpdate(noti)
-	if len(toUpdateArgs) != 0 {
-		err := db.QueryRow(ctx, fmt.Sprintf(`UPDATE user_notification SET %s WHERE id = $%d RETURNING id`, toUpdate,
-			len(toUpdateArgs)+1), append(toUpdateArgs, id)...).Scan(&ID)
-		if err != nil {
-			return 0, err
-		}
+	var c sqlCols
+	setIf(&c, "active", noti.Active)
+	setIf(&c, "user_id", noti.UserID)
+	setIf(&c, "notification_id", noti.NotificationID)
+	setIf(&c, "seen_at", noti.SeenAt)
+	if c.empty() {
+		// Nothing to update is not an error here.
+		return 0, nil
 	}
 
+	q := `UPDATE user_notification SET ` + c.assignments() + ` WHERE id = ` + c.bind(id) + ` RETURNING id`
+	var ID int
+	if err := db.QueryRow(ctx, q, c.args...).Scan(&ID); err != nil {
+		return 0, err
+	}
 	return ID, nil
 }
 
@@ -208,62 +215,4 @@ func (db *ProfileDB) deactivateUserNotifications(ctx context.Context, userID str
 		strings.Join(ids, ","))
 	_, err := db.Exec(ctx, q, userID)
 	return err
-}
-
-func prepareUserNotificationCreateQuery(req UserNotification) (string, string, []interface{}) {
-	var createStrings []string
-	var numString []string
-	var args []interface{}
-
-	if req.Active != nil {
-		createStrings = append(createStrings, "active")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.Active)
-	}
-	if req.UserID != nil {
-		createStrings = append(createStrings, "user_id")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.UserID)
-	}
-	if req.NotificationID != nil {
-		createStrings = append(createStrings, "notification_id")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.NotificationID)
-	}
-	if req.SeenAt != nil {
-		createStrings = append(createStrings, "seen_at")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.SeenAt)
-	}
-
-	concatedCreateString := strings.Join(createStrings, ",")
-	concatedNumString := strings.Join(numString, ",")
-
-	return concatedCreateString, concatedNumString, args
-}
-
-func prepareUserNotificationUpdate(req UserNotification) (string, []interface{}) {
-	var updateStrings []string
-	var args []interface{}
-
-	if req.Active != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("active=$%d", len(args)+1))
-		args = append(args, *req.Active)
-	}
-	if req.UserID != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("user_id=$%d", len(args)+1))
-		args = append(args, *req.UserID)
-	}
-	if req.NotificationID != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("notification_id=$%d", len(args)+1))
-		args = append(args, *req.NotificationID)
-	}
-	if req.SeenAt != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("seen_at=$%d", len(args)+1))
-		args = append(args, *req.SeenAt)
-	}
-
-	concatedUpdateString := strings.Join(updateStrings, ",")
-
-	return concatedUpdateString, args
 }

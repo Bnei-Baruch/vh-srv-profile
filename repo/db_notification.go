@@ -3,7 +3,6 @@ package repo
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v4"
@@ -111,22 +110,20 @@ func (db *ProfileDB) GetMultipleNotification(ctx context.Context, intSkip int, i
 }
 
 func (db *ProfileDB) PatchNotification(ctx context.Context, noti Notification, id int) (int, error) {
-
-	var ID int
-
-	toUpdate, toUpdateArgs := prepareNotificationUpdate(noti)
-
-	if len(toUpdateArgs) != 0 {
-		if err := db.QueryRow(ctx, fmt.Sprintf(`UPDATE notification SET %s WHERE id=$%d RETURNING id`, toUpdate, len(toUpdateArgs)+1),
-			append(toUpdateArgs, id)...).
-			Scan(&ID); err != nil {
-			return 0, err
-		}
-
-		return ID, nil
-	} else {
+	var c sqlCols
+	setIf(&c, "slug", noti.Slug)
+	setIf(&c, "content", noti.Content)
+	if c.empty() {
 		return 0, fmt.Errorf("invalid values")
 	}
+	c.set("updated_at", time.Now())
+
+	q := `UPDATE notification SET ` + c.assignments() + ` WHERE id=` + c.bind(id) + ` RETURNING id`
+	var ID int
+	if err := db.QueryRow(ctx, q, c.args...).Scan(&ID); err != nil {
+		return 0, err
+	}
+	return ID, nil
 }
 
 func (db *ProfileDB) SoftDeleteNotification(ctx context.Context, id int) error {
@@ -165,27 +162,4 @@ func (db *ProfileDB) getNotificationBySlug(ctx context.Context, slug string) (No
 	}
 
 	return r, nil
-}
-
-func prepareNotificationUpdate(req Notification) (string, []interface{}) {
-	var updateStrings []string
-	var args []interface{}
-
-	if req.Slug != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("slug=$%d", len(updateStrings)+1))
-		args = append(args, *req.Slug)
-	}
-	if req.Content != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("content=$%d", len(updateStrings)+1))
-		args = append(args, *req.Content)
-	}
-
-	if len(args) != 0 {
-		updateStrings = append(updateStrings, fmt.Sprintf("updated_at=$%d", len(updateStrings)+1))
-		args = append(args, time.Now())
-	}
-
-	updateArgument := strings.Join(updateStrings, ",")
-
-	return updateArgument, args
 }
