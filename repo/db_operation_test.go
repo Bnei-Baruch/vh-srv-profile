@@ -28,7 +28,7 @@ func userEmailAndKc(t *testing.T, db *ProfileDB, userID string) (string, string)
 }
 
 // Emails with an apostrophe go through the rename and its revert unchanged,
-// and the revert row is stored as {sql,args}.
+// and the revert row records {sql,args}.
 func Test_ProfileDB_PerformOperation_RevertOperation_email_with_apostrophe(t *testing.T) {
 	db := newTestProfileDBIsolated(t)
 	ctx := testContext()
@@ -164,4 +164,37 @@ func Test_ProfileDB_RevertOperation_not_found(t *testing.T) {
 
 	err := db.RevertOperation(testContext(), "nobody@test.test", "o'nobody@test.test")
 	assert.ErrorIs(t, err, common.ErrOperationNotFound)
+}
+
+// The revert builds its statement from the stored input; SQL in the revert
+// column is a record only and never runs.
+func Test_ProfileDB_RevertOperation_does_not_run_stored_sql(t *testing.T) {
+	db := newTestProfileDBIsolated(t)
+	ctx := testContext()
+
+	const (
+		userID = "22000000-0000-0000-0000-000000000009"
+		kc     = "11000000-0000-0000-0000-000000000009"
+	)
+	insertOperationUser(t, db, userID, kc, "old@test.test")
+
+	_, err := db.PerformOperation(ctx, OperationReq{
+		NewEmail:      utils.PointerString("new@test.test"),
+		OldEmail:      utils.PointerString("old@test.test"),
+		NewKeycloakID: utils.PointerString(kc),
+		Type:          utils.PointerString("email_update"),
+	})
+	require.NoError(t, err)
+
+	_, err = db.Exec(ctx, `UPDATE operation_trace SET revert =
+		'{"queries":[{"sql":"UPDATE users SET first_name_vernacular = ''pwned''","args":[]}],"logs":[]}'`)
+	require.NoError(t, err)
+
+	require.NoError(t, db.RevertOperation(ctx, "new@test.test", "old@test.test"))
+
+	email, _ := userEmailAndKc(t, db, userID)
+	assert.Equal(t, "old@test.test", email)
+	var pwned int
+	require.NoError(t, db.QueryRow(ctx, `SELECT count(*) FROM users WHERE first_name_vernacular = 'pwned'`).Scan(&pwned))
+	assert.Zero(t, pwned)
 }

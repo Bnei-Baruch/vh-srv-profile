@@ -23,8 +23,8 @@ type OperationReq struct {
 	Type          *string `json:"type" form:"type"`
 }
 
-// sqlQuery is one parameterized statement, kept in operation_trace so a
-// revert can run it later with the same arguments.
+// sqlQuery is one parameterized statement. operation_trace keeps them as a
+// record of what ran; a revert never runs SQL read back from the table.
 type sqlQuery struct {
 	SQL  string   `json:"sql"`
 	Args []string `json:"args"`
@@ -36,6 +36,26 @@ func (q sqlQuery) args() []any {
 		args[i] = a
 	}
 	return args
+}
+
+// renameStatements moves fromEmail to toEmail. With fromKc set, the user
+// also moves from fromKc to toKc; without it, only the email of toKc's user
+// changes. A revert is the same call with the sides swapped.
+func renameStatements(fromEmail, toEmail string, fromKc *string, toKc string) []sqlQuery {
+	if fromKc == nil {
+		return []sqlQuery{{`UPDATE users SET primary_email = $1 WHERE primary_email = $2 AND keycloak_id = $3`,
+			[]string{toEmail, fromEmail, toKc}}}
+	}
+	return []sqlQuery{{`UPDATE users SET keycloak_id = $1, primary_email = $2 WHERE keycloak_id = $3`,
+		[]string{toKc, toEmail, *fromKc}}}
+}
+
+// revertStatements undoes renameStatements for the same input.
+func revertStatements(in emailInput) []sqlQuery {
+	if in.OldKeycloakID == nil {
+		return renameStatements(*in.NewEmail, *in.OldEmail, nil, *in.NewKeycloakID)
+	}
+	return renameStatements(*in.NewEmail, *in.OldEmail, in.NewKeycloakID, *in.OldKeycloakID)
 }
 
 type QueryLog struct {
@@ -52,16 +72,14 @@ type emailInput struct {
 
 func (db *ProfileDB) PerformOperation(ctx context.Context, req OperationReq) (int, error) {
 
-	newKcId := req.NewKeycloakID
-	oldKcId := req.OldKeycloakID
-	newEmail := req.NewEmail
-	oldEmail := req.OldEmail
-
+	input := emailInput{
+		NewEmail:      req.NewEmail,
+		NewKeycloakID: req.NewKeycloakID,
+		OldKeycloakID: req.OldKeycloakID,
+		OldEmail:      req.OldEmail,
+	}
 	var output QueryLog
-	var input emailInput
-	var revert QueryLog
-
-	var query sqlQuery
+	revert := QueryLog{Queries: revertStatements(input), Logs: []string{}}
 
 	tx, err := db.Begin(ctx)
 	if err != nil {
@@ -69,31 +87,14 @@ func (db *ProfileDB) PerformOperation(ctx context.Context, req OperationReq) (in
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	// migration query and the statement that undoes it
-	if oldKcId == nil {
-		const sql = `UPDATE users SET primary_email = $1 WHERE primary_email = $2 AND keycloak_id = $3`
-		query = sqlQuery{SQL: sql, Args: []string{*newEmail, *oldEmail, *newKcId}}
-		revert.Queries = append(revert.Queries, sqlQuery{SQL: sql, Args: []string{*oldEmail, *newEmail, *newKcId}})
-	} else {
-		const sql = `UPDATE users SET keycloak_id = $1, primary_email = $2 WHERE keycloak_id = $3`
-		query = sqlQuery{SQL: sql, Args: []string{*newKcId, *newEmail, *oldKcId}}
-		revert.Queries = append(revert.Queries, sqlQuery{SQL: sql, Args: []string{*oldKcId, *oldEmail, *newKcId}})
+	for _, query := range renameStatements(*input.OldEmail, *input.NewEmail, input.OldKeycloakID, *input.NewKeycloakID) {
+		updatedRes, err := tx.Exec(ctx, query.SQL, query.args()...)
+		if err != nil {
+			return 0, fmt.Errorf("problem updating users: %w", err)
+		}
+		output.Queries = append(output.Queries, query)
+		output.Logs = append(output.Logs, updatedRes.String())
 	}
-
-	updatedRes, err := tx.Exec(ctx, query.SQL, query.args()...)
-	if err != nil {
-		return 0, fmt.Errorf("problem updating users: %w", err)
-	}
-
-	output.Queries = append(output.Queries, query)
-	output.Logs = append(output.Logs, updatedRes.String())
-
-	input.NewEmail = newEmail
-	input.NewKeycloakID = newKcId
-	input.OldKeycloakID = oldKcId
-	input.OldEmail = oldEmail
-
-	revert.Logs = []string{}
 
 	// pgx encodes the structs as JSON for the json columns.
 	var ID int
@@ -118,11 +119,11 @@ func (db *ProfileDB) RevertOperation(ctx context.Context, newEmail string, oldEm
 	var (
 		id     int
 		status string
-		revert QueryLog
+		input  emailInput
 	)
-	if err := tx.QueryRow(ctx, `SELECT id, status, revert FROM operation_trace
+	if err := tx.QueryRow(ctx, `SELECT id, status, input FROM operation_trace
 		WHERE input->>'new_email'=$1 AND input->>'old_email'=$2
-		ORDER BY id DESC LIMIT 1 FOR UPDATE`, newEmail, oldEmail).Scan(&id, &status, &revert); err != nil {
+		ORDER BY id DESC LIMIT 1 FOR UPDATE`, newEmail, oldEmail).Scan(&id, &status, &input); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return common.ErrOperationNotFound
 		}
@@ -133,17 +134,15 @@ func (db *ProfileDB) RevertOperation(ctx context.Context, newEmail string, oldEm
 		return fmt.Errorf("operation already reverted")
 	}
 
-	// first query in the Queries array is the query to revert
-	if len(revert.Queries) == 0 {
-		return fmt.Errorf("operation %d has no revert query", id)
+	// The statements come from the code, built from the stored input.
+	revert := QueryLog{Queries: revertStatements(input), Logs: []string{}}
+	for _, query := range revert.Queries {
+		revertRes, err := tx.Exec(ctx, query.SQL, query.args()...)
+		if err != nil {
+			return fmt.Errorf("problem reverting operation: %w", err)
+		}
+		revert.Logs = append(revert.Logs, revertRes.String())
 	}
-	query := revert.Queries[0]
-
-	revertRes, err := tx.Exec(ctx, query.SQL, query.args()...)
-	if err != nil {
-		return fmt.Errorf("problem reverting operation: %w", err)
-	}
-	revert.Logs = append(revert.Logs, revertRes.String())
 
 	if _, err := tx.Exec(ctx, `UPDATE operation_trace SET revert = $1, status = 'reverted' WHERE id = $2`,
 		revert, id); err != nil {
