@@ -4,6 +4,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -127,6 +128,18 @@ func Test_ProfileDB_RevertOperation_concurrent_only_one_succeeds(t *testing.T) {
 		NewKeycloakID: utils.PointerString(kc),
 	})
 	require.NoError(t, err)
+
+	// Open the pool's connections first. Otherwise each goroutine waits on a
+	// new connection, the first revert commits before the rest start, and the
+	// test passes without the lock.
+	conns := make([]*pgxpool.Conn, db.Stat().MaxConns())
+	for i := range conns {
+		conns[i], err = db.Acquire(ctx)
+		require.NoError(t, err)
+	}
+	for _, c := range conns {
+		c.Release()
+	}
 
 	const n = 20
 	errs := make([]error, n)
@@ -287,4 +300,44 @@ func Test_ProfileDB_operation_taken_keycloak_id_is_conflict(t *testing.T) {
 	require.ErrorIs(t, db.RevertOperation(ctx, "b@test.test", "a@test.test"), common.ErrOperationConflict)
 	email, kc := userEmailAndKc(t, db, userID)
 	assert.Equal(t, []string{"b@test.test", newKc}, []string{email, kc})
+}
+
+// With an old keycloak id the user must also still have the old email: a
+// mistyped old email is refused, and so is a revert after the email changed.
+func Test_ProfileDB_operation_with_old_keycloak_id_checks_email(t *testing.T) {
+	db := newTestProfileDBIsolated(t)
+	ctx := testContext()
+
+	const (
+		userID = "22000000-0000-0000-0000-000000000031"
+		oldKc  = "11000000-0000-0000-0000-000000000031"
+		newKc  = "11000000-0000-0000-0000-000000000032"
+	)
+	insertOperationUser(t, db, userID, oldKc, "real@test.test")
+
+	_, err := db.PerformOperation(ctx, OperationReq{
+		NewEmail:      utils.PointerString("new@test.test"),
+		OldEmail:      utils.PointerString("typo@test.test"),
+		OldKeycloakID: utils.PointerString(oldKc),
+		NewKeycloakID: utils.PointerString(newKc),
+		Type:          utils.PointerString("email_update"),
+	})
+	require.ErrorIs(t, err, common.ErrOperationNoMatch)
+	email, kc := userEmailAndKc(t, db, userID)
+	assert.Equal(t, []string{"real@test.test", oldKc}, []string{email, kc})
+
+	_, err = db.PerformOperation(ctx, OperationReq{
+		NewEmail:      utils.PointerString("new@test.test"),
+		OldEmail:      utils.PointerString("real@test.test"),
+		OldKeycloakID: utils.PointerString(oldKc),
+		NewKeycloakID: utils.PointerString(newKc),
+		Type:          utils.PointerString("email_update"),
+	})
+	require.NoError(t, err)
+	_, err = db.Exec(ctx, `UPDATE users SET primary_email = 'later@test.test' WHERE user_id = $1`, userID)
+	require.NoError(t, err)
+
+	require.ErrorIs(t, db.RevertOperation(ctx, "new@test.test", "real@test.test"), common.ErrOperationNoMatch)
+	email, kc = userEmailAndKc(t, db, userID)
+	assert.Equal(t, []string{"later@test.test", newKc}, []string{email, kc})
 }
