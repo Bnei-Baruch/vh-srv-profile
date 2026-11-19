@@ -33,5 +33,7 @@ func revertRequest(t *testing.T, storeErr error) int {
 func Test_handleOperationRevert_status(t *testing.T) {
 	assert.Equal(t, http.StatusOK, revertRequest(t, nil))
 	assert.Equal(t, http.StatusNotFound, revertRequest(t, common.ErrOperationNotFound))
-	assert.Equal(t, http.StatusInternalServerError, revertRequest(t, errors.New("operation already reverted")))
+	assert.Equal(t, http.StatusConflict, revertRequest(t, common.ErrOperationReverted))
+	assert.Equal(t, http.StatusConflict, revertRequest(t, common.ErrOperationNoMatch))
+	assert.Equal(t, http.StatusInternalServerError, revertRequest(t, errors.New("db down")))
 }
