@@ -547,228 +547,82 @@ func getUserSpecial(ctx context.Context, ordersService orders.OrdersService, ema
 }
 
 func (db *ProfileDB) createMembership(ctx context.Context, req Membership) (int, error) {
-
-	var ID int
-
-	createString, numString, createQueryArgs := prepareMembershipCreateQuery(req)
-
-	if len(createQueryArgs) != 0 {
-		if err := db.QueryRow(ctx, fmt.Sprintf(`INSERT INTO membership (%s) VALUES (%s) RETURNING id`, createString, numString),
-			createQueryArgs...).Scan(&ID); err != nil {
-			return 0, err
-		}
-
-		return ID, nil
-
-	} else {
+	var c sqlCols
+	setIf(&c, "active", req.Active)
+	setIf(&c, "type", req.Type)
+	setIf(&c, "expiry", req.Expiry)
+	setIf(&c, "user_id", req.UserID)
+	if c.empty() {
 		return 0, fmt.Errorf("invalid values")
 	}
+
+	var ID int
+	if err := db.QueryRow(ctx, `INSERT INTO membership `+c.values()+` RETURNING id`, c.args...).Scan(&ID); err != nil {
+		return 0, err
+	}
+	return ID, nil
 }
 
 func (db *ProfileDB) createManualMembership(ctx context.Context, req MembershipManual) (int, error) {
-
-	var ID int
-
-	createString, numString, createQueryArgs := prepareManualMembershipCreateQuery(req)
-
-	if len(createQueryArgs) != 0 {
-		if err := db.QueryRow(ctx, fmt.Sprintf(`INSERT INTO membership_manual (%s) VALUES (%s) RETURNING id`, createString, numString),
-			createQueryArgs...).Scan(&ID); err != nil {
-			return 0, err
-		}
-
-		return ID, nil
-
-	} else {
+	var c sqlCols
+	setIf(&c, "order_id", req.OrderID)
+	setIf(&c, "payment_id", req.PaymentID)
+	setIf(&c, "membership_id", req.MembershipID)
+	setIf(&c, "quantity", req.Quantity)
+	if c.empty() {
 		return 0, fmt.Errorf("invalid values")
 	}
+
+	var ID int
+	if err := db.QueryRow(ctx, `INSERT INTO membership_manual `+c.values()+` RETURNING id`, c.args...).Scan(&ID); err != nil {
+		return 0, err
+	}
+	return ID, nil
 }
 
 func (db *ProfileDB) createAutomaticMembership(ctx context.Context, req MembershipAutomatic) (int, error) {
-
-	var ID int
-
-	createString, numString, createQueryArgs := prepareAutomaticMembershipCreateQuery(req)
-
-	if len(createQueryArgs) != 0 {
-		if err := db.QueryRow(ctx, fmt.Sprintf(`INSERT INTO membership_automatic (%s) VALUES (%s) RETURNING id`, createString, numString),
-			createQueryArgs...).Scan(&ID); err != nil {
-			return 0, err
-		}
-
-		return ID, nil
-
-	} else {
+	var c sqlCols
+	setIf(&c, "order_id", req.OrderID)
+	setIf(&c, "payment_id", req.PaymentID)
+	setIf(&c, "membership_id", req.MembershipID)
+	if c.empty() {
 		return 0, fmt.Errorf("invalid values")
 	}
+
+	var ID int
+	if err := db.QueryRow(ctx, `INSERT INTO membership_automatic `+c.values()+` RETURNING id`, c.args...).Scan(&ID); err != nil {
+		return 0, err
+	}
+	return ID, nil
 }
 
 func (db *ProfileDB) createSpecialMembership(ctx context.Context, req MembershipSpecial) (int, error) {
-
-	var ID int
-
-	createString, numString, createQueryArgs := prepareSpecialMembershipCreateQuery(req)
-
-	if len(createQueryArgs) != 0 {
-		if err := db.QueryRow(ctx, fmt.Sprintf(`INSERT INTO membership_special (%s) VALUES (%s) RETURNING id`, createString, numString),
-			createQueryArgs...).Scan(&ID); err != nil {
-			return 0, err
-		}
-
-		return ID, nil
-
-	} else {
+	var c sqlCols
+	setIf(&c, "membership_id", req.MembershipID)
+	if c.empty() {
 		return 0, fmt.Errorf("invalid values")
 	}
+
+	var ID int
+	if err := db.QueryRow(ctx, `INSERT INTO membership_special `+c.values()+` RETURNING id`, c.args...).Scan(&ID); err != nil {
+		return 0, err
+	}
+	return ID, nil
 }
 
 func (db *ProfileDB) createHelpHaverMembership(ctx context.Context, req MembershipHelpHaver) (int, error) {
-
-	var ID int
-
-	createString, numString, createQueryArgs := prepareHelpHaverMembershipCreateQuery(req)
-
-	if len(createQueryArgs) != 0 {
-		if err := db.QueryRow(ctx, fmt.Sprintf(`INSERT INTO membership_helphaver (%s) VALUES (%s) RETURNING id`, createString, numString),
-			createQueryArgs...).Scan(&ID); err != nil {
-			return 0, err
-		}
-
-		return ID, nil
-
-	} else {
+	var c sqlCols
+	setIf(&c, "membership_id", req.MembershipID)
+	setIf(&c, "grant_id", req.GrantID)
+	if c.empty() {
 		return 0, fmt.Errorf("invalid values")
 	}
-}
 
-func prepareSpecialMembershipCreateQuery(req MembershipSpecial) (string, string, []interface{}) {
-	var createStrings []string
-	var numString []string
-	var args []interface{}
-
-	if req.MembershipID != nil {
-		createStrings = append(createStrings, "membership_id")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.MembershipID)
+	var ID int
+	if err := db.QueryRow(ctx, `INSERT INTO membership_helphaver `+c.values()+` RETURNING id`, c.args...).Scan(&ID); err != nil {
+		return 0, err
 	}
-
-	concatedCreateString := strings.Join(createStrings, ",")
-	concatedNumString := strings.Join(numString, ",")
-
-	return concatedCreateString, concatedNumString, args
-}
-
-func prepareHelpHaverMembershipCreateQuery(req MembershipHelpHaver) (string, string, []interface{}) {
-	var createStrings []string
-	var numString []string
-	var args []interface{}
-
-	if req.MembershipID != nil {
-		createStrings = append(createStrings, "membership_id")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.MembershipID)
-	}
-	if req.GrantID != nil {
-		createStrings = append(createStrings, "grant_id")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.GrantID)
-	}
-
-	concatedCreateString := strings.Join(createStrings, ",")
-	concatedNumString := strings.Join(numString, ",")
-
-	return concatedCreateString, concatedNumString, args
-}
-
-func prepareAutomaticMembershipCreateQuery(req MembershipAutomatic) (string, string, []interface{}) {
-	var createStrings []string
-	var numString []string
-	var args []interface{}
-
-	if req.OrderID != nil {
-		createStrings = append(createStrings, "order_id")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.OrderID)
-	}
-	if req.PaymentID != nil {
-		createStrings = append(createStrings, "payment_id")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.PaymentID)
-	}
-	if req.MembershipID != nil {
-		createStrings = append(createStrings, "membership_id")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.MembershipID)
-	}
-
-	concatedCreateString := strings.Join(createStrings, ",")
-	concatedNumString := strings.Join(numString, ",")
-
-	return concatedCreateString, concatedNumString, args
-}
-
-func prepareManualMembershipCreateQuery(req MembershipManual) (string, string, []interface{}) {
-	var createStrings []string
-	var numString []string
-	var args []interface{}
-
-	if req.OrderID != nil {
-		createStrings = append(createStrings, "order_id")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.OrderID)
-	}
-	if req.PaymentID != nil {
-		createStrings = append(createStrings, "payment_id")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.PaymentID)
-	}
-	if req.MembershipID != nil {
-		createStrings = append(createStrings, "membership_id")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.MembershipID)
-	}
-	if req.Quantity != nil {
-		createStrings = append(createStrings, "quantity")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.Quantity)
-	}
-
-	concatedCreateString := strings.Join(createStrings, ",")
-	concatedNumString := strings.Join(numString, ",")
-
-	return concatedCreateString, concatedNumString, args
-}
-
-func prepareMembershipCreateQuery(req Membership) (string, string, []interface{}) {
-	var createStrings []string
-	var numString []string
-	var args []interface{}
-
-	if req.Active != nil {
-		createStrings = append(createStrings, "active")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.Active)
-	}
-	if req.Type != nil {
-		createStrings = append(createStrings, "type")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.Type)
-	}
-	if req.Expiry != nil {
-		createStrings = append(createStrings, "expiry")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.Expiry)
-	}
-	if req.UserID != nil {
-		createStrings = append(createStrings, "user_id")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.UserID)
-	}
-
-	concatedCreateString := strings.Join(createStrings, ",")
-	concatedNumString := strings.Join(numString, ",")
-
-	return concatedCreateString, concatedNumString, args
+	return ID, nil
 }
 
 func (db *ProfileDB) GetMembershipByID(ctx context.Context, id int) (Membership, error) {
@@ -1073,25 +927,25 @@ func (db *ProfileDB) getHelphaverMembershipByMembershipID(ctx context.Context, m
 }
 
 func (db *ProfileDB) PatchMembershipByID(ctx context.Context, membership Membership, id int) (int, error) {
-
-	toUpdate, toUpdateArgs := prepareMembershipUpdateQuery(membership)
-
-	var membershipID int
-
-	if len(toUpdateArgs) != 0 {
-		if err := db.QueryRow(ctx, fmt.Sprintf(`UPDATE membership SET %s WHERE id=$%d returning id`, toUpdate, len(toUpdateArgs)+1),
-			append(toUpdateArgs, id)...).
-			Scan(&membershipID); err != nil {
-			if err == pgx.ErrNoRows {
-				return 0, common.ErrNotFound
-			}
-			return 0, err
-		}
-
-		return membershipID, nil
-	} else {
+	var c sqlCols
+	setIf(&c, "active", membership.Active)
+	setIf(&c, "expiry", membership.Expiry)
+	setIf(&c, "user_id", membership.UserID)
+	setIf(&c, "type", membership.Type)
+	if c.empty() {
 		return 0, fmt.Errorf("no fields to update")
 	}
+	c.set("updated_at", time.Now())
+
+	q := `UPDATE membership SET ` + c.assignments() + ` WHERE id=` + c.bind(id) + ` returning id`
+	var membershipID int
+	if err := db.QueryRow(ctx, q, c.args...).Scan(&membershipID); err != nil {
+		if err == pgx.ErrNoRows {
+			return 0, common.ErrNotFound
+		}
+		return 0, err
+	}
+	return membershipID, nil
 }
 
 func (db *ProfileDB) CancelMembership(ctx context.Context, membBody EmailKeycloakAndUserIDBody) error {
@@ -1308,38 +1162,4 @@ func buildAndGetWhereMembershipQuery(userID string) (string, string, []interface
 	}
 
 	return whereString, " ORDER BY updated_at desc", args
-}
-
-func prepareMembershipUpdateQuery(req Membership) (string, []interface{}) {
-	var updateStrings []string
-	var args []interface{}
-
-	if req.Active != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("active=$%d", len(updateStrings)+1))
-		args = append(args, *req.Active)
-	}
-
-	if req.Expiry != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("expiry=$%d", len(updateStrings)+1))
-		args = append(args, *req.Expiry)
-	}
-
-	if req.UserID != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("user_id=$%d", len(updateStrings)+1))
-		args = append(args, *req.UserID)
-	}
-
-	if req.Type != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("type=$%d", len(updateStrings)+1))
-		args = append(args, *req.Type)
-	}
-
-	if len(args) != 0 {
-		updateStrings = append(updateStrings, fmt.Sprintf("updated_at=$%d", len(updateStrings)+1))
-		args = append(args, time.Now())
-	}
-
-	updateArgument := strings.Join(updateStrings, ",")
-
-	return updateArgument, args
 }
