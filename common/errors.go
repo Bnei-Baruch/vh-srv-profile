@@ -8,4 +8,7 @@ var (
 	ErrNotFound        = errors.New("not found")
 	ErrSpouseConflict  = errors.New("one or both users already have a spouse that is not the intended new spouse")
 	ErrSpouseSelf      = errors.New("cannot set spouse to self")
+
+	// ErrOperationNotFound: no operation_trace row for this email pair.
+	ErrOperationNotFound = errors.New("operation not found")
 )
