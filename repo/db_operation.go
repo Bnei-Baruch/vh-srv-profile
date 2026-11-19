@@ -90,6 +90,9 @@ func (db *ProfileDB) PerformOperation(ctx context.Context, req OperationReq) (in
 	for _, query := range renameStatements(*input.OldEmail, *input.NewEmail, input.OldKeycloakID, *input.NewKeycloakID) {
 		updatedRes, err := tx.Exec(ctx, query.SQL, query.args()...)
 		if err != nil {
+			if isUniqueViolation(err) {
+				return 0, fmt.Errorf("new keycloak id: %w", common.ErrOperationConflict)
+			}
 			return 0, fmt.Errorf("problem updating users: %w", err)
 		}
 		// Exactly one user must start from this email and key, or nothing changes.
@@ -143,6 +146,9 @@ func (db *ProfileDB) RevertOperation(ctx context.Context, newEmail string, oldEm
 	for _, query := range revert.Queries {
 		revertRes, err := tx.Exec(ctx, query.SQL, query.args()...)
 		if err != nil {
+			if isUniqueViolation(err) {
+				return fmt.Errorf("old keycloak id: %w", common.ErrOperationConflict)
+			}
 			return fmt.Errorf("problem reverting operation: %w", err)
 		}
 		if revertRes.RowsAffected() != 1 {
@@ -157,4 +163,10 @@ func (db *ProfileDB) RevertOperation(ctx context.Context, newEmail string, oldEm
 	}
 
 	return tx.Commit(ctx)
+}
+
+// isUniqueViolation: the key or email being moved to is already taken.
+func isUniqueViolation(err error) bool {
+	var pgErr interface{ SQLState() string }
+	return errors.As(err, &pgErr) && pgErr.SQLState() == "23505"
 }

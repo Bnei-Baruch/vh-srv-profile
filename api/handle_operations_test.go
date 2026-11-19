@@ -35,5 +35,6 @@ func Test_handleOperationRevert_status(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, revertRequest(t, common.ErrOperationNotFound))
 	assert.Equal(t, http.StatusConflict, revertRequest(t, common.ErrOperationReverted))
 	assert.Equal(t, http.StatusConflict, revertRequest(t, common.ErrOperationNoMatch))
+	assert.Equal(t, http.StatusConflict, revertRequest(t, common.ErrOperationConflict))
 	assert.Equal(t, http.StatusInternalServerError, revertRequest(t, errors.New("db down")))
 }

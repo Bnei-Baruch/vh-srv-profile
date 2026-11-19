@@ -252,3 +252,39 @@ func Test_ProfileDB_RevertOperation_user_changed_since_changes_nothing(t *testin
 	require.NoError(t, db.QueryRow(ctx, `SELECT status FROM operation_trace`).Scan(&status))
 	assert.Equal(t, "success", status)
 }
+
+// Moving to a keycloak id another user has is a conflict, not a database
+// failure, in both directions; nothing changes.
+func Test_ProfileDB_operation_taken_keycloak_id_is_conflict(t *testing.T) {
+	db := newTestProfileDBIsolated(t)
+	ctx := testContext()
+
+	const (
+		userID = "22000000-0000-0000-0000-000000000021"
+		oldKc  = "11000000-0000-0000-0000-000000000021"
+		newKc  = "11000000-0000-0000-0000-000000000022"
+	)
+	insertOperationUser(t, db, userID, oldKc, "a@test.test")
+	insertOperationUser(t, db, "22000000-0000-0000-0000-000000000022", newKc, "taken@test.test")
+
+	rename := OperationReq{
+		NewEmail:      utils.PointerString("b@test.test"),
+		OldEmail:      utils.PointerString("a@test.test"),
+		OldKeycloakID: utils.PointerString(oldKc),
+		NewKeycloakID: utils.PointerString(newKc),
+		Type:          utils.PointerString("email_update"),
+	}
+	_, err := db.PerformOperation(ctx, rename)
+	require.ErrorIs(t, err, common.ErrOperationConflict)
+
+	// Free the new key, rename, then give the old key to someone else.
+	_, err = db.Exec(ctx, `DELETE FROM users WHERE keycloak_id = $1`, newKc)
+	require.NoError(t, err)
+	_, err = db.PerformOperation(ctx, rename)
+	require.NoError(t, err)
+	insertOperationUser(t, db, "22000000-0000-0000-0000-000000000023", oldKc, "again@test.test")
+
+	require.ErrorIs(t, db.RevertOperation(ctx, "b@test.test", "a@test.test"), common.ErrOperationConflict)
+	email, kc := userEmailAndKc(t, db, userID)
+	assert.Equal(t, []string{"b@test.test", newKc}, []string{email, kc})
+}
