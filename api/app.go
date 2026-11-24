@@ -12,7 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/hellofresh/health-go/v5"
 	healthnats "github.com/hellofresh/health-go/v5/checks/nats"
-	healthpgx "github.com/hellofresh/health-go/v5/checks/pgx4"
+	healthpgx "github.com/hellofresh/health-go/v5/checks/pgx5"
 
 	"gitlab.bbdev.team/vh/vh-srv-profile/api/middleware"
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
