@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
 	uuid "github.com/satori/go.uuid"
 	"github.com/volatiletech/null/v9"
 

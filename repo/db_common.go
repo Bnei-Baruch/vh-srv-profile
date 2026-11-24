@@ -10,7 +10,7 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/lib/pq"
 
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
@@ -45,8 +45,13 @@ type ProfileDB struct {
 }
 
 func NewProfileDB(ctx context.Context, databaseURL string, eventEmitter events.EventEmitter) (*ProfileDB, error) {
-	pool, err := pgxpool.Connect(ctx, databaseURL)
+	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {
+		return nil, fmt.Errorf("unable to connect to database: %w", err)
+	}
+	// v5 connects lazily; v4's Connect dialed here, so startup still fails on an unreachable DB.
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
 		return nil, fmt.Errorf("unable to connect to database: %w", err)
 	}
 
