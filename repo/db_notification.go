@@ -117,8 +117,8 @@ func (db *ProfileDB) PatchNotification(ctx context.Context, noti Notification, i
 	toUpdate, toUpdateArgs := prepareNotificationUpdate(noti)
 
 	if len(toUpdateArgs) != 0 {
-		if err := db.QueryRow(ctx, fmt.Sprintf(`UPDATE notification SET %s WHERE id='%d' RETURNING id`, toUpdate, id),
-			toUpdateArgs...).
+		if err := db.QueryRow(ctx, fmt.Sprintf(`UPDATE notification SET %s WHERE id=$%d RETURNING id`, toUpdate, len(toUpdateArgs)+1),
+			append(toUpdateArgs, id)...).
 			Scan(&ID); err != nil {
 			return 0, err
 		}

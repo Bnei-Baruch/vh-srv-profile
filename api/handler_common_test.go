@@ -210,13 +210,13 @@ func (m *storageMock) SoftDeleteUserNotification(ctx context.Context, id int) er
 }
 
 func (m *storageMock) PerformOperation(ctx context.Context, opr repo.OperationReq) (int, error) {
-	//TODO implement me
-	panic("implement me")
+	args := m.Called(ctx, opr)
+	return args.Int(0), args.Error(1)
 }
 
 func (m *storageMock) RevertOperation(ctx context.Context, newEmail string, oldEmail string) error {
-	//TODO implement me
-	panic("implement me")
+	args := m.Called(ctx, newEmail, oldEmail)
+	return args.Error(0)
 }
 
 func (m *storageMock) IsSubjectID(ctx context.Context, arg1 string, arg2 string) (bool, error) {
