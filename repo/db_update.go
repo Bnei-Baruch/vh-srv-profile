@@ -3,7 +3,6 @@ package repo
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/jackc/pgx/v4"
 	uuid "github.com/satori/go.uuid"
@@ -37,33 +36,38 @@ func (db *ProfileDB) UpdateProfile(ctx context.Context, keycloakID uuid.UUID, us
 		return fmt.Errorf("tx.QueryRow: %w", err)
 	}
 
-	usersToUpdate, usersArgs := prepareUserUpdate(user)
-	if len(usersArgs) != 0 {
-		if _, err = tx.Exec(ctx, fmt.Sprintf(`UPDATE users SET %s WHERE user_id=$%d`, usersToUpdate, len(usersArgs)+1),
-			append(usersArgs, userID)...); err != nil {
+	if c := userUpdateCols(user); !c.empty() {
+		q := `UPDATE users SET ` + c.assignments() + ` WHERE user_id=` + c.bind(userID)
+		if _, err = tx.Exec(ctx, q, c.args...); err != nil {
 			return fmt.Errorf("tx.Exec [user]: %w", err)
 		}
 	}
 
-	phonesToUpdate, phoneArgs := preparePhoneUpdate(userID, user)
-	if len(phoneArgs) != 0 {
-		if _, err = tx.Exec(ctx, fmt.Sprintf(`
+	for _, p := range []struct {
+		number    *string
+		phoneType string
+	}{
+		{user.Phones.MobileNumber, common.Mobile},
+		{user.Phones.WhatsAppNumber, common.WhatsApp},
+		{user.Phones.TelegramNumber, common.Telegram},
+	} {
+		if p.number == nil {
+			continue
+		}
+		if _, err = tx.Exec(ctx, `
 		INSERT INTO phone_numbers (user_id, phone_number, type)
-		VALUES %s
+		VALUES ($1, $2, $3)
 		ON CONFLICT (user_id, type)
-		DO 
-			UPDATE SET phone_number=EXCLUDED.phone_number`, phonesToUpdate),
-			phoneArgs...); err != nil {
+		DO UPDATE SET phone_number=EXCLUDED.phone_number`,
+			userID, *p.number, p.phoneType); err != nil {
 			return fmt.Errorf("tx.Exec [phone]: %w", err)
 		}
 	}
 
 	/* Update status of the user in the status table if provided in the request */
-	userStatusToUpdate, userStatusArgs := prepareUserStatusUpdateQuery(user)
-
-	if len(userStatusArgs) != 0 {
-		updateRes, err := tx.Exec(ctx, fmt.Sprintf(`UPDATE status SET %s WHERE user_id=$%d`, userStatusToUpdate, len(userStatusArgs)+1),
-			append(userStatusArgs, userID)...)
+	if c := userStatusUpdateCols(user); !c.empty() {
+		q := `UPDATE status SET ` + c.assignments() + ` WHERE user_id=` + c.bind(userID)
+		updateRes, err := tx.Exec(ctx, q, c.args...)
 		if err != nil {
 			return fmt.Errorf("tx.Exec [status]: %w", err)
 		}
@@ -88,187 +92,56 @@ func (db *ProfileDB) UpdateProfile(ctx context.Context, keycloakID uuid.UUID, us
 	return nil
 }
 
-func prepareUserUpdate(user UserInput) (string, []interface{}) {
-	var updateStrings []string
-	var args []interface{}
-
-	if user.FirstNameLatin != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("first_name_latin=$%d", len(updateStrings)+1))
-		args = append(args, user.FirstNameLatin)
-	}
-	if user.FirstNameVernacular != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("first_name_vernacular=$%d", len(updateStrings)+1))
-		args = append(args, user.FirstNameVernacular)
-	}
-	if user.LastNameLatin != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("last_name_latin=$%d", len(updateStrings)+1))
-		args = append(args, user.LastNameLatin)
-	}
-	if user.LastNameVernacular != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("last_name_vernacular=$%d", len(updateStrings)+1))
-		args = append(args, user.LastNameVernacular)
-	}
-	if user.Address.StreetAddress != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("street_address=$%d", len(updateStrings)+1))
-		args = append(args, user.Address.StreetAddress)
-	}
-	if user.Address.Country != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("country=$%d", len(updateStrings)+1))
-		args = append(args, user.Address.Country)
-	}
-	if user.Address.StateOrRegion != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("state_region=$%d", len(updateStrings)+1))
-		args = append(args, user.Address.StateOrRegion)
-	}
-	if user.Address.PostalCode != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("postal_code=$%d", len(updateStrings)+1))
-		args = append(args, user.Address.PostalCode)
-	}
-	if user.Address.City != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("city=$%d", len(updateStrings)+1))
-		args = append(args, user.Address.City)
-	}
-	if user.Gender != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("gender=$%d", len(updateStrings)+1))
-		args = append(args, user.Gender)
-	}
+// userUpdateCols lists the users columns set in user.
+func userUpdateCols(user UserInput) sqlCols {
+	var c sqlCols
+	setIf(&c, "first_name_latin", user.FirstNameLatin)
+	setIf(&c, "first_name_vernacular", user.FirstNameVernacular)
+	setIf(&c, "last_name_latin", user.LastNameLatin)
+	setIf(&c, "last_name_vernacular", user.LastNameVernacular)
+	setIf(&c, "street_address", user.Address.StreetAddress)
+	setIf(&c, "country", user.Address.Country)
+	setIf(&c, "state_region", user.Address.StateOrRegion)
+	setIf(&c, "postal_code", user.Address.PostalCode)
+	setIf(&c, "city", user.Address.City)
+	setIf(&c, "gender", user.Gender)
 	if user.MaritalStatus.Set {
-		updateStrings = append(updateStrings, fmt.Sprintf("marital_status=$%d", len(updateStrings)+1))
 		if user.MaritalStatus.Valid {
-			args = append(args, user.MaritalStatus)
+			c.set("marital_status", user.MaritalStatus)
 		} else {
 			// Clear marital status, set it NULL.
-			args = append(args, nil)
+			c.set("marital_status", nil)
 		}
 	}
-	if user.DateOfBirth != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("date_of_birth=$%d", len(updateStrings)+1))
-		args = append(args, user.DateOfBirth)
-	}
-	if user.Emails.Primary != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("primary_email=$%d", len(updateStrings)+1))
-		args = append(args, user.Emails.Primary)
-	}
-	if user.Emails.Alternate1 != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("alternate_email_1=$%d", len(updateStrings)+1))
-		args = append(args, user.Emails.Alternate1)
-	}
-	if user.Emails.Alternate2 != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("alternate_email_2=$%d", len(updateStrings)+1))
-		args = append(args, user.Emails.Alternate2)
-	}
-	if user.Languages.First != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("first_language=$%d", len(updateStrings)+1))
-		args = append(args, user.Languages.First)
-	}
-	if user.Languages.Other1 != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("other_language_1=$%d", len(updateStrings)+1))
-		args = append(args, user.Languages.Other1)
-	}
-	if user.Languages.Other2 != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("other_language_2=$%d", len(updateStrings)+1))
-		args = append(args, user.Languages.Other2)
-	}
-	if user.Languages.Other3 != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("other_language_3=$%d", len(updateStrings)+1))
-		args = append(args, user.Languages.Other3)
-	}
-	if user.Languages.Other4 != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("other_language_4=$%d", len(updateStrings)+1))
-		args = append(args, user.Languages.Other4)
-	}
-	if user.Languages.Listening != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("listening_language=$%d", len(updateStrings)+1))
-		args = append(args, user.Languages.Listening)
-	}
-	if user.Languages.Reading != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("reading_language=$%d", len(updateStrings)+1))
-		args = append(args, user.Languages.Reading)
-	}
-	if user.Languages.Email != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("email_language=$%d", len(updateStrings)+1))
-		args = append(args, user.Languages.Email)
-	}
-	if user.StudyStartYear != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("study_start_year=$%d", len(updateStrings)+1))
-		args = append(args, user.StudyStartYear)
-	}
-	if user.StudyFramework != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("study_framework=$%d", len(updateStrings)+1))
-		args = append(args, user.StudyFramework)
-	}
-	if user.Ten.HasGroup != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("has_ten_group=$%d", len(updateStrings)+1))
-		args = append(args, user.Ten.HasGroup)
-	}
-	if user.Ten.WantsGroup != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("wants_ten_group=$%d", len(updateStrings)+1))
-		args = append(args, user.Ten.WantsGroup)
-	}
-	if user.Ten.NameOfGroup != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("name_of_ten_group=$%d", len(updateStrings)+1))
-		args = append(args, user.Ten.NameOfGroup)
-	}
-	updateArgument := strings.Join(updateStrings, ",")
-
-	return updateArgument, args
+	setIf(&c, "date_of_birth", user.DateOfBirth)
+	setIf(&c, "primary_email", user.Emails.Primary)
+	setIf(&c, "alternate_email_1", user.Emails.Alternate1)
+	setIf(&c, "alternate_email_2", user.Emails.Alternate2)
+	setIf(&c, "first_language", user.Languages.First)
+	setIf(&c, "other_language_1", user.Languages.Other1)
+	setIf(&c, "other_language_2", user.Languages.Other2)
+	setIf(&c, "other_language_3", user.Languages.Other3)
+	setIf(&c, "other_language_4", user.Languages.Other4)
+	setIf(&c, "listening_language", user.Languages.Listening)
+	setIf(&c, "reading_language", user.Languages.Reading)
+	setIf(&c, "email_language", user.Languages.Email)
+	setIf(&c, "study_start_year", user.StudyStartYear)
+	setIf(&c, "study_framework", user.StudyFramework)
+	setIf(&c, "has_ten_group", user.Ten.HasGroup)
+	setIf(&c, "wants_ten_group", user.Ten.WantsGroup)
+	setIf(&c, "name_of_ten_group", user.Ten.NameOfGroup)
+	return c
 }
 
-func preparePhoneUpdate(userID uuid.UUID, user UserInput) (string, []interface{}) {
-	var updateStrings []string
-	var args []interface{}
-
-	// row adds one (user_id, phone_number, type) tuple, all three bound.
-	row := func(number *string, phoneType string) {
-		args = append(args, userID, number, phoneType)
-		n := len(args)
-		updateStrings = append(updateStrings, fmt.Sprintf("($%d, $%d, $%d)", n-2, n-1, n))
-	}
-
-	if user.Phones.MobileNumber != nil {
-		row(user.Phones.MobileNumber, common.Mobile)
-	}
-	if user.Phones.WhatsAppNumber != nil {
-		row(user.Phones.WhatsAppNumber, common.WhatsApp)
-	}
-	if user.Phones.TelegramNumber != nil {
-		row(user.Phones.TelegramNumber, common.Telegram)
-	}
-
-	updateArgument := strings.Join(updateStrings, ",")
-
-	return updateArgument, args
-}
-
-/* status update query builder */
-func prepareUserStatusUpdateQuery(user UserInput) (string, []interface{}) {
-	var updateStrings []string
-	var args []interface{}
-
-	if user.Status.Membership != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("membership=$%d", len(updateStrings)+1))
-		args = append(args, user.Status.Membership)
-	}
-	if user.Status.MembershipType != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("membership_type=$%d", len(updateStrings)+1))
-		args = append(args, user.Status.MembershipType)
-	}
-	if user.Status.Convention != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("convention=$%d", len(updateStrings)+1))
-		args = append(args, user.Status.Convention)
-	}
-	if user.Status.Galaxy != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("galaxy=$%d", len(updateStrings)+1))
-		args = append(args, user.Status.Galaxy)
-	}
-	if user.Status.Ticket != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("ticket=$%d", len(updateStrings)+1))
-		args = append(args, user.Status.Ticket)
-	}
-
-	updateArgument := strings.Join(updateStrings, ",")
-
-	return updateArgument, args
+// userStatusUpdateCols lists the status columns set in user.Status.
+func userStatusUpdateCols(user UserInput) sqlCols {
+	var c sqlCols
+	setIf(&c, "membership", user.Status.Membership)
+	setIf(&c, "membership_type", user.Status.MembershipType)
+	setIf(&c, "convention", user.Status.Convention)
+	setIf(&c, "galaxy", user.Status.Galaxy)
+	setIf(&c, "ticket", user.Status.Ticket)
+	return c
 }
 
 // SetSpouse manages symmetric spouse relationships and marital status.

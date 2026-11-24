@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	uuid "github.com/satori/go.uuid"
@@ -42,8 +41,15 @@ func (db *ProfileDB) CreateRequest(ctx context.Context, req NewRequest) error {
 	req.Status = utils.PointerString(common.RequestStatusRequested)
 	req.Type = utils.PointerString(common.RequestTypeHelpHaver)
 
-	createString, numString, createQueryArgs := prepareRequestCreateQuery(req)
-	if len(createQueryArgs) == 0 {
+	var c sqlCols
+	setIf(&c, "keycloak_id", req.KeycloakId)
+	setIf(&c, "rejection_note", req.RejectionNote)
+	setIf(&c, "name", req.RequestName)
+	setIf(&c, "request_note", req.RequestNote)
+	setIf(&c, "status", req.Status)
+	setIf(&c, "type", req.Type)
+	setIf(&c, "months", req.Months)
+	if c.empty() {
 		return errors.New("invalid values")
 	}
 
@@ -66,8 +72,7 @@ func (db *ProfileDB) CreateRequest(ctx context.Context, req NewRequest) error {
 	}
 
 	// create new request
-	_, err = db.Exec(ctx,
-		fmt.Sprintf(`INSERT INTO request (%s) VALUES (%s)`, createString, numString), createQueryArgs...)
+	_, err = db.Exec(ctx, `INSERT INTO request `+c.values(), c.args...)
 	if err != nil {
 		return fmt.Errorf("create new request: %w", err)
 	}
@@ -194,14 +199,19 @@ func (db *ProfileDB) rejectRequest(ctx context.Context, user User, req NewReques
 }
 
 func (db *ProfileDB) updateRequest(ctx context.Context, request NewRequest) error {
-	toUpdate, toUpdateArgs := prepareRequestUpdate(request)
-	if len(toUpdateArgs) == 0 {
+	var c sqlCols
+	setIf(&c, "rejection_note", request.RejectionNote)
+	setIf(&c, "name", request.RequestName)
+	setIf(&c, "request_note", request.RequestNote)
+	setIf(&c, "status", request.Status)
+	setIf(&c, "type", request.Type)
+	if c.empty() {
 		return errors.New("invalid values")
 	}
+	c.set("updated_at", time.Now())
 
-	_, err := db.Exec(ctx, fmt.Sprintf(`UPDATE request SET %s WHERE id=$%d RETURNING keycloak_id, type`,
-		toUpdate, len(toUpdateArgs)+1), append(toUpdateArgs, *request.ID)...)
-	if err != nil {
+	q := `UPDATE request SET ` + c.assignments() + ` WHERE id=` + c.bind(*request.ID)
+	if _, err := db.Exec(ctx, q, c.args...); err != nil {
 		return fmt.Errorf("db.Exec: %w", err)
 	}
 
@@ -225,86 +235,4 @@ func (db *ProfileDB) requestNotification(ctx context.Context, user User, slug st
 	}
 
 	return nil
-}
-
-func prepareRequestCreateQuery(req NewRequest) (string, string, []interface{}) {
-	var createStrings []string
-	var numString []string
-	var args []interface{}
-
-	if req.KeycloakId != nil {
-		createStrings = append(createStrings, "keycloak_id")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.KeycloakId)
-	}
-	if req.RejectionNote != nil {
-		createStrings = append(createStrings, "rejection_note")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.RejectionNote)
-	}
-	if req.RequestName != nil {
-		createStrings = append(createStrings, "name")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.RequestName)
-	}
-	if req.RequestNote != nil {
-		createStrings = append(createStrings, "request_note")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.RequestNote)
-	}
-	if req.Status != nil {
-		createStrings = append(createStrings, "status")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.Status)
-	}
-	if req.Type != nil {
-		createStrings = append(createStrings, "type")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.Type)
-	}
-	if req.Months != nil {
-		createStrings = append(createStrings, "months")
-		numString = append(numString, fmt.Sprintf("$%d", len(numString)+1))
-		args = append(args, *req.Months)
-	}
-
-	concatedCreateString := strings.Join(createStrings, ",")
-	concatedNumString := strings.Join(numString, ",")
-
-	return concatedCreateString, concatedNumString, args
-}
-
-func prepareRequestUpdate(req NewRequest) (string, []interface{}) {
-	var updateStrings []string
-	var args []interface{}
-
-	if req.RejectionNote != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("rejection_note=$%d", len(updateStrings)+1))
-		args = append(args, *req.RejectionNote)
-	}
-	if req.RequestName != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("name=$%d", len(updateStrings)+1))
-		args = append(args, *req.RequestName)
-	}
-	if req.RequestNote != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("request_note=$%d", len(updateStrings)+1))
-		args = append(args, *req.RequestNote)
-	}
-	if req.Status != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("status=$%d", len(updateStrings)+1))
-		args = append(args, *req.Status)
-	}
-	if req.Type != nil {
-		updateStrings = append(updateStrings, fmt.Sprintf("type=$%d", len(updateStrings)+1))
-		args = append(args, *req.Type)
-	}
-
-	if len(args) != 0 {
-		updateStrings = append(updateStrings, fmt.Sprintf("updated_at=$%d", len(updateStrings)+1))
-		args = append(args, time.Now())
-	}
-
-	updateArgument := strings.Join(updateStrings, ",")
-
-	return updateArgument, args
 }
