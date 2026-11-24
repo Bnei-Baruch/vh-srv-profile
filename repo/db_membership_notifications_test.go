@@ -61,7 +61,7 @@ func Test_applyMembershipNotifications_ActiveMembershipClearsRefused(t *testing.
 	db := newTestProfileDBIsolated(t)
 	userID := newUserWithActiveNotification(t, db, common.NotificationSlugHHRequestRefused)
 
-	require.NoError(t, db.applyMembershipNotifications(testContext(), userID, nil, true))
+	require.NoError(t, db.applyMembershipNotifications(testContext(), userID, nil, true, false))
 
 	assert.Empty(t, activeSlugs(t, db, userID))
 }
@@ -72,19 +72,31 @@ func Test_applyMembershipNotifications_InactiveMembershipKeepsRefused(t *testing
 	userID := newUserWithActiveNotification(t, db, common.NotificationSlugHHRequestRefused)
 
 	require.NoError(t, db.applyMembershipNotifications(testContext(), userID,
-		[]string{common.NotificationSlugMBNew}, false))
+		[]string{common.NotificationSlugMBNew}, false, true))
 
 	assert.ElementsMatch(t,
 		[]string{common.NotificationSlugMBNew, common.NotificationSlugHHRequestRefused},
 		activeSlugs(t, db, userID))
 }
 
-// hh_request_approved coexists with a valid membership by design — never cleared here.
-func Test_applyMembershipNotifications_ActiveMembershipKeepsApproved(t *testing.T) {
+// clearStaleHHApproved=false keeps the approved notice (still accurate — live V1
+// grant, or a V2 help-haver whose banner is a discount notice, not ours to clear).
+func Test_applyMembershipNotifications_KeepsApprovedWhenNotStale(t *testing.T) {
 	db := newTestProfileDBIsolated(t)
 	userID := newUserWithActiveNotification(t, db, common.NotificationSlugHHRequestApproved)
 
-	require.NoError(t, db.applyMembershipNotifications(testContext(), userID, nil, true))
+	require.NoError(t, db.applyMembershipNotifications(testContext(), userID, nil, true, false))
 
 	assert.Equal(t, []string{common.NotificationSlugHHRequestApproved}, activeSlugs(t, db, userID))
+}
+
+// Bug fix: clearStaleHHApproved=true clears the stale "approved" notice — the V1
+// grant that justified it was cancelled/superseded (e.g. by a renewal payment).
+func Test_applyMembershipNotifications_ClearsApprovedWhenStale(t *testing.T) {
+	db := newTestProfileDBIsolated(t)
+	userID := newUserWithActiveNotification(t, db, common.NotificationSlugHHRequestApproved)
+
+	require.NoError(t, db.applyMembershipNotifications(testContext(), userID, nil, true, true))
+
+	assert.Empty(t, activeSlugs(t, db, userID))
 }
