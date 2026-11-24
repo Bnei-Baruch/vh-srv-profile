@@ -7,7 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/Nerzal/gocloak/v13"
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 
 	"gitlab.bbdev.team/vh/vh-srv-profile/common"
 	"gitlab.bbdev.team/vh/vh-srv-profile/pkg/utils"
@@ -54,13 +54,13 @@ func (c *ServiceClient) AccessToken(ctx context.Context) string {
 	}
 
 	// we have a token now, let's use it if it's valid
-	if err = c.claims.Valid(); err == nil {
+	if err = c.claimsValid(); err == nil {
 		return c.token.AccessToken
 	}
 
 	// our token has probably expired, let's try to refresh
 	if err = c.refresh(ctx, c.token.RefreshToken); err == nil {
-		if err = c.claims.Valid(); err == nil {
+		if err = c.claimsValid(); err == nil {
 			return c.token.AccessToken
 		}
 	}
@@ -71,12 +71,17 @@ func (c *ServiceClient) AccessToken(ctx context.Context) string {
 		utils.LogFor(ctx).Warn("keycloak.Client.AccessToken() error login after failed refresh", slog.Any("err", err))
 		return ""
 	}
-	if err = c.claims.Valid(); err != nil {
+	if err = c.claimsValid(); err != nil {
 		utils.LogFor(ctx).Warn("keycloak.Client.AccessToken() login after failed refresh got invalid claims", slog.Any("err", err))
 		return ""
 	}
 
 	return c.token.AccessToken
+}
+
+// claimsValid checks the cached token's time-based claims (exp, nbf).
+func (c *ServiceClient) claimsValid() error {
+	return jwt.NewValidator().Validate(*c.claims)
 }
 
 // Invalidate clears the cached token, forcing a fresh login on next Token() call

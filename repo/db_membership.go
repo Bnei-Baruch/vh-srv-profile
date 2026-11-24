@@ -235,7 +235,7 @@ func (db *ProfileDB) EvaluateMembershipByUserID(ctx context.Context, evalBody Em
 				utils.LogFor(ctx).Warn("db_membership.Eval payment details not found for order", slog.Int("order_id", latestOrder.ID))
 				hub := utils.SentryFor(ctx)
 				hub.WithScope(func(scope *sentry.Scope) {
-					scope.SetExtra("order_id", latestOrder.ID)
+					scope.SetContext("membership", sentry.Context{"order_id": latestOrder.ID})
 					hub.CaptureMessage("payment details not found")
 				})
 
@@ -923,7 +923,7 @@ func (db *ProfileDB) GetMembershipByUserID(ctx context.Context, userID string) (
 			utils.LogFor(ctx).Warn("user no longer in special table", slog.String("user_id", userID))
 			hub := utils.SentryFor(ctx)
 			hub.WithScope(func(scope *sentry.Scope) {
-				scope.SetExtra("user_id", userID)
+				scope.SetContext("membership", sentry.Context{"user_id": userID})
 				hub.CaptureMessage("user no longer in special table")
 			})
 		}
